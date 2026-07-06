@@ -3,7 +3,7 @@ import { supabase, BUCKET } from './supabaseClient'
 
 // ⚠️ MODO PRUEBA: pega aquí el id de una empresa
 //   (Supabase → Table Editor → tabla "terceros" → columna "id", p. ej. GEMINI LOGISTICS).
-const TERCERO_DEMO_ID = '43725368-8b63-4498-9c60-823b887252b6'
+const TERCERO_DEMO_ID = ''
 
 // Centros de servicio. Por ahora fijos; más adelante se leen de la tabla que administra el Brain.
 const SC_LIST = ['AMX7','ECH4','ECH5','EGD0','EGD9','EHM4','EHM5','EHP5','EHP6','ELP2','ELP3','EPB3','EQR2','ERX6','ETA4','ETG4','ETL1','ETL2','EVM2','EVR3','EZL1','SAG1','SBJ1','SCC1','SCD1','SCG1','SCH1','SCJ1','SCM1','SCN1','SCP1','SCQ1','SCT1','SCU1','SCV1','SCX1','SCY1','SDC1','SDG1','SEN1','SGD1','SGD2','SGD3','SGD4','SHM1','SHP1','SHP2','SJA1','SJD1','SLE1','SLP1','SLV1','SLW1','SLZ1','SMA1','SMD1','SML1','SMO1','SMT1','SMT2','SMT3','SMX1','SMX10','SMX2','SMX3','SMX4','SMX5','SMX6','SMX7','SMX8','SMX9','SMZ1','SNG1','SNL1','SOX1','SPB1','SPD1','SPV1','SPY1','SPZ1','SQR1','SQR2','SRX1','SSL1','STA1','STG1','STJ1','STL1','STL2','STN1','STP1','STR1','STT1','STX1','SUR1','SVH1','SVM1','SVR1','SXL1','SZC1','SZL1','SZM1','XSM11']; // 103 centros; luego se leen de la tabla del Brain
@@ -300,6 +300,8 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     setErr(''); setOk('')
     if (!sc) { setErr('Elige el centro de servicio (SC).'); return }
     if (!f.placa.trim()) { setErr('La placa es obligatoria.'); return }
+    const fotosReq = ['foto_frente', 'foto_trasera', 'foto_lado_izq', 'foto_lado_der']
+    if (fotosReq.some(k => !files[k])) { setErr('Adjunta las 4 fotos del vehículo (frente, trasera y ambos lados).'); return }
     setBusy(true)
     try {
       const { data: cert, error } = await supabase.from('certificaciones')
@@ -333,6 +335,14 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
         <div className="form-grid">
           <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => set('placa', e.target.value)} placeholder="Ej. ST2965E" /></div>
           <div className="field"><label>VIN / número de serie</label><input value={f.vin} onChange={e => set('vin', e.target.value)} placeholder="Opcional" /></div>
+        </div>
+
+        <div className="section-title">Fotos del vehículo (obligatorias)</div>
+        <div className="form-grid">
+          <FileField label="Frente" tipoDoc="foto_frente" files={files} setFiles={setFiles} />
+          <FileField label="Trasera" tipoDoc="foto_trasera" files={files} setFiles={setFiles} />
+          <FileField label="Lado izquierdo" tipoDoc="foto_lado_izq" files={files} setFiles={setFiles} />
+          <FileField label="Lado derecho" tipoDoc="foto_lado_der" files={files} setFiles={setFiles} />
         </div>
 
         <div className="section-title">Documentos</div>
