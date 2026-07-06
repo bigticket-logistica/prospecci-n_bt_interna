@@ -8,4 +8,4 @@ if (!url || !anon) {
 }
 
 export const supabase = createClient(url, anon)
-export const BUCKET = 'certificaciones-docs'
+export const BUCKET = 'proceso_certificacion_bt'
