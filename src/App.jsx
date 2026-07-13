@@ -231,6 +231,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
     if (!files.ine) falta.push('Documento: INE — frente')
     if (!files.ine_reverso) falta.push('Documento: INE — reverso')
     if (!files.curp) falta.push('Documento: CURP (PDF)')
+    if (!files.rfc) falta.push('Documento: RFC')
     if (esConductor && !files.licencia) falta.push('Documento: Licencia')
     if (falta.length) { setIntentado(true); setFaltan(falta); return }
     setFaltan([]); setBusy(true)
@@ -299,6 +300,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
           <FileField label="INE — frente" tipoDoc="ine" files={files} setFiles={setFiles} missing={intentado} />
           <FileField label="INE — reverso" tipoDoc="ine_reverso" files={files} setFiles={setFiles} missing={intentado} />
           <FileField label="CURP (PDF)" tipoDoc="curp" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="RFC (PDF)" tipoDoc="rfc" files={files} setFiles={setFiles} missing={intentado} />
           {esConductor && <FileField label="Licencia" tipoDoc="licencia" files={files} setFiles={setFiles} missing={intentado} />}
         </div>
 
