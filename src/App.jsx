@@ -177,19 +177,20 @@ function Estado({ tercero, onBack }) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-function SCSelect({ value, onChange }) {
+function SCSelect({ value, onChange, invalid }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}>
+    <select value={value} onChange={e => onChange(e.target.value)} style={invalid ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined}>
       <option value="">Selecciona el centro…</option>
       {SC_LIST.map(s => <option key={s} value={s}>{s}</option>)}
     </select>
   )
 }
-function FileField({ label, tipoDoc, files, setFiles }) {
+function FileField({ label, tipoDoc, files, setFiles, missing }) {
   const has = !!files[tipoDoc]
+  const showMiss = missing && !has
   return (
-    <div className={`file-row ${has ? 'done' : ''}`}>
-      <label>{label}{has && ' ✓'}</label>
+    <div className={`file-row ${has ? 'done' : ''}`} style={showMiss ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined}>
+      <label>{label}{has ? ' ✓' : (showMiss ? <span style={{ color: '#dc2626' }}> — falta</span> : '')}</label>
       <label className="file-btn">{has ? 'Cambiar' : 'Subir archivo'}
         <input type="file" accept="image/*,application/pdf" onChange={e => setFiles({ ...files, [tipoDoc]: e.target.files[0] })} /></label>
     </div>
@@ -210,13 +211,29 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
   const [f, setF] = useState({ nombre: '', curp: '', rfc: '', telefono: '', licencia_numero: '', licencia_estado: '', licencia_vigencia: '' })
   const [files, setFiles] = useState({})
   const [err, setErr] = useState(''); const [ok, setOk] = useState(''); const [busy, setBusy] = useState(false)
+  const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
+  const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
   const set = (k, v) => setF({ ...f, [k]: v })
 
   async function enviar() {
     setErr(''); setOk('')
-    if (!sc) { setErr('Elige el centro de servicio (SC).'); return }
-    if (!f.nombre.trim() || !f.curp.trim()) { setErr('Nombre y CURP son obligatorios.'); return }
-    setBusy(true)
+    const falta = []
+    if (!sc) falta.push('Centro de servicio (SC)')
+    if (!f.nombre.trim()) falta.push('Nombre completo')
+    if (!f.curp.trim()) falta.push('CURP')
+    if (!f.rfc.trim()) falta.push('RFC')
+    if (!f.telefono.trim()) falta.push('Teléfono')
+    if (esConductor) {
+      if (!f.licencia_numero.trim()) falta.push('Número de licencia')
+      if (!f.licencia_estado) falta.push('Estado emisor de la licencia')
+      if (!f.licencia_vigencia) falta.push('Vigencia de la licencia')
+    }
+    if (!files.ine) falta.push('Documento: INE — frente')
+    if (!files.ine_reverso) falta.push('Documento: INE — reverso')
+    if (!files.curp) falta.push('Documento: CURP (PDF)')
+    if (esConductor && !files.licencia) falta.push('Documento: Licencia')
+    if (falta.length) { setIntentado(true); setFaltan(falta); return }
+    setFaltan([]); setBusy(true)
     try {
       const { data: cert, error } = await supabase.from('certificaciones')
         .insert({ tercero_id: tercero.tercero_id, tipo, estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc })
@@ -243,40 +260,46 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
       <div className="page-head"><div><h2>Certificar {esConductor ? 'conductor' : 'ayudante'}</h2>
         <div className="lede">Datos de la persona que quieres ingresar a la operación.</div></div></div>
       <div className="form-card">
+        {faltan.length > 0 && (
+          <div className="form-error">
+            <b>Faltan datos obligatorios:</b>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{faltan.map(x => <li key={x}>{x}</li>)}</ul>
+          </div>
+        )}
         {err && <div className="form-error">{err}</div>}
         {ok && <div className="form-ok">{ok}</div>}
 
         <div className="section-title" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>Centro de servicio</div>
-        <div className="form-grid"><div className="field"><label>Centro de servicio (SC) *</label><SCSelect value={sc} onChange={setSc} /></div></div>
+        <div className="form-grid"><div className="field"><label>Centro de servicio (SC) *</label><SCSelect value={sc} onChange={setSc} invalid={intentado && !sc} /></div></div>
 
         <div className="section-title">Datos personales</div>
         <div className="form-grid">
-          <div className="field full"><label>Nombre completo *</label><input value={f.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Nombre y apellidos" /></div>
-          <div className="field"><label>CURP *</label><input value={f.curp} onChange={e => set('curp', e.target.value)} placeholder="18 caracteres" maxLength={18} /></div>
-          <div className="field"><label>RFC</label><input value={f.rfc} onChange={e => set('rfc', e.target.value)} placeholder="Opcional" maxLength={13} /></div>
-          <div className="field"><label>Teléfono</label><input value={f.telefono} onChange={e => set('telefono', e.target.value)} placeholder="10 dígitos" /></div>
+          <div className="field full"><label>Nombre completo *</label><input value={f.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Nombre y apellidos" style={miss(!f.nombre.trim())} /></div>
+          <div className="field"><label>CURP *</label><input value={f.curp} onChange={e => set('curp', e.target.value)} placeholder="18 caracteres" maxLength={18} style={miss(!f.curp.trim())} /></div>
+          <div className="field"><label>RFC *</label><input value={f.rfc} onChange={e => set('rfc', e.target.value)} placeholder="13 caracteres" maxLength={13} style={miss(!f.rfc.trim())} /></div>
+          <div className="field"><label>Teléfono *</label><input value={f.telefono} onChange={e => set('telefono', e.target.value)} placeholder="10 dígitos" style={miss(!f.telefono.trim())} /></div>
         </div>
 
         {esConductor && (
           <>
             <div className="section-title">Licencia de conducir</div>
             <div className="form-grid">
-              <div className="field"><label>Número de licencia</label><input value={f.licencia_numero} onChange={e => set('licencia_numero', e.target.value)} /></div>
-              <div className="field"><label>Estado emisor</label>
-                <select value={f.licencia_estado} onChange={e => set('licencia_estado', e.target.value)}>
+              <div className="field"><label>Número de licencia *</label><input value={f.licencia_numero} onChange={e => set('licencia_numero', e.target.value)} style={miss(!f.licencia_numero.trim())} /></div>
+              <div className="field"><label>Estado emisor *</label>
+                <select value={f.licencia_estado} onChange={e => set('licencia_estado', e.target.value)} style={miss(!f.licencia_estado)}>
                   <option value="">Selecciona…</option>{ESTADOS_MX.map(s => <option key={s} value={s}>{s}</option>)}
                 </select></div>
-              <div className="field"><label>Vigencia</label><input type="date" value={f.licencia_vigencia} onChange={e => set('licencia_vigencia', e.target.value)} /></div>
+              <div className="field"><label>Vigencia *</label><input type="date" value={f.licencia_vigencia} onChange={e => set('licencia_vigencia', e.target.value)} style={miss(!f.licencia_vigencia)} /></div>
             </div>
           </>
         )}
 
-        <div className="section-title">Documentos</div>
+        <div className="section-title">Documentos (obligatorios)</div>
         <div className="form-grid">
-          <FileField label="INE — frente" tipoDoc="ine" files={files} setFiles={setFiles} />
-          <FileField label="INE — reverso" tipoDoc="ine_reverso" files={files} setFiles={setFiles} />
-          <FileField label="CURP (PDF)" tipoDoc="curp" files={files} setFiles={setFiles} />
-          {esConductor && <FileField label="Licencia" tipoDoc="licencia" files={files} setFiles={setFiles} />}
+          <FileField label="INE — frente" tipoDoc="ine" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="INE — reverso" tipoDoc="ine_reverso" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="CURP (PDF)" tipoDoc="curp" files={files} setFiles={setFiles} missing={intentado} />
+          {esConductor && <FileField label="Licencia" tipoDoc="licencia" files={files} setFiles={setFiles} missing={intentado} />}
         </div>
 
         <div className="form-actions">
@@ -294,15 +317,22 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
   const [f, setF] = useState({ placa: '', vin: '' })
   const [files, setFiles] = useState({})
   const [err, setErr] = useState(''); const [ok, setOk] = useState(''); const [busy, setBusy] = useState(false)
+  const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
+  const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
   const set = (k, v) => setF({ ...f, [k]: v })
 
   async function enviar() {
     setErr(''); setOk('')
-    if (!sc) { setErr('Elige el centro de servicio (SC).'); return }
-    if (!f.placa.trim()) { setErr('La placa es obligatoria.'); return }
-    const fotosReq = ['foto_frente', 'foto_trasera', 'foto_lado_izq', 'foto_lado_der']
-    if (fotosReq.some(k => !files[k])) { setErr('Adjunta las 4 fotos del vehículo (frente, trasera y ambos lados).'); return }
-    setBusy(true)
+    const falta = []
+    if (!sc) falta.push('Centro de servicio (SC)')
+    if (!f.placa.trim()) falta.push('Placa')
+    if (!files.foto_frente) falta.push('Foto: Frente')
+    if (!files.foto_trasera) falta.push('Foto: Trasera')
+    if (!files.foto_lado_izq) falta.push('Foto: Lado izquierdo')
+    if (!files.foto_lado_der) falta.push('Foto: Lado derecho')
+    if (!files.tarjeta_circulacion) falta.push('Documento: Tarjeta de circulación')
+    if (falta.length) { setIntentado(true); setFaltan(falta); return }
+    setFaltan([]); setBusy(true)
     try {
       const { data: cert, error } = await supabase.from('certificaciones')
         .insert({ tercero_id: tercero.tercero_id, tipo: 'vehiculo', estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc })
@@ -325,28 +355,34 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
       <div className="page-head"><div><h2>Certificar vehículo</h2>
         <div className="lede">Datos del vehículo que quieres ingresar a la operación.</div></div></div>
       <div className="form-card">
+        {faltan.length > 0 && (
+          <div className="form-error">
+            <b>Faltan datos obligatorios:</b>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{faltan.map(x => <li key={x}>{x}</li>)}</ul>
+          </div>
+        )}
         {err && <div className="form-error">{err}</div>}
         {ok && <div className="form-ok">{ok}</div>}
 
         <div className="section-title" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>Centro de servicio</div>
-        <div className="form-grid"><div className="field"><label>Centro de servicio (SC) *</label><SCSelect value={sc} onChange={setSc} /></div></div>
+        <div className="form-grid"><div className="field"><label>Centro de servicio (SC) *</label><SCSelect value={sc} onChange={setSc} invalid={intentado && !sc} /></div></div>
 
         <div className="section-title">Datos del vehículo</div>
         <div className="form-grid">
-          <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => set('placa', e.target.value)} placeholder="Ej. ST2965E" /></div>
+          <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => set('placa', e.target.value)} placeholder="Ej. ST2965E" style={miss(!f.placa.trim())} /></div>
           <div className="field"><label>VIN / número de serie</label><input value={f.vin} onChange={e => set('vin', e.target.value)} placeholder="Opcional" /></div>
         </div>
 
         <div className="section-title">Fotos del vehículo (obligatorias)</div>
         <div className="form-grid">
-          <FileField label="Frente" tipoDoc="foto_frente" files={files} setFiles={setFiles} />
-          <FileField label="Trasera" tipoDoc="foto_trasera" files={files} setFiles={setFiles} />
-          <FileField label="Lado izquierdo" tipoDoc="foto_lado_izq" files={files} setFiles={setFiles} />
-          <FileField label="Lado derecho" tipoDoc="foto_lado_der" files={files} setFiles={setFiles} />
+          <FileField label="Frente" tipoDoc="foto_frente" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="Trasera" tipoDoc="foto_trasera" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="Lado izquierdo" tipoDoc="foto_lado_izq" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="Lado derecho" tipoDoc="foto_lado_der" files={files} setFiles={setFiles} missing={intentado} />
         </div>
 
-        <div className="section-title">Documentos</div>
-        <div className="form-grid"><FileField label="Tarjeta de circulación" tipoDoc="tarjeta_circulacion" files={files} setFiles={setFiles} /></div>
+        <div className="section-title">Documentos (obligatorios)</div>
+        <div className="form-grid"><FileField label="Tarjeta de circulación" tipoDoc="tarjeta_circulacion" files={files} setFiles={setFiles} missing={intentado} /></div>
 
         <div className="form-actions">
           <button className="btn btn-ghost" onClick={onBack}>Cancelar</button>
