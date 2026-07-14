@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 
-// ⚠️ MODO PRUEBA: pega aquí el id de una empresa
-//   (Supabase → Table Editor → tabla "terceros" → columna "id", p. ej. GEMINI LOGISTICS).
-const TERCERO_DEMO_ID = '43725368-8b63-4498-9c60-823b887252b6'
+// Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
+const MIFIEL_ENV = 'sandbox'
 
 // Centros de servicio. Por ahora fijos; más adelante se leen de la tabla que administra el Brain.
 const SC_LIST = ['AMX7','ECH4','ECH5','EGD0','EGD9','EHM4','EHM5','EHP5','EHP6','ELP2','ELP3','EPB3','EQR2','ERX6','ETA4','ETG4','ETL1','ETL2','EVM2','EVR3','EZL1','SAG1','SBJ1','SCC1','SCD1','SCG1','SCH1','SCJ1','SCM1','SCN1','SCP1','SCQ1','SCT1','SCU1','SCV1','SCX1','SCY1','SDC1','SDG1','SEN1','SGD1','SGD2','SGD3','SGD4','SHM1','SHP1','SHP2','SJA1','SJD1','SLE1','SLP1','SLV1','SLW1','SLZ1','SMA1','SMD1','SML1','SMO1','SMT1','SMT2','SMT3','SMX1','SMX10','SMX2','SMX3','SMX4','SMX5','SMX6','SMX7','SMX8','SMX9','SMZ1','SNG1','SNL1','SOX1','SPB1','SPD1','SPV1','SPY1','SPZ1','SQR1','SQR2','SRX1','SSL1','STA1','STG1','STJ1','STL1','STL2','STN1','STP1','STR1','STT1','STX1','SUR1','SVH1','SVM1','SVR1','SXL1','SZC1','SZL1','SZM1','XSM11']; // 103 centros; luego se leen de la tabla del Brain
@@ -15,11 +14,22 @@ const ESTADOS_MX = [
   'QUINTANA ROO','SAN LUIS POTOSI','SINALOA','SONORA','TABASCO','TAMAULIPAS','TLAXCALA','VERACRUZ','YUCATAN','ZACATECAS',
 ]
 const ESTADO_LABEL = { enviado:'Enviado', en_validacion:'En validación', validado:'Validado', con_alertas:'Con alertas', rechazado:'Rechazado', certificado:'Certificado' }
+// Etapa del proceso (Kanban del Brain) → etiqueta y color para la empresa
+const ETAPA_PORTAL = {
+  recepcion:           { t: 'Recibido',                 c: '#1a3a6b', bg: '#eef2f7' },
+  prevalidacion_biggy: { t: 'En pre-validación',        c: '#F47B20', bg: '#fff4ec' },
+  validacion_meli:     { t: 'Validación MELI',          c: '#1a3a6b', bg: '#eef2f7' },
+  validacion_nubarium: { t: 'Validación oficial',       c: '#1a3a6b', bg: '#eef2f7' },
+  firma_contrato:      { t: 'Firma de contrato',        c: '#7c3aed', bg: '#f5f0fe' },
+  aceptado:            { t: 'Certificado ✓',            c: '#166534', bg: '#e8f5ec' },
+  rechazado:           { t: 'Rechazado',                c: '#c0392b', bg: '#fbeaea' },
+}
 const TIPO_LABEL = { conductor:'Conductor', ayudante:'Ayudante', vehiculo:'Vehículo' }
 
 export default function App() {
   const [session, setSession] = useState(null)
-  const [view, setView] = useState('home') // home | estado | conductor | ayudante | vehiculo
+  const [view, setView] = useState('home') // home | estado | conductor | ayudante | vehiculo | firma
+  const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -27,15 +37,38 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  if (!session) return <Login />
-  if (!TERCERO_DEMO_ID) return <FaltaId />
+  // Resuelve la empresa del usuario que inició sesión (usuarios_terceros → terceros)
+  useEffect(() => {
+    if (!session) { setTercero(undefined); return }
+    let cancel = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('usuarios_terceros')
+        .select('tercero_id, terceros(nombre)')
+        .eq('auth_email', session.user.email.toLowerCase())
+        .maybeSingle()
+      if (cancel) return
+      if (!data) { setTercero(null); return }
+      const t = Array.isArray(data.terceros) ? data.terceros[0] : data.terceros
+      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa' })
+    })()
+    return () => { cancel = true }
+  }, [session])
 
-  const tercero = { tercero_id: TERCERO_DEMO_ID, nombre: 'Empresa de prueba' }
+  if (!session) return <Login />
+  if (tercero === undefined) return <PantallaCentro titulo="Cargando…" texto="Buscando tu empresa." />
+  if (tercero === null) return (
+    <PantallaCentro titulo="Cuenta sin empresa asociada"
+      texto={`El correo ${session.user.email} no está vinculado a ninguna empresa. Escríbenos para activarlo.`}
+      accion={<button className="btn btn-ghost" onClick={() => supabase.auth.signOut()}>Salir</button>} />
+  )
+
   const email = session.user.email
   return (
     <Shell tercero={tercero} email={email}>
       {view === 'home' && <Home onPick={setView} />}
       {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'firma' && <Firma tercero={tercero} onBack={() => setView('home')} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
       {view === 'vehiculo' &&
@@ -79,15 +112,13 @@ function Login() {
   )
 }
 
-function FaltaId() {
+function PantallaCentro({ titulo, texto, accion }) {
   return (
     <div className="login-form-side" style={{ minHeight: '100vh' }}>
       <div className="login-card" style={{ textAlign: 'center' }}>
-        <h2>Falta el id de la empresa de prueba</h2>
-        <div className="sub" style={{ marginTop: 8 }}>
-          Abre <b>src/App.jsx</b> y pega el <b>id</b> de una empresa en <b>TERCERO_DEMO_ID</b>
-          (lo copias de Supabase → Table Editor → terceros). Luego vuelve a desplegar.
-        </div>
+        <h2>{titulo}</h2>
+        <div className="sub" style={{ marginTop: 8 }}>{texto}</div>
+        {accion && <div style={{ marginTop: 14 }}>{accion}</div>}
       </div>
     </div>
   )
@@ -122,6 +153,8 @@ function Home({ onPick }) {
           <div className="ic">🧑‍🤝‍🧑</div><h3>Certificar ayudante</h3><p>Valida identidad (CURP, RFC, INE) y antecedentes de un ayudante.</p></button>
         <button className="type-card" onClick={() => onPick('vehiculo')}>
           <div className="ic">🚚</div><h3>Certificar vehículo</h3><p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p></button>
+        <button className="type-card" onClick={() => onPick('firma')}>
+          <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
         <button className="type-card estado" onClick={() => onPick('estado')}>
           <div className="ic">📋</div><h3>Estado de certificación</h3><p>Revisa todo lo que has enviado y en qué estado va.</p></button>
       </div>
@@ -136,7 +169,7 @@ function Estado({ tercero, onBack }) {
     ;(async () => {
       const { data } = await supabase
         .from('certificaciones')
-        .select('id, tipo, estado, enviado_at, service_center, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca)')
+        .select('id, tipo, estado, etapa_kanban, enviado_at, service_center, contrato_firmado_at, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca)')
         .eq('tercero_id', tercero.tercero_id)
         .order('enviado_at', { ascending: false })
       setRows(data || [])
@@ -156,14 +189,19 @@ function Estado({ tercero, onBack }) {
             <tbody>
               {rows.map(r => {
                 const persona = r.tipo !== 'vehiculo'
-                const c = r.certificacion_conductor, v = r.certificacion_vehiculo
+                const c = Array.isArray(r.certificacion_conductor) ? r.certificacion_conductor[0] : r.certificacion_conductor
+                const v = Array.isArray(r.certificacion_vehiculo) ? r.certificacion_vehiculo[0] : r.certificacion_vehiculo
+                const et = ETAPA_PORTAL[r.etapa_kanban]
                 return (
                   <tr key={r.id}>
                     <td><span className="tipo-pill">{TIPO_LABEL[r.tipo] || r.tipo}</span></td>
                     <td>{persona ? (c?.nombre || '—') : (v?.marca || 'Vehículo')}</td>
                     <td>{persona ? (c?.curp || '—') : (v?.placa || '—')}</td>
                     <td>{r.service_center || '—'}</td>
-                    <td><span className={`badge ${r.estado}`}>{ESTADO_LABEL[r.estado] || r.estado}</span></td>
+                    <td>{et
+                      ? <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, color: et.c, background: et.bg, border: `1px solid ${et.c}22` }}>{et.t}</span>
+                      : <span className={`badge ${r.estado}`}>{ESTADO_LABEL[r.estado] || r.estado}</span>}
+                    </td>
                     <td>{r.enviado_at ? new Date(r.enviado_at).toLocaleDateString('es-MX') : '—'}</td>
                   </tr>
                 )
@@ -174,6 +212,106 @@ function Estado({ tercero, onBack }) {
       </div>
     </>
   )
+}
+
+// ── Firma de contrato (MIFIEL embebido) ─────────────────────────────
+function Firma({ tercero, onBack }) {
+  const [rows, setRows] = useState(null)
+  const [abierto, setAbierto] = useState(null) // id de la certificación con el widget abierto
+
+  // Carga el script del widget de MIFIEL una sola vez
+  useEffect(() => {
+    if (document.querySelector('script[data-mifiel-widget]')) return
+    const s = document.createElement('script')
+    s.type = 'module'
+    s.src = 'https://app.mifiel.com/widget-component/index.js'
+    s.setAttribute('data-mifiel-widget', '1')
+    document.head.appendChild(s)
+  }, [])
+
+  async function cargar() {
+    const { data } = await supabase
+      .from('certificaciones')
+      .select('id, tipo, etapa_kanban, contrato_enviado_at, contrato_firmado_at, mifiel_documento_id, mifiel_widget_conductor, mifiel_firmado_conductor, mifiel_firmado_bigticket, certificacion_conductor(nombre,curp)')
+      .eq('tercero_id', tercero.tercero_id)
+      .not('mifiel_documento_id', 'is', null)
+      .order('contrato_enviado_at', { ascending: false })
+    setRows(data || [])
+  }
+  useEffect(() => { cargar() }, [tercero])
+
+  const ChipFirma = ({ label, listo }) => (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+      background: listo ? '#e8f5ec' : '#fff', color: listo ? '#166534' : '#7c3aed',
+      border: `1px solid ${listo ? '#b7e0c2' : '#ddd0f7'}` }}>
+      {listo ? '✓' : '⏳'} {label}
+    </span>
+  )
+
+  async function firmaExitosa(cert) {
+    // Feedback inmediato; la confirmación oficial llega por el webhook de MIFIEL al Brain
+    await supabase.from('certificaciones').update({ mifiel_firmado_conductor: true }).eq('id', cert.id)
+    setAbierto(null)
+    cargar()
+  }
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Firma de contrato</h2>
+        <div className="lede">Contratos enviados a firma digital. Firma aquí mismo con tu e.firma (SAT), sin salir del portal.</div></div></div>
+      <div className="card">
+        {rows === null ? <div className="loading">Cargando…</div>
+        : rows.length === 0 ? (
+          <div className="empty"><h3>No tienes contratos por firmar</h3>
+            <p>Cuando tu personal esté validado, el contrato aparecerá aquí para firmarlo digitalmente.</p></div>
+        ) : rows.map(r => {
+          const c = Array.isArray(r.certificacion_conductor) ? r.certificacion_conductor[0] : r.certificacion_conductor
+          const firmado = !!r.contrato_firmado_at
+          const puedeFirmar = !firmado && !r.mifiel_firmado_conductor && r.mifiel_widget_conductor
+          return (
+            <div key={r.id} style={{ border: '1px solid #e4e7ec', borderRadius: 12, padding: '14px 16px', marginBottom: 12, background: firmado ? '#f6fdf8' : '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{c?.nombre || 'Sin nombre'}</div>
+                  <div style={{ fontSize: 12, color: '#777' }}>{TIPO_LABEL[r.tipo] || r.tipo} · {c?.curp || '—'}
+                    {r.contrato_enviado_at ? ` · enviado ${new Date(r.contrato_enviado_at).toLocaleDateString('es-MX')}` : ''}</div>
+                </div>
+                <ChipFirma label="Tu firma" listo={!!r.mifiel_firmado_conductor || firmado} />
+                <ChipFirma label="Bigticket" listo={!!r.mifiel_firmado_bigticket || firmado} />
+                {firmado && <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>✅ Contrato firmado</span>}
+                {puedeFirmar && (
+                  <button className="btn btn-primary" onClick={() => setAbierto(abierto === r.id ? null : r.id)}>
+                    {abierto === r.id ? 'Cerrar' : '✍️ Firmar ahora'}
+                  </button>
+                )}
+                {!firmado && r.mifiel_firmado_conductor && !r.mifiel_firmado_bigticket && (
+                  <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>Esperando la firma de Bigticket</span>
+                )}
+              </div>
+              {abierto === r.id && puedeFirmar && (
+                <div style={{ marginTop: 12, border: '1px solid #ddd0f7', borderRadius: 10, padding: 8, minHeight: 620, background: '#fff' }}>
+                  <FirmaWidget widgetId={r.mifiel_widget_conductor} onSuccess={() => firmaExitosa(r)} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+function FirmaWidget({ widgetId, onSuccess }) {
+  const ref = React.useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ok = () => onSuccess && onSuccess()
+    el.addEventListener('signSuccess', ok)
+    return () => el.removeEventListener('signSuccess', ok)
+  }, [widgetId])
+  return <mifiel-widget ref={ref} id={widgetId} environment={MIFIEL_ENV}></mifiel-widget>
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
