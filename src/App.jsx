@@ -90,7 +90,7 @@ function Login() {
   return (
     <div className="login-wrap">
       <div className="login-brand">
-        <div className="mark"><span className="dot" /><span>Bigticket</span></div>
+        <img src="/bt_white.png" alt="Bigticket" style={{ height: 34, width: 'auto', alignSelf: 'flex-start' }} />
         <div>
           <h1>Certifica a tus conductores, ayudantes y vehículos antes de que entren a operar.</h1>
           <p>Portal para empresas transportistas. Envía los datos y nosotros los validamos contra las fuentes oficiales.</p>
@@ -129,7 +129,10 @@ function Shell({ tercero, email, children }) {
   return (
     <>
       <div className="topbar">
-        <div className="mark"><span className="dot" /><b>Bigticket · Certificación</b></div>
+        <div className="mark" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/bt_white.png" alt="Bigticket" style={{ height: 24, width: 'auto', display: 'block' }} />
+          <b style={{ opacity: .9 }}>· Certificación</b>
+        </div>
         <div className="who">
           <span><span className="name">{tercero.nombre}</span> · {email}</span>
           <button className="logout" onClick={() => supabase.auth.signOut()}>Salir</button>
