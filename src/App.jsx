@@ -69,6 +69,8 @@ export default function App() {
       {view === 'home' && <Home onPick={setView} />}
       {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'baja' && <BajaVehiculo tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
       {view === 'vehiculo' &&
@@ -158,6 +160,10 @@ function Home({ onPick }) {
           <div className="ic">🚚</div><h3>Certificar vehículo</h3><p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p></button>
         <button className="type-card" onClick={() => onPick('firma')}>
           <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
+        <button className="type-card" onClick={() => onPick('baja')}>
+          <div className="ic">📤</div><h3>Baja de vehículo</h3><p>Solicita dar de baja un vehículo de tu flota operativa.</p></button>
+        <button className="type-card" onClick={() => onPick('consultas')}>
+          <div className="ic">💬</div><h3>Consultas</h3><p>Escríbenos cualquier duda y te respondemos por aquí.</p></button>
         <button className="type-card estado" onClick={() => onPick('estado')}>
           <div className="ic">📋</div><h3>Estado de certificación</h3><p>Revisa todo lo que has enviado y en qué estado va.</p></button>
       </div>
@@ -220,7 +226,8 @@ function Estado({ tercero, onBack }) {
 // ── Firma de contrato (MIFIEL embebido) ─────────────────────────────
 function Firma({ tercero, onBack }) {
   const [rows, setRows] = useState(null)
-  const [abierto, setAbierto] = useState(null) // id de la certificación con el widget abierto
+  const [docsGestion, setDocsGestion] = useState(null)
+  const [abierto, setAbierto] = useState(null) // id (cert o doc) con el widget abierto
 
   // Carga el script del widget de MIFIEL una sola vez
   useEffect(() => {
@@ -240,6 +247,14 @@ function Firma({ tercero, onBack }) {
       .not('mifiel_documento_id', 'is', null)
       .order('contrato_enviado_at', { ascending: false })
     setRows(data || [])
+    // Documentos del Gestionador (anexos, bajas, contratos sueltos) enviados desde el Brain
+    const { data: dg } = await supabase
+      .from('contratos_gestion')
+      .select('id, titulo, tipo, descripcion, estado, enviado_at, firmado_at, mifiel_widget_tercero, firmado_tercero, firmado_bigticket')
+      .eq('tercero_id', tercero.tercero_id)
+      .in('estado', ['enviado', 'firmado'])
+      .order('enviado_at', { ascending: false })
+    setDocsGestion(dg || [])
   }
   useEffect(() => { cargar() }, [tercero])
 
@@ -258,17 +273,27 @@ function Firma({ tercero, onBack }) {
     cargar()
   }
 
+  async function firmaGestionExitosa(doc) {
+    await supabase.from('contratos_gestion').update({ firmado_tercero: true }).eq('id', doc.id)
+    setAbierto(null)
+    cargar()
+  }
+
+  const TIPO_DOC = { contrato: 'Contrato', anexo: 'Anexo', baja_vehiculo: 'Baja de vehículo', otro: 'Documento' }
+
   return (
     <>
       <button className="back-link" onClick={onBack}>← Volver</button>
       <div className="page-head"><div><h2>Firma de contrato</h2>
         <div className="lede">Contratos enviados a firma digital. Firma aquí mismo con tu e.firma (SAT), sin salir del portal.</div></div></div>
       <div className="card">
-        {rows === null ? <div className="loading">Cargando…</div>
-        : rows.length === 0 ? (
-          <div className="empty"><h3>No tienes contratos por firmar</h3>
-            <p>Cuando tu personal esté validado, el contrato aparecerá aquí para firmarlo digitalmente.</p></div>
-        ) : rows.map(r => {
+        {rows === null || docsGestion === null ? <div className="loading">Cargando…</div>
+        : rows.length === 0 && docsGestion.length === 0 ? (
+          <div className="empty"><h3>No tienes documentos por firmar</h3>
+            <p>Cuando tu personal esté validado, o Bigticket te envíe un contrato, anexo o baja, aparecerá aquí para firmarlo digitalmente.</p></div>
+        ) : (
+        <>
+        {rows.map(r => {
           const c = Array.isArray(r.certificacion_conductor) ? r.certificacion_conductor[0] : r.certificacion_conductor
           const firmado = !!r.contrato_firmado_at
           const puedeFirmar = !firmado && !r.mifiel_firmado_conductor && r.mifiel_widget_conductor
@@ -300,6 +325,47 @@ function Firma({ tercero, onBack }) {
             </div>
           )
         })}
+
+        {docsGestion.length > 0 && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', margin: '18px 0 10px', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+            📑 Otros documentos (anexos, bajas y más)
+          </div>
+        )}
+        {docsGestion.map(d => {
+          const firmado = d.estado === 'firmado'
+          const puedeFirmar = !firmado && !d.firmado_tercero && d.mifiel_widget_tercero
+          const key = `g-${d.id}`
+          return (
+            <div key={key} style={{ border: '1px solid #e4e7ec', borderRadius: 12, padding: '14px 16px', marginBottom: 12, background: firmado ? '#f6fdf8' : '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{d.titulo}</div>
+                  <div style={{ fontSize: 12, color: '#777' }}>{TIPO_DOC[d.tipo] || 'Documento'}
+                    {d.descripcion ? ` · ${d.descripcion}` : ''}
+                    {d.enviado_at ? ` · enviado ${new Date(d.enviado_at).toLocaleDateString('es-MX')}` : ''}</div>
+                </div>
+                <ChipFirma label="Tu firma" listo={!!d.firmado_tercero || firmado} />
+                <ChipFirma label="Bigticket" listo={!!d.firmado_bigticket || firmado} />
+                {firmado && <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>✅ Firmado</span>}
+                {puedeFirmar && (
+                  <button className="btn btn-primary" onClick={() => setAbierto(abierto === key ? null : key)}>
+                    {abierto === key ? 'Cerrar' : '✍️ Firmar ahora'}
+                  </button>
+                )}
+                {!firmado && d.firmado_tercero && !d.firmado_bigticket && (
+                  <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>Esperando la firma de Bigticket</span>
+                )}
+              </div>
+              {abierto === key && puedeFirmar && (
+                <div style={{ marginTop: 12, border: '1px solid #ddd0f7', borderRadius: 10, padding: 8, minHeight: 620, background: '#fff' }}>
+                  <FirmaWidget widgetId={d.mifiel_widget_tercero} onSuccess={() => firmaGestionExitosa(d)} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+        </>
+        )}
       </div>
     </>
   )
@@ -315,6 +381,175 @@ function FirmaWidget({ widgetId, onSuccess }) {
     return () => el.removeEventListener('signSuccess', ok)
   }, [widgetId])
   return <mifiel-widget ref={ref} id={widgetId} environment={MIFIEL_ENV}></mifiel-widget>
+}
+
+// ── Consultas (chat con Bigticket) ───────────────────────────────────
+function Consultas({ tercero, onBack }) {
+  const [msgs, setMsgs] = useState(null)
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function cargar() {
+    const { data } = await supabase
+      .from('mensajes_terceros')
+      .select('*')
+      .eq('tercero_id', tercero.tercero_id)
+      .order('created_at', { ascending: true })
+    setMsgs(data || [])
+  }
+  useEffect(() => { cargar() }, [tercero])
+
+  async function enviar() {
+    const t = texto.trim()
+    if (!t || enviando) return
+    setEnviando(true)
+    setTexto('')
+    const { data, error } = await supabase
+      .from('mensajes_terceros')
+      .insert({ tercero_id: tercero.tercero_id, autor: 'tercero', mensaje: t })
+      .select('*').single()
+    if (error) { alert('No se pudo enviar: ' + error.message); setTexto(t) }
+    else setMsgs(prev => [...(prev || []), data])
+    setEnviando(false)
+  }
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Consultas</h2>
+        <div className="lede">Escríbenos cualquier duda sobre tus certificaciones, pagos o documentos. El equipo de Bigticket te responde por aquí.</div></div></div>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 420 }}>
+        <div style={{ flex: 1, overflowY: 'auto', maxHeight: 460, paddingBottom: 8 }}>
+          {msgs === null ? <div className="loading">Cargando…</div>
+          : msgs.length === 0 ? (
+            <div className="empty"><h3>Sin mensajes</h3><p>Escribe tu primera consulta abajo y te responderemos a la brevedad.</p></div>
+          ) : msgs.map(m => (
+            <div key={m.id} style={{ display: 'flex', justifyContent: m.autor === 'tercero' ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+              <div style={{ maxWidth: '75%', padding: '9px 13px', borderRadius: 12, fontSize: 13, lineHeight: 1.5,
+                background: m.autor === 'tercero' ? '#0b2b55' : '#f0f2f5',
+                color: m.autor === 'tercero' ? '#fff' : '#222',
+                borderBottomRightRadius: m.autor === 'tercero' ? 4 : 12,
+                borderBottomLeftRadius: m.autor === 'tercero' ? 12 : 4 }}>
+                {m.autor !== 'tercero' && <div style={{ fontSize: 10, fontWeight: 700, color: '#FF6600', marginBottom: 2 }}>Bigticket</div>}
+                {m.mensaje}
+                <div style={{ fontSize: 9, opacity: .6, marginTop: 4, textAlign: 'right' }}>
+                  {new Date(m.created_at).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid #e4e7ec' }}>
+          <input value={texto} onChange={e => setTexto(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+            placeholder="Escribe tu consulta…"
+            style={{ flex: 1, background: '#f8f9fa', border: '1px solid #d0d5dd', borderRadius: 10, padding: '11px 12px', fontSize: 14 }} />
+          <button className="btn btn-primary" onClick={enviar} disabled={!texto.trim() || enviando}>
+            {enviando ? 'Enviando…' : 'Enviar'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ── Baja de vehículo ─────────────────────────────────────────────────
+const ESTADO_BAJA = {
+  solicitada: { t: 'Solicitada',  c: '#F47B20', bg: '#fff4ec' },
+  en_proceso: { t: 'En proceso',  c: '#1a3a6b', bg: '#eef2f7' },
+  completada: { t: 'Completada ✓', c: '#166534', bg: '#e8f5ec' },
+  rechazada:  { t: 'Rechazada',   c: '#c0392b', bg: '#fbeaea' },
+}
+
+function BajaVehiculo({ tercero, email, onBack }) {
+  const [placa, setPlaca] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [ok, setOk] = useState('')
+  const [err, setErr] = useState('')
+  const [intentado, setIntentado] = useState(false)
+  const [rows, setRows] = useState(null)
+
+  async function cargar() {
+    const { data } = await supabase
+      .from('bajas_vehiculos')
+      .select('*')
+      .eq('tercero_id', tercero.tercero_id)
+      .order('created_at', { ascending: false })
+    setRows(data || [])
+  }
+  useEffect(() => { cargar() }, [tercero])
+
+  async function enviar() {
+    setErr(''); setOk('')
+    if (!placa.trim() || !motivo.trim()) { setIntentado(true); return }
+    setBusy(true)
+    try {
+      const { error } = await supabase.from('bajas_vehiculos')
+        .insert({ tercero_id: tercero.tercero_id, placa: placa.trim().toUpperCase(), motivo: motivo.trim(), enviado_por: email })
+      if (error) throw new Error(error.message)
+      // Aviso automático al equipo por el canal de consultas
+      await supabase.from('mensajes_terceros').insert({
+        tercero_id: tercero.tercero_id, autor: 'tercero',
+        mensaje: `📤 Solicitud de baja de vehículo — Placa ${placa.trim().toUpperCase()}. Motivo: ${motivo.trim()}`,
+      })
+      setOk('Solicitud enviada. Te contactaremos y, si corresponde, recibirás el documento de baja para firmar en "Firma de contrato".')
+      setPlaca(''); setMotivo(''); setIntentado(false)
+      cargar()
+    } catch (e) { setErr('No se pudo enviar: ' + e.message) }
+    finally { setBusy(false) }
+  }
+
+  const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Baja de vehículo</h2>
+        <div className="lede">Solicita retirar un vehículo de tu flota operativa. El equipo revisará la solicitud y te enviará el documento de baja para firma digital.</div></div></div>
+
+      <div className="form-card">
+        {err && <div className="form-error">{err}</div>}
+        {ok && <div className="form-ok">{ok}</div>}
+        {intentado && (!placa.trim() || !motivo.trim()) && (
+          <div className="form-error"><b>Faltan datos obligatorios:</b> {!placa.trim() ? 'Placa' : ''}{!placa.trim() && !motivo.trim() ? ' y ' : ''}{!motivo.trim() ? 'Motivo' : ''}</div>
+        )}
+        <div className="form-grid">
+          <div className="field"><label>Placa del vehículo *</label>
+            <input value={placa} onChange={e => setPlaca(e.target.value)} placeholder="Ej. ST2965E" style={miss(!placa.trim())} /></div>
+          <div className="field full"><label>Motivo de la baja *</label>
+            <input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ej. venta del vehículo, término de vida útil, siniestro…" style={miss(!motivo.trim())} /></div>
+        </div>
+        <div className="form-actions">
+          <button className="btn btn-primary" onClick={enviar} disabled={busy}>{busy ? 'Enviando…' : 'Solicitar baja'}</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' }}>Mis solicitudes</div>
+        {rows === null ? <div className="loading">Cargando…</div>
+        : rows.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Aún no has solicitado ninguna baja.</div>
+        : (
+          <table>
+            <thead><tr><th>Placa</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <tbody>
+              {rows.map(r => {
+                const e = ESTADO_BAJA[r.estado] || ESTADO_BAJA.solicitada
+                return (
+                  <tr key={r.id}>
+                    <td style={{ fontWeight: 600 }}>{r.placa}</td>
+                    <td>{r.motivo}</td>
+                    <td><span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22` }}>{e.t}</span></td>
+                    <td>{new Date(r.created_at).toLocaleDateString('es-MX')}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
