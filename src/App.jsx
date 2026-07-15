@@ -69,7 +69,7 @@ export default function App() {
       {view === 'home' && <Home onPick={setView} />}
       {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} onBack={() => setView('home')} />}
-      {view === 'baja' && <BajaVehiculo tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
@@ -161,7 +161,7 @@ function Home({ onPick }) {
         <button className="type-card" onClick={() => onPick('firma')}>
           <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
         <button className="type-card" onClick={() => onPick('baja')}>
-          <div className="ic">📤</div><h3>Baja de vehículo</h3><p>Solicita dar de baja un vehículo de tu flota operativa.</p></button>
+          <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
         <button className="type-card" onClick={() => onPick('consultas')}>
           <div className="ic">💬</div><h3>Consultas</h3><p>Escríbenos cualquier duda y te respondemos por aquí.</p></button>
         <button className="type-card estado" onClick={() => onPick('estado')}>
@@ -453,94 +453,262 @@ function Consultas({ tercero, onBack }) {
   )
 }
 
-// ── Baja de vehículo ─────────────────────────────────────────────────
-const ESTADO_BAJA = {
-  solicitada: { t: 'Solicitada',  c: '#F47B20', bg: '#fff4ec' },
-  en_proceso: { t: 'En proceso',  c: '#1a3a6b', bg: '#eef2f7' },
-  completada: { t: 'Completada ✓', c: '#166534', bg: '#e8f5ec' },
-  rechazada:  { t: 'Rechazada',   c: '#c0392b', bg: '#fbeaea' },
+// ── Solicitud de baja (vehículo / personal / empresa) ───────────────
+const MOTIVOS_BAJA = {
+  vehiculo: ['Venta del vehículo', 'Siniestro / pérdida total', 'Fin de contrato con el propietario', 'Falla mecánica permanente', 'Documentación vencida sin renovación', 'Otro'],
+  personal: ['Renuncia voluntaria', 'Término de la relación laboral', 'Rechazo en revalidación de antecedentes', 'Cambio de empresa transportista', 'Otro'],
+  empresa:  ['Término de relación comercial', 'Cierre de operaciones de la empresa', 'Incumplimiento contractual', 'Otro'],
+}
+const ESTADO_SOLICITUD = {
+  en_revision: { t: 'En revisión BigTicket', c: '#F47B20', bg: '#fff4ec' },
+  en_proceso:  { t: 'En proceso',            c: '#1a3a6b', bg: '#eef2f7' },
+  completada:  { t: 'Completada ✓',          c: '#166534', bg: '#e8f5ec' },
+  rechazada:   { t: 'Rechazada',             c: '#c0392b', bg: '#fbeaea' },
 }
 
-function BajaVehiculo({ tercero, email, onBack }) {
-  const [placa, setPlaca] = useState('')
+function SolicitudBaja({ tercero, email, onBack }) {
+  const [tipo, setTipo] = useState(null)          // vehiculo | personal | empresa
+  const [vehiculos, setVehiculos] = useState(null)
+  const [personal, setPersonal] = useState(null)
+  const [selIds, setSelIds] = useState([])
+  const [chkEmpresa, setChkEmpresa] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [detalle, setDetalle] = useState('')
+  const [fecha, setFecha] = useState('')
   const [busy, setBusy] = useState(false)
-  const [ok, setOk] = useState('')
-  const [err, setErr] = useState('')
-  const [intentado, setIntentado] = useState(false)
+  const [okData, setOkData] = useState(null)
   const [rows, setRows] = useState(null)
 
-  async function cargar() {
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('certificaciones')
+        .select('id, tipo, etapa_kanban, service_center, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca)')
+        .eq('tercero_id', tercero.tercero_id)
+        .neq('etapa_kanban', 'rechazado')
+      const all = data || []
+      const norm = (x) => Array.isArray(x) ? x[0] : x
+      setVehiculos(all.filter(r => r.tipo === 'vehiculo').map(r => ({
+        id: r.id, placa: norm(r.certificacion_vehiculo)?.placa || 'Sin placa',
+        marca: norm(r.certificacion_vehiculo)?.marca || '', sc: r.service_center || '—', etapa: r.etapa_kanban,
+      })))
+      setPersonal(all.filter(r => r.tipo !== 'vehiculo').map(r => ({
+        id: r.id, nombre: norm(r.certificacion_conductor)?.nombre || 'Sin nombre',
+        curp: norm(r.certificacion_conductor)?.curp || '', rol: r.tipo === 'ayudante' ? 'Ayudante' : 'Conductor',
+        sc: r.service_center || '—', etapa: r.etapa_kanban,
+      })))
+    })()
+    cargarSolicitudes()
+  }, [tercero])
+
+  async function cargarSolicitudes() {
     const { data } = await supabase
-      .from('bajas_vehiculos')
-      .select('*')
+      .from('solicitudes_baja').select('*')
       .eq('tercero_id', tercero.tercero_id)
       .order('created_at', { ascending: false })
     setRows(data || [])
   }
-  useEffect(() => { cargar() }, [tercero])
+
+  const elegirTipo = (t) => { setTipo(t); setSelIds([]); setChkEmpresa(false); setMotivo(''); setDetalle('') }
+  const toggleSel = (id) => setSelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const motivoOk = motivo !== '' && (motivo !== 'Otro' || detalle.trim() !== '')
+  const listo = tipo && motivoOk && (tipo === 'empresa' ? chkEmpresa : selIds.length > 0)
 
   async function enviar() {
-    setErr(''); setOk('')
-    if (!placa.trim() || !motivo.trim()) { setIntentado(true); return }
+    if (!listo || busy) return
     setBusy(true)
     try {
-      const { error } = await supabase.from('bajas_vehiculos')
-        .insert({ tercero_id: tercero.tercero_id, placa: placa.trim().toUpperCase(), motivo: motivo.trim(), enviado_por: email })
+      let seleccion, itemsTxt
+      if (tipo === 'vehiculo') {
+        const sel = vehiculos.filter(v => selIds.includes(v.id))
+        seleccion = sel.map(v => ({ certificacion_id: v.id, placa: v.placa, sc: v.sc }))
+        itemsTxt = sel.map(v => v.placa).join(', ')
+      } else if (tipo === 'personal') {
+        const sel = personal.filter(p => selIds.includes(p.id))
+        seleccion = sel.map(p => ({ certificacion_id: p.id, nombre: p.nombre, curp: p.curp, rol: p.rol, sc: p.sc }))
+        itemsTxt = sel.map(p => p.nombre).join(', ')
+      } else {
+        seleccion = { empresa: tercero.nombre, vehiculos: (vehiculos || []).length, personal: (personal || []).length }
+        itemsTxt = `${tercero.nombre} (incluye ${(vehiculos || []).length} vehículos y ${(personal || []).length} personas)`
+      }
+      const { data, error } = await supabase.from('solicitudes_baja').insert({
+        tercero_id: tercero.tercero_id, tipo, seleccion, motivo,
+        detalle: detalle.trim() || null, fecha_efectiva: fecha || null, enviado_por: email,
+      }).select('folio').single()
       if (error) throw new Error(error.message)
       // Aviso automático al equipo por el canal de consultas
+      const tipoTxt = tipo === 'vehiculo' ? 'Baja de vehículo' : tipo === 'personal' ? 'Baja de personal' : 'Baja de empresa'
       await supabase.from('mensajes_terceros').insert({
         tercero_id: tercero.tercero_id, autor: 'tercero',
-        mensaje: `📤 Solicitud de baja de vehículo — Placa ${placa.trim().toUpperCase()}. Motivo: ${motivo.trim()}`,
+        mensaje: `📤 ${tipoTxt} — Folio ${data.folio}. ${itemsTxt}. Motivo: ${motivo}${detalle.trim() ? ` (${detalle.trim()})` : ''}`,
       })
-      setOk('Solicitud enviada. Te contactaremos y, si corresponde, recibirás el documento de baja para firmar en "Firma de contrato".')
-      setPlaca(''); setMotivo(''); setIntentado(false)
-      cargar()
-    } catch (e) { setErr('No se pudo enviar: ' + e.message) }
+      setOkData({ folio: data.folio, tipoTxt, itemsTxt, motivo, detalle: detalle.trim(), fecha })
+      setTipo(null); setSelIds([]); setChkEmpresa(false); setMotivo(''); setDetalle(''); setFecha('')
+      cargarSolicitudes()
+    } catch (e) { alert('No se pudo enviar la solicitud: ' + e.message) }
     finally { setBusy(false) }
   }
 
-  const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
+  const EtapaChip = ({ etapa }) => {
+    const e = ETAPA_PORTAL[etapa]
+    if (!e) return null
+    return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22`, whiteSpace: 'nowrap' }}>{e.t}</span>
+  }
+
+  const PickItem = ({ checked, onToggle, main, sub, right }) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, marginBottom: 8, cursor: 'pointer',
+      border: checked ? '1.5px solid #FF6600' : '1px solid #e4e7ec', background: checked ? '#fff7f0' : '#fff' }}>
+      <input type="checkbox" checked={checked} onChange={onToggle} style={{ width: 16, height: 16, accentColor: '#FF6600' }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 13 }}>{main}</div>
+        <div style={{ fontSize: 11, color: '#888' }}>{sub}</div>
+      </div>
+      {right}
+    </label>
+  )
+
+  // ── Confirmación
+  if (okData) return (
+    <>
+      <button className="back-link" onClick={() => setOkData(null)}>← Volver</button>
+      <div className="card" style={{ textAlign: 'center', padding: '34px 24px' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8f5ec', color: '#166534', fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>✓</div>
+        <h2 style={{ margin: '0 0 6px' }}>Solicitud de baja enviada</h2>
+        <div style={{ fontSize: 13, color: '#666', marginBottom: 18 }}>Folio <b>{okData.folio}</b> · Estado: <b>En revisión BigTicket</b></div>
+        <div style={{ textAlign: 'left', maxWidth: 520, margin: '0 auto 18px', border: '1px solid #e4e7ec', borderRadius: 10, overflow: 'hidden' }}>
+          {[['Tipo de baja', okData.tipoTxt], [okData.tipoTxt === 'Baja de empresa' ? 'Empresa' : 'Selección', okData.itemsTxt],
+            ['Motivo', okData.motivo], okData.detalle ? ['Detalle', okData.detalle] : null,
+            okData.fecha ? ['Fecha efectiva solicitada', okData.fecha.split('-').reverse().join('/')] : null,
+          ].filter(Boolean).map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', gap: 12, padding: '10px 14px', borderBottom: '1px solid #f0f1f3', fontSize: 13 }}>
+              <span style={{ flex: '0 0 180px', color: '#888', fontWeight: 600 }}>{k}</span>
+              <span style={{ flex: 1 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 18 }}>Te contactaremos por <b>Consultas</b> y, si corresponde, recibirás el documento de baja para firmar en <b>Firma de contrato</b>.</div>
+        <button className="btn btn-primary" onClick={() => setOkData(null)}>Volver</button>
+      </div>
+    </>
+  )
 
   return (
     <>
       <button className="back-link" onClick={onBack}>← Volver</button>
-      <div className="page-head"><div><h2>Baja de vehículo</h2>
-        <div className="lede">Solicita retirar un vehículo de tu flota operativa. El equipo revisará la solicitud y te enviará el documento de baja para firma digital.</div></div></div>
+      <div className="page-head"><div><h2>Solicitud de baja</h2>
+        <div className="lede">Selecciona qué quieres dar de baja de la operación y el motivo. La solicitud pasa a revisión de Bigticket antes de hacerse efectiva.</div></div></div>
 
       <div className="form-card">
-        {err && <div className="form-error">{err}</div>}
-        {ok && <div className="form-ok">{ok}</div>}
-        {intentado && (!placa.trim() || !motivo.trim()) && (
-          <div className="form-error"><b>Faltan datos obligatorios:</b> {!placa.trim() ? 'Placa' : ''}{!placa.trim() && !motivo.trim() ? ' y ' : ''}{!motivo.trim() ? 'Motivo' : ''}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>Tipo de baja a gestionar</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 6 }}>
+          {[['vehiculo', '🚚', 'Baja de vehículo'], ['personal', '🧍', 'Baja de personal'], ['empresa', '🏢', 'Baja de empresa']].map(([v, ic, l]) => (
+            <button key={v} onClick={() => elegirTipo(v)}
+              style={{ padding: '16px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit',
+                border: tipo === v ? '2px solid #FF6600' : '1px solid #e4e7ec', background: tipo === v ? '#fff7f0' : '#fff' }}>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>{ic}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{l}</div>
+            </button>
+          ))}
+        </div>
+
+        {tipo === 'vehiculo' && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>
+              Selecciona la(s) placa(s) <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— vehículos de tu empresa</span>
+            </div>
+            {vehiculos === null ? <div className="loading">Cargando…</div>
+            : vehiculos.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes vehículos registrados en certificación.</div>
+            : vehiculos.map(v => (
+              <PickItem key={v.id} checked={selIds.includes(v.id)} onToggle={() => toggleSel(v.id)}
+                main={v.placa} sub={`${v.marca || 'Vehículo'} · ${v.sc}`} right={<EtapaChip etapa={v.etapa} />} />
+            ))}
+            <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de un vehículo en la misma solicitud.</div>
+          </div>
         )}
-        <div className="form-grid">
-          <div className="field"><label>Placa del vehículo *</label>
-            <input value={placa} onChange={e => setPlaca(e.target.value)} placeholder="Ej. ST2965E" style={miss(!placa.trim())} /></div>
-          <div className="field full"><label>Motivo de la baja *</label>
-            <input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ej. venta del vehículo, término de vida útil, siniestro…" style={miss(!motivo.trim())} /></div>
-        </div>
-        <div className="form-actions">
-          <button className="btn btn-primary" onClick={enviar} disabled={busy}>{busy ? 'Enviando…' : 'Solicitar baja'}</button>
-        </div>
+
+        {tipo === 'personal' && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>
+              Selecciona el personal <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— personal de tu empresa</span>
+            </div>
+            {personal === null ? <div className="loading">Cargando…</div>
+            : personal.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes personal registrado en certificación.</div>
+            : personal.map(p => (
+              <PickItem key={p.id} checked={selIds.includes(p.id)} onToggle={() => toggleSel(p.id)}
+                main={p.nombre} sub={`${p.rol} · CURP ${p.curp ? '****' + p.curp.slice(-4) : '—'} · ${p.sc}`} right={<EtapaChip etapa={p.etapa} />} />
+            ))}
+            <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de una persona en la misma solicitud.</div>
+          </div>
+        )}
+
+        {tipo === 'empresa' && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Datos de la empresa</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', border: '1px solid #e4e7ec', borderRadius: 10, marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{tercero.nombre}</div>
+              <div style={{ fontSize: 11, color: '#888', textAlign: 'right' }}>
+                {(vehiculos || []).length} vehículos<br />{(personal || []).length} personas registradas
+              </div>
+            </div>
+            <div style={{ background: '#fff4ec', border: '1px solid #fbd9c0', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#7c3a12', marginBottom: 12 }}>
+              <b>Atención:</b> la baja de empresa da de baja también <b>todos sus vehículos y personal certificado</b> asociados. Esta acción pasa a revisión de Bigticket antes de hacerse efectiva.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={chkEmpresa} onChange={e => setChkEmpresa(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: '#FF6600' }} />
+              <span>Entiendo que esta solicitud incluye la baja de todos los vehículos y el personal de la empresa.</span>
+            </label>
+          </div>
+        )}
+
+        {tipo && (
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #e4e7ec' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Motivo de la baja</div>
+            <div className="form-grid">
+              <div className="field"><label>Motivo *</label>
+                <select value={motivo} onChange={e => setMotivo(e.target.value)}>
+                  <option value="">Selecciona el motivo…</option>
+                  {MOTIVOS_BAJA[tipo].map(m => <option key={m} value={m}>{m}</option>)}
+                </select></div>
+              <div className="field"><label>Fecha efectiva solicitada</label>
+                <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
+              <div className="field full"><label>Detalle del motivo {motivo === 'Otro' && <span style={{ color: '#dc2626' }}>*</span>}</label>
+                <input value={detalle} onChange={e => setDetalle(e.target.value)}
+                  placeholder={motivo === 'Otro' ? 'Obligatorio: describe brevemente la situación' : 'Opcional'}
+                  style={motivo === 'Otro' && !detalle.trim() ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined} /></div>
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 12 }}>Si no indicas fecha, la baja se procesa al aprobarse la solicitud.</div>
+            <div className="form-actions">
+              <button className="btn btn-primary" onClick={enviar} disabled={!listo || busy}>
+                {busy ? 'Enviando…' : 'Enviar solicitud de baja'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' }}>Mis solicitudes</div>
         {rows === null ? <div className="loading">Cargando…</div>
-        : rows.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Aún no has solicitado ninguna baja.</div>
+        : rows.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Aún no has enviado solicitudes de baja.</div>
         : (
           <table>
-            <thead><tr><th>Placa</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <thead><tr><th>Folio</th><th>Tipo</th><th>Selección</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
             <tbody>
               {rows.map(r => {
-                const e = ESTADO_BAJA[r.estado] || ESTADO_BAJA.solicitada
+                const e = ESTADO_SOLICITUD[r.estado] || ESTADO_SOLICITUD.en_revision
+                const sel = r.tipo === 'empresa'
+                  ? (r.seleccion?.empresa || tercero.nombre)
+                  : (Array.isArray(r.seleccion) ? r.seleccion.map(s => s.placa || s.nombre).join(', ') : '—')
+                const tipoTxt = r.tipo === 'vehiculo' ? 'Vehículo' : r.tipo === 'personal' ? 'Personal' : 'Empresa'
                 return (
                   <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.placa}</td>
+                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{r.folio}</td>
+                    <td>{tipoTxt}</td>
+                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sel}</td>
                     <td>{r.motivo}</td>
-                    <td><span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22` }}>{e.t}</span></td>
-                    <td>{new Date(r.created_at).toLocaleDateString('es-MX')}</td>
+                    <td><span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22`, whiteSpace: 'nowrap' }}>{e.t}</span></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(r.created_at).toLocaleDateString('es-MX')}</td>
                   </tr>
                 )
               })}
