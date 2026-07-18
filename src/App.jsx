@@ -71,6 +71,7 @@ export default function App() {
       {view === 'firma' && <Firma tercero={tercero} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
       {view === 'vehiculo' &&
@@ -162,6 +163,8 @@ function Home({ onPick }) {
           <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
         <button className="type-card" onClick={() => onPick('baja')}>
           <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
+        <button className="type-card" onClick={() => onPick('docs')}>
+          <div className="ic">🗂</div><h3>Documentos de mi empresa</h3><p>Contratos, seguros, fotos y anexos que BigTicket guarda de tu empresa.</p></button>
         <button className="type-card" onClick={() => onPick('consultas')}>
           <div className="ic">💬</div><h3>Consultas</h3><p>Escríbenos cualquier duda y te respondemos por aquí.</p></button>
         <button className="type-card estado" onClick={() => onPick('estado')}>
@@ -384,6 +387,58 @@ function FirmaWidget({ widgetId, onSuccess }) {
 }
 
 // ── Consultas (chat con Bigticket) ───────────────────────────────────
+
+// ─── 🗂 Documentos de mi empresa (archivador — solo lectura) ─────────
+const DOCS_CAT_LABEL = { contratos:'📑 Contratos', seguros:'🛡 Seguros', vehiculos:'🚚 Vehículos', personal:'👤 Personal', anexos:'📎 Anexos', otros:'🗃 Otros' }
+const docsBytes = (b) => b == null ? '—' : b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(0) + ' KB' : (b/1048576).toFixed(1) + ' MB'
+
+function DocumentosEmpresa({ tercero, onBack }) {
+  const [docs, setDocs] = useState(null)
+  useEffect(() => {
+    ;(async () => {
+      const { data } = await supabase.from('documentos_empresa')
+        .select('id, categoria, nombre_archivo, storage_path, mime_type, tamano_bytes, referencia, created_at')
+        .eq('tercero_id', tercero.tercero_id)
+        .order('created_at', { ascending: false })
+      setDocs(data || [])
+    })()
+  }, [tercero])
+
+  const abrir = async (d) => {
+    const { data, error } = await supabase.storage.from('archivador_empresas').createSignedUrl(d.storage_path, 300)
+    if (error || !data?.signedUrl) { alert('No se pudo abrir el documento. Intenta de nuevo.'); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
+  const cats = [...new Set((docs || []).map(d => d.categoria))]
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Documentos de mi empresa</h2>
+        <div className="lede">El archivo digital que BigTicket mantiene de {tercero.nombre}: contratos, seguros, fotos de unidades y anexos.</div></div></div>
+      <div className="card">
+        {docs === null ? <div className="loading">Cargando documentos…</div>
+        : docs.length === 0 ? <div className="empty"><h3>Sin documentos aún</h3><p>Cuando BigTicket cargue contratos, seguros o anexos de tu empresa, aparecerán aquí.</p></div>
+        : cats.map(cat => (
+          <div key={cat} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 8 }}>{DOCS_CAT_LABEL[cat] || cat}</div>
+            {docs.filter(d => d.categoria === cat).map(d => (
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', borderBottom: '1px solid #f0f1f3', flexWrap: 'wrap' }}>
+                <span>{/^image\//.test(d.mime_type || '') ? '🖼' : (d.mime_type || '').includes('pdf') ? '📄' : '📎'}</span>
+                <span style={{ flex: 1, minWidth: 160, fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nombre_archivo}</span>
+                {d.referencia && <span style={{ fontSize: 11, color: '#777', background: '#f4f5f7', borderRadius: 12, padding: '2px 8px' }}>{d.referencia}</span>}
+                <span style={{ fontSize: 11.5, color: '#999', fontFamily: 'monospace' }}>{docsBytes(d.tamano_bytes)}</span>
+                <span style={{ fontSize: 11.5, color: '#999' }}>{new Date(d.created_at).toLocaleDateString('es-MX')}</span>
+                <button onClick={() => abrir(d)} style={{ border: '1px solid #d6def0', background: '#eef2f7', color: '#1a3a6b', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver</button>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 function Consultas({ tercero, onBack }) {
   const [msgs, setMsgs] = useState(null)
   const [texto, setTexto] = useState('')
