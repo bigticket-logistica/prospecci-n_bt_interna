@@ -598,7 +598,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       )}
 
       <div className="card">
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px' }}>Identificación empresa transporte</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px', paddingLeft: 8 }}>Identificación empresa transporte</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <F label="Razón social *"><input {...inp('razon_social')} /></F>
           <F label="RFC razón social *"><input {...inp('rfc_razon_social', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
@@ -616,8 +616,8 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       </div>
 
       <div className="card">
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>Identificación cuenta de pago</div>
-        <div style={{ fontSize: 12, color: '#8a4a0f', fontStyle: 'italic', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', paddingLeft: 8 }}>Identificación cuenta de pago</div>
+        <div style={{ fontSize: 12, color: '#8a4a0f', fontStyle: 'italic', marginBottom: 12, paddingLeft: 8 }}>
           La cuenta bancaria debe estar a nombre de la empresa o del Representante Legal.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
