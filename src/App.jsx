@@ -55,6 +55,14 @@ export default function App() {
     return () => { cancel = true }
   }, [session])
 
+  const [perfilOk, setPerfilOk] = useState(null)   // null = sin revisar aún
+  const revisarPerfil = async () => {
+    if (!tercero?.tercero_id) return
+    const { data } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
+    setPerfilOk(perfilCompleto(data))
+  }
+  useEffect(() => { if (tercero?.tercero_id) revisarPerfil() }, [tercero])
+
   if (!session) return <Login />
   if (tercero === undefined) return <PantallaCentro titulo="Cargando…" texto="Buscando tu empresa." />
   if (tercero === null) return (
@@ -66,12 +74,20 @@ export default function App() {
   const email = session.user.email
   return (
     <Shell tercero={tercero} email={email}>
+      {view === 'home' && perfilOk === false && (
+        <div onClick={() => setView('perfil')} style={{ cursor: 'pointer', background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '13px 16px', marginBottom: 16, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <span style={{ flex: 1, minWidth: 220 }}>Tu <b>Perfil de Empresa</b> está incompleto. Sin los datos de la cuenta de pago (banco, CLABE y su print de pantalla), <b>no se realizarán pagos a tu empresa</b>.</span>
+          <span style={{ background: '#F47B20', color: '#fff', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Completar ahora →</span>
+        </div>
+      )}
       {view === 'home' && <Home onPick={setView} />}
       {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'perfil' && <PerfilEmpresa tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
       {view === 'vehiculo' &&
@@ -163,6 +179,8 @@ function Home({ onPick }) {
           <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
         <button className="type-card" onClick={() => onPick('baja')}>
           <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
+        <button className="type-card" onClick={() => onPick('perfil')}>
+          <div className="ic">🏢</div><h3>Perfil de Empresa</h3><p>Ficha de ingreso y datos de la cuenta de pago (obligatorio para recibir pagos).</p></button>
         <button className="type-card" onClick={() => onPick('docs')}>
           <div className="ic">🗂</div><h3>Documentos de mi empresa</h3><p>Contratos, seguros, fotos y anexos que BigTicket guarda de tu empresa.</p></button>
         <button className="type-card" onClick={() => onPick('consultas')}>
@@ -488,6 +506,159 @@ function DocumentosEmpresa({ tercero, onBack }) {
           </div>
         ))}
       </div>
+    </>
+  )
+}
+
+
+// ─── 🏢 PERFIL DE EMPRESA · Ficha de Ingreso Transportes México ─────
+// Identificación de la empresa + cuenta de pago con evidencia CLABE.
+// Sin estos datos completos, BigTicket no puede procesar los pagos.
+const PERFIL_REQUERIDOS = ['razon_social', 'rfc_razon_social', 'direccion', 'representante_legal', 'correo_contacto', 'fono_contacto', 'banco', 'titular_cuenta', 'tipo_cuenta', 'cuenta_clabe']
+function perfilCompleto(p) {
+  if (!p) return false
+  for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) return false
+  if (!/^\d{18}$/.test(String(p.cuenta_clabe || '').trim())) return false
+  if (!p.evidencia_cuenta_path) return false
+  return true
+}
+
+function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
+  const [p, setP] = useState(null)        // datos del perfil (editables)
+  const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
+  const fileRef = useRef(null)
+  const S = (k, v) => setP(prev => ({ ...prev, [k]: v }))
+
+  useEffect(() => {
+    ;(async () => {
+      const { data } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
+      setP(data || { razon_social: tercero.nombre || '', correo_contacto: email || '' })
+      setCargando(false)
+    })()
+  }, [tercero])
+
+  const subirEvidencia = async (ev) => {
+    const file = ev.target.files && ev.target.files[0]
+    ev.target.value = ''
+    if (!file) return
+    setSubiendo(true)
+    try {
+      const path = `${tercero.tercero_id}/perfil/evidencia_cuenta_${Date.now()}.${(file.name.split('.').pop() || 'jpg').toLowerCase()}`
+      const { error } = await supabase.storage.from('archivador_empresas').upload(path, file, { upsert: true })
+      if (error) throw new Error(error.message)
+      S('evidencia_cuenta_path', path)
+    } catch (e) { alert('No se pudo subir la imagen: ' + e.message) }
+    finally { setSubiendo(false) }
+  }
+
+  const guardar = async () => {
+    const falta = []
+    const ETQ = { razon_social: 'Razón social', rfc_razon_social: 'RFC razón social', direccion: 'Dirección', representante_legal: 'Representante legal', correo_contacto: 'Correo contacto', fono_contacto: 'Teléfono contacto', banco: 'Banco', titular_cuenta: 'Titular', tipo_cuenta: 'Tipo de cuenta', cuenta_clabe: 'CLABE' }
+    for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) falta.push(ETQ[k] || k)
+    if (String(p.cuenta_clabe || '').trim() && !/^\d{18}$/.test(String(p.cuenta_clabe).trim())) falta.push('CLABE válida (18 dígitos)')
+    if (!p.evidencia_cuenta_path) falta.push('Print de pantalla del banco con la CLABE')
+    if (falta.length) {
+      if (!confirm('Faltan datos obligatorios:\n\n• ' + falta.join('\n• ') + '\n\n⚠️ Sin el perfil completo, BigTicket NO podrá procesar tus pagos.\n\n¿Guardar de todos modos como borrador?')) return
+    }
+    setGuardando(true)
+    try {
+      const fila = { ...p, tercero_id: tercero.tercero_id, actualizado_por: email || '', updated_at: new Date().toISOString() }
+      delete fila.id; delete fila.created_at
+      if (!fila.fecha_ingreso_operacion) fila.fecha_ingreso_operacion = null
+      const { error } = await supabase.from('perfiles_empresa').upsert(fila, { onConflict: 'tercero_id' })
+      if (error) throw new Error(error.message)
+      alert(falta.length ? 'Borrador guardado. Recuerda completar los datos faltantes.' : '✅ Perfil de Empresa completo y guardado.')
+      if (onGuardado) onGuardado()
+    } catch (e) { alert('No se pudo guardar: ' + e.message) }
+    finally { setGuardando(false) }
+  }
+
+  if (cargando || !p) return (<><button className="back-link" onClick={onBack}>← Volver</button><div className="loading">Cargando perfil…</div></>)
+  const completo = perfilCompleto(p)
+  const inp = (k, extra = {}) => ({ value: p[k] || '', onChange: e => S(k, e.target.value), ...extra })
+  const F = ({ label, children }) => (<div className="field"><label>{label}</label>{children}</div>)
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>🏢 Perfil de Empresa</h2>
+        <div className="lede">Ficha de ingreso de {tercero.nombre}. Estos datos —en especial la cuenta de pago— son los que BigTicket usa para procesar tus pagos.</div></div></div>
+
+      {!completo && (
+        <div style={{ background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600 }}>
+          ⚠️ Tu perfil está incompleto. <b>Sin los datos de pago completos (incluido el print de la CLABE), no se realizarán pagos a tu empresa.</b>
+        </div>
+      )}
+      {completo && (
+        <div style={{ background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#166534', fontWeight: 600 }}>
+          ✅ Perfil completo — tus datos de pago están listos.
+        </div>
+      )}
+
+      <div className="card">
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px' }}>Identificación empresa transporte</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <F label="Razón social *"><input {...inp('razon_social')} /></F>
+          <F label="RFC razón social *"><input {...inp('rfc_razon_social', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
+          <F label="Régimen fiscal"><input {...inp('regimen_fiscal')} placeholder="Ej. 601 General de Ley PM" /></F>
+          <F label="Código SAT"><input {...inp('codigo_sat')} /></F>
+          <F label="Fecha ingreso operación"><input type="date" {...inp('fecha_ingreso_operacion')} /></F>
+          <F label="Representante legal *"><input {...inp('representante_legal')} /></F>
+          <F label="RFC representante legal"><input {...inp('rfc_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
+          <F label="CURP representante legal"><input {...inp('curp_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
+          <F label="Correo contacto *"><input {...inp('correo_contacto')} inputMode="email" /></F>
+          <F label="Teléfono contacto *"><input {...inp('fono_contacto')} inputMode="tel" /></F>
+        </div>
+        <div className="field" style={{ marginTop: 12 }}><label>Dirección de la empresa *</label>
+          <input {...inp('direccion')} placeholder="Calle, número, colonia, municipio, CP, estado" /></div>
+      </div>
+
+      <div className="card">
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}>Identificación cuenta de pago</div>
+        <div style={{ fontSize: 12, color: '#8a4a0f', fontStyle: 'italic', marginBottom: 12 }}>
+          La cuenta bancaria debe estar a nombre de la empresa o del Representante Legal.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <F label="Banco *"><input {...inp('banco')} placeholder="Ej. BBVA, Banorte" /></F>
+          <F label="Titular de la cuenta *"><input {...inp('titular_cuenta')} /></F>
+          <F label="RFC del titular"><input {...inp('rfc_titular', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
+          <F label="Tipo de cuenta *">
+            <select value={p.tipo_cuenta || ''} onChange={e => S('tipo_cuenta', e.target.value)}>
+              <option value="">— Selecciona —</option><option>Cheques</option><option>Débito</option><option>Cuenta CLABE / concentradora</option>
+            </select></F>
+          <F label="Cuenta CLABE * (18 dígitos)">
+            <input value={p.cuenta_clabe || ''} onChange={e => S('cuenta_clabe', e.target.value.replace(/[^0-9]/g, '').slice(0, 18))}
+              inputMode="numeric" placeholder="18 dígitos" style={{ fontFamily: 'monospace', letterSpacing: '.1em',
+                borderColor: p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe) ? '#e74c3c' : undefined }} />
+            {p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe) && <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 3 }}>La CLABE debe tener exactamente 18 dígitos ({p.cuenta_clabe.length}/18)</div>}
+          </F>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 6 }}>Print de pantalla del banco donde se vea el banco y la CLABE *</label>
+          <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={subirEvidencia} />
+          {p.evidencia_cuenta_path ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#166534', background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 20, padding: '6px 14px' }}>✓ Evidencia cargada</span>
+              <button className="btn" onClick={async () => {
+                const { data } = await supabase.storage.from('archivador_empresas').createSignedUrl(p.evidencia_cuenta_path, 300)
+                if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+              }}>Ver</button>
+              <button className="btn" onClick={() => fileRef.current && fileRef.current.click()} disabled={subiendo}>{subiendo ? 'Subiendo…' : 'Reemplazar'}</button>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current && fileRef.current.click()} disabled={subiendo}
+              style={{ width: '100%', border: '2px dashed #F47B20', background: '#fff8f2', color: '#c05e10', fontWeight: 700, fontSize: 13, borderRadius: 12, padding: 16, cursor: 'pointer' }}>
+              {subiendo ? 'Subiendo…' : '📸 Subir print de pantalla (banco + CLABE visibles)'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <button className="btn btn-primary" onClick={guardar} disabled={guardando} style={{ width: '100%', padding: '14px', fontSize: 15 }}>
+        {guardando ? 'Guardando…' : '💾 Guardar Perfil de Empresa'}
+      </button>
     </>
   )
 }
