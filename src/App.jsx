@@ -68,7 +68,7 @@ export default function App() {
     <Shell tercero={tercero} email={email}>
       {view === 'home' && <Home onPick={setView} />}
       {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
-      {view === 'firma' && <Firma tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
@@ -227,9 +227,10 @@ function Estado({ tercero, onBack }) {
 }
 
 // ── Firma de contrato (MIFIEL embebido) ─────────────────────────────
-function Firma({ tercero, onBack }) {
+function Firma({ tercero, email, onBack }) {
   const [rows, setRows] = useState(null)
   const [docsGestion, setDocsGestion] = useState(null)
+  const [contratosMx, setContratosMx] = useState(null)  // contratos de transportista (pipeline de ingreso)
   const [abierto, setAbierto] = useState(null) // id (cert o doc) con el widget abierto
 
   // Carga el script del widget de MIFIEL una sola vez
@@ -258,6 +259,15 @@ function Firma({ tercero, onBack }) {
       .in('estado', ['enviado', 'firmado'])
       .order('enviado_at', { ascending: false })
     setDocsGestion(dg || [])
+    // Contrato de transportista del proceso de ingreso: vinculado por el correo
+    // con el que se creó la empresa (mismo correo de acceso al portal)
+    const { data: cmx } = await supabase
+      .from('certificaciones_mx')
+      .select('id, nombre, puesto, contrato_enviado_at, mifiel_documento_id, mifiel_widget_conductor, mifiel_firmado_conductor, mifiel_firmado_bigticket')
+      .ilike('email', email || '')
+      .not('mifiel_documento_id', 'is', null)
+      .order('contrato_enviado_at', { ascending: false })
+    setContratosMx(cmx || [])
   }
   useEffect(() => { cargar() }, [tercero])
 
@@ -276,6 +286,12 @@ function Firma({ tercero, onBack }) {
     cargar()
   }
 
+  async function firmaMxExitosa(c) {
+    await supabase.from('certificaciones_mx').update({ mifiel_firmado_conductor: true }).eq('id', c.id)
+    setAbierto(null)
+    cargar()
+  }
+
   async function firmaGestionExitosa(doc) {
     await supabase.from('contratos_gestion').update({ firmado_tercero: true }).eq('id', doc.id)
     setAbierto(null)
@@ -290,12 +306,49 @@ function Firma({ tercero, onBack }) {
       <div className="page-head"><div><h2>Firma de contrato</h2>
         <div className="lede">Contratos enviados a firma digital. Firma aquí mismo con tu e.firma (SAT), sin salir del portal.</div></div></div>
       <div className="card">
-        {rows === null || docsGestion === null ? <div className="loading">Cargando…</div>
-        : rows.length === 0 && docsGestion.length === 0 ? (
+        {rows === null || docsGestion === null || contratosMx === null ? <div className="loading">Cargando…</div>
+        : rows.length === 0 && docsGestion.length === 0 && contratosMx.length === 0 ? (
           <div className="empty"><h3>No tienes documentos por firmar</h3>
             <p>Cuando tu personal esté validado, o Bigticket te envíe un contrato, anexo o baja, aparecerá aquí para firmarlo digitalmente.</p></div>
         ) : (
         <>
+        {contratosMx.length > 0 && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+            🚚 Contrato de prestación de servicios (transportista)
+          </div>
+        )}
+        {contratosMx.map(c => {
+          const puedeFirmar = !c.mifiel_firmado_conductor && c.mifiel_widget_conductor
+          const key = `mx-${c.id}`
+          return (
+            <div key={key} style={{ border: '1px solid #e4e7ec', borderRadius: 12, padding: '14px 16px', marginBottom: 12, background: c.mifiel_firmado_conductor && c.mifiel_firmado_bigticket ? '#f6fdf8' : '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>Contrato de transporte y logística de última milla</div>
+                  <div style={{ fontSize: 12, color: '#777' }}>{c.nombre || '—'}
+                    {c.contrato_enviado_at ? ` · enviado ${new Date(c.contrato_enviado_at).toLocaleDateString('es-MX')}` : ''}</div>
+                </div>
+                <ChipFirma label="Tu firma" listo={!!c.mifiel_firmado_conductor} />
+                <ChipFirma label="Bigticket" listo={!!c.mifiel_firmado_bigticket} />
+                {c.mifiel_firmado_conductor && c.mifiel_firmado_bigticket && <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>✅ Contrato firmado</span>}
+                {puedeFirmar && (
+                  <button className="btn btn-primary" onClick={() => setAbierto(abierto === key ? null : key)}>
+                    {abierto === key ? 'Cerrar' : '✍️ Firmar ahora'}
+                  </button>
+                )}
+                {c.mifiel_firmado_conductor && !c.mifiel_firmado_bigticket && (
+                  <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>Esperando la firma de Bigticket</span>
+                )}
+              </div>
+              {abierto === key && puedeFirmar && (
+                <div style={{ marginTop: 12, border: '1px solid #ddd0f7', borderRadius: 10, padding: 8, minHeight: 620, background: '#fff' }}>
+                  <FirmaWidget widgetId={c.mifiel_widget_conductor} onSuccess={() => firmaMxExitosa(c)} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+
         {rows.map(r => {
           const c = Array.isArray(r.certificacion_conductor) ? r.certificacion_conductor[0] : r.certificacion_conductor
           const firmado = !!r.contrato_firmado_at
