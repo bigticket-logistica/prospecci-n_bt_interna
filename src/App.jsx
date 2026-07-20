@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
@@ -446,7 +446,7 @@ function Firma({ tercero, email, onBack }) {
 }
 
 function FirmaWidget({ widgetId, onSuccess }) {
-  const ref = React.useRef(null)
+  const ref = useRef(null)
   useEffect(() => {
     const el = ref.current
     if (!el) return
