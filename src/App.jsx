@@ -968,7 +968,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
 // ── Formulario de vehículo ───────────────────────────────────────────
 function FormVehiculo({ tercero, email, onBack, onDone }) {
   const [sc, setSc] = useState('')
-  const [f, setF] = useState({ placa: '', vin: '' })
+  const [f, setF] = useState({ placa: '', vin: '', marca: '', modelo: '', anio: '' })
   const [files, setFiles] = useState({})
   const [err, setErr] = useState(''); const [ok, setOk] = useState(''); const [busy, setBusy] = useState(false)
   const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
@@ -980,6 +980,9 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     const falta = []
     if (!sc) falta.push('Centro de servicio (SC)')
     if (!f.placa.trim()) falta.push('Placa')
+    if (!f.marca.trim()) falta.push('Marca')
+    if (!f.modelo.trim()) falta.push('Modelo')
+    if (!/^(19|20)\d{2}$/.test(f.anio.trim())) falta.push('Año (4 dígitos)')
     if (!files.foto_frente) falta.push('Foto: Frente')
     if (!files.foto_trasera) falta.push('Foto: Trasera')
     if (!files.foto_lado_izq) falta.push('Foto: Lado izquierdo')
@@ -994,6 +997,7 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
       if (error) throw error
       await supabase.from('certificacion_vehiculo').insert({
         certificacion_id: cert.id, placa: f.placa.trim().toUpperCase().replace(/\s/g, ''), vin: f.vin.trim().toUpperCase() || null,
+        marca: f.marca.trim().toUpperCase(), modelo: f.modelo.trim().toUpperCase(), anio: Number(f.anio.trim()),
       })
       for (const [t, file] of Object.entries(files)) if (file) await subirDoc(tercero.tercero_id, cert.id, t, file)
       await supabase.from('certificacion_eventos').insert({ certificacion_id: cert.id, estado_nuevo: 'enviado', nota: 'Enviado desde portal web', actor: email })
@@ -1024,6 +1028,9 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
         <div className="section-title">Datos del vehículo</div>
         <div className="form-grid">
           <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => set('placa', e.target.value)} placeholder="Ej. ST2965E" style={miss(!f.placa.trim())} /></div>
+          <div className="field"><label>Marca *</label><input value={f.marca} onChange={e => set('marca', e.target.value)} placeholder="Ej. RAM, Nissan" style={miss(!f.marca.trim())} /></div>
+          <div className="field"><label>Modelo *</label><input value={f.modelo} onChange={e => set('modelo', e.target.value)} placeholder="Ej. ProMaster City" style={miss(!f.modelo.trim())} /></div>
+          <div className="field"><label>Año *</label><input value={f.anio} onChange={e => set('anio', e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} placeholder="Ej. 2021" inputMode="numeric" style={miss(!/^(19|20)\d{2}$/.test(f.anio.trim()))} /></div>
           <div className="field"><label>VIN / número de serie</label><input value={f.vin} onChange={e => set('vin', e.target.value)} placeholder="Opcional" /></div>
         </div>
 
