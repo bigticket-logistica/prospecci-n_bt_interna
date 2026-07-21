@@ -710,8 +710,12 @@ function MisCertificaciones({ tercero, email, onBack }) {
       const path = `${tercero.tercero_id}/${cert.id}/${d.tipo_documento}_${Date.now()}.${ext}`
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
       if (error) throw new Error(error.message)
-      const { error: eUpd } = await supabase.from('certificacion_documentos')
+      let { error: eUpd } = await supabase.from('certificacion_documentos')
         .update({ storage_path: path, updated_at: new Date().toISOString(), subido_por: email || null }).eq('id', d.id)
+      if (eUpd) {
+        console.warn('update doc (completo) falló:', eUpd.message, '— reintento minimal')
+        ;({ error: eUpd } = await supabase.from('certificacion_documentos').update({ storage_path: path }).eq('id', d.id))
+      }
       if (eUpd) throw new Error('El archivo subió pero no se registró: ' + eUpd.message)
       await registrarCambio(cert, { tipo: 'documento', campo: docTipoLimpio(d.tipo_documento), accion: 'reemplazado', doc_id: d.id, storage_path: path })
       await cargarDocs(cert.id)
@@ -741,9 +745,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
       const path = `${tercero.tercero_id}/${cert.id}/${nuevoTipo}_${Date.now()}.${ext}`
       const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
       if (eUp) throw new Error(eUp.message)
-      const { data: nuevoDoc, error: eIns } = await supabase.from('certificacion_documentos')
-        .insert({ certificacion_id: cert.id, tipo_documento: nuevoTipo, storage_path: path, subido_por: email || null })
-        .select('id').single()
+      const { data: nuevoDoc, error: eIns } = await insDocPortal({ certificacion_id: cert.id, tipo_documento: nuevoTipo, storage_path: path, subido_por: email || null })
       if (eIns) throw new Error('El archivo subió pero no se registró: ' + eIns.message)
       await registrarCambio(cert, { tipo: 'documento', campo: nuevoTipo, accion: 'cargado', doc_id: nuevoDoc?.id || null, storage_path: path })
       await cargarDocs(cert.id)
@@ -1208,13 +1210,24 @@ function FileField({ label, tipoDoc, files, setFiles, missing }) {
     </div>
   )
 }
+// Insert con reintento minimal: si las columnas nuevas (subido_por) aún no
+// existen en certificacion_documentos, reintenta solo con las columnas base.
+async function insDocPortal(fila) {
+  let r = await supabase.from('certificacion_documentos').insert(fila).select('id').single()
+  if (r.error) {
+    console.warn('insert certificacion_documentos (completo) falló:', r.error.message, '— reintento minimal')
+    r = await supabase.from('certificacion_documentos')
+      .insert({ certificacion_id: fila.certificacion_id, tipo_documento: fila.tipo_documento, storage_path: fila.storage_path })
+      .select('id').single()
+  }
+  return r
+}
 async function subirDoc(terceroId, certId, tipoDoc, file) {
   const ext = file.name.split('.').pop()
   const path = `${terceroId}/${certId}/${tipoDoc}.${ext}`
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
   if (error) throw error
-  const { error: eIns } = await supabase.from('certificacion_documentos')
-    .insert({ certificacion_id: certId, tipo_documento: tipoDoc, storage_path: path })
+  const { error: eIns } = await insDocPortal({ certificacion_id: certId, tipo_documento: tipoDoc, storage_path: path })
   if (eIns) throw new Error(`El documento ${tipoDoc} subió pero no se registró: ` + eIns.message)
 }
 
