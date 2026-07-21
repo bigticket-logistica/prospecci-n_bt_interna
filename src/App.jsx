@@ -82,7 +82,7 @@ export default function App() {
         </div>
       )}
       {view === 'home' && <Home onPick={setView} />}
-      {view === 'estado' && <Estado tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
@@ -186,59 +186,7 @@ function Home({ onPick }) {
         <button className="type-card" onClick={() => onPick('consultas')}>
           <div className="ic">💬</div><h3>Consultas</h3><p>Escríbenos cualquier duda y te respondemos por aquí.</p></button>
         <button className="type-card estado" onClick={() => onPick('estado')}>
-          <div className="ic">📋</div><h3>Estado de certificación</h3><p>Revisa todo lo que has enviado y en qué estado va.</p></button>
-      </div>
-    </>
-  )
-}
-
-// ── Estado: listado ──────────────────────────────────────────────────
-function Estado({ tercero, onBack }) {
-  const [rows, setRows] = useState(null)
-  useEffect(() => {
-    ;(async () => {
-      const { data } = await supabase
-        .from('certificaciones')
-        .select('id, tipo, estado, etapa_kanban, enviado_at, service_center, contrato_firmado_at, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca)')
-        .eq('tercero_id', tercero.tercero_id)
-        .order('enviado_at', { ascending: false })
-      setRows(data || [])
-    })()
-  }, [tercero])
-  return (
-    <>
-      <button className="back-link" onClick={onBack}>← Volver</button>
-      <div className="page-head"><div><h2>Estado de certificación</h2>
-        <div className="lede">Conductores, ayudantes y vehículos que has enviado a validar.</div></div></div>
-      <div className="card">
-        {rows === null ? <div className="loading">Cargando…</div>
-        : rows.length === 0 ? <div className="empty"><h3>Aún no has enviado nada</h3><p>Empieza certificando un conductor, ayudante o vehículo.</p></div>
-        : (
-          <table>
-            <thead><tr><th>Tipo</th><th>Quién / qué</th><th>Identificador</th><th>Centro (SC)</th><th>Estado</th><th>Enviado</th></tr></thead>
-            <tbody>
-              {rows.map(r => {
-                const persona = r.tipo !== 'vehiculo'
-                const c = Array.isArray(r.certificacion_conductor) ? r.certificacion_conductor[0] : r.certificacion_conductor
-                const v = Array.isArray(r.certificacion_vehiculo) ? r.certificacion_vehiculo[0] : r.certificacion_vehiculo
-                const et = ETAPA_PORTAL[r.etapa_kanban]
-                return (
-                  <tr key={r.id}>
-                    <td><span className="tipo-pill">{TIPO_LABEL[r.tipo] || r.tipo}</span></td>
-                    <td>{persona ? (c?.nombre || '—') : (v?.marca || 'Vehículo')}</td>
-                    <td>{persona ? (c?.curp || '—') : (v?.placa || '—')}</td>
-                    <td>{r.service_center || '—'}</td>
-                    <td>{et
-                      ? <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, color: et.c, background: et.bg, border: `1px solid ${et.c}22` }}>{et.t}</span>
-                      : <span className={`badge ${r.estado}`}>{ESTADO_LABEL[r.estado] || r.estado}</span>}
-                    </td>
-                    <td>{r.enviado_at ? new Date(r.enviado_at).toLocaleDateString('es-MX') : '—'}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
+          <div className="ic">📋</div><h3>Estado de certificación</h3><p>Revisa el avance de cada trámite, sus documentos, y reemplaza o carga los que fueron observados.</p></button>
       </div>
     </>
   )
@@ -664,6 +612,197 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       <button className="btn btn-primary" onClick={guardar} disabled={guardando} style={{ width: '100%', padding: '14px', fontSize: 15 }}>
         {guardando ? 'Guardando…' : '💾 Guardar Perfil de Empresa'}
       </button>
+    </>
+  )
+}
+
+
+// ─── 📋 Mis certificaciones en curso: etapa + documentos con resubida ───
+const MISCERT_ETAPAS = {
+  recepcion: 'Recepción documental', prevalidacion_biggy: 'Pre-validación Biggy',
+  validacion_meli: 'Validación Mercado Libre', validacion_repuve: 'Validación REPUVE',
+  validacion_nubarium: 'Validación Nubarium', aceptado: '✅ Aceptado', rechazado: '❌ Rechazado',
+}
+const MISCERT_ORDEN_PERSONA = ['recepcion', 'prevalidacion_biggy', 'validacion_meli', 'validacion_nubarium']
+const MISCERT_ORDEN_VEHICULO = ['recepcion', 'prevalidacion_biggy', 'validacion_nubarium']
+const MISCERT_TIPOS_DOC = ['ine_frente', 'ine_reverso', 'curp', 'rfc', 'licencia', 'foto_vehiculo', 'placa', 'tarjeta_circulacion', 'poliza_seguro', 'otro']
+
+function MisCertificaciones({ tercero, email, onBack }) {
+  const [rows, setRows] = useState(null)
+  const [docsPor, setDocsPor] = useState({})     // certId → docs[]
+  const [abierta, setAbierta] = useState(null)
+  const [busyDoc, setBusyDoc] = useState(null)
+  const [nuevoTipo, setNuevoTipo] = useState('otro')
+  const fileNuevoRef = useRef(null)
+  const fileReemRef = useRef(null)
+  const reemDocRef = useRef(null)
+
+  const [obsPor, setObsPor] = useState({})       // certId → observaciones del equipo BT
+  const cargar = async () => {
+    const { data } = await supabase
+      .from('certificaciones')
+      .select('id, tipo, etapa_kanban, service_center, created_at, cambios_prospecto, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca,modelo)')
+      .eq('tercero_id', tercero.tercero_id)
+      .order('created_at', { ascending: false })
+    const norm = (x) => Array.isArray(x) ? x[0] : x
+    const ids = (data || []).map(r => r.id)
+    if (ids.length) {
+      const { data: obs } = await supabase.from('notificaciones_terceros')
+        .select('registro_id, items, created_at')
+        .eq('fuente', 'certificaciones').in('registro_id', ids)
+        .order('created_at', { ascending: false })
+      const mapa = {}
+      ;(obs || []).forEach(o => { if (!mapa[o.registro_id]) mapa[o.registro_id] = o })
+      setObsPor(mapa)
+    }
+    setRows((data || []).map(r => ({
+      ...r,
+      titulo: r.tipo === 'vehiculo'
+        ? `🚚 ${norm(r.certificacion_vehiculo)?.placa || 'Vehículo'} · ${[norm(r.certificacion_vehiculo)?.marca, norm(r.certificacion_vehiculo)?.modelo].filter(Boolean).join(' ')}`
+        : `${r.tipo === 'ayudante' ? '🧍 Ayudante' : '👤 Conductor'} · ${norm(r.certificacion_conductor)?.nombre || 'Sin nombre'}`,
+    })))
+  }
+  useEffect(() => { cargar() }, [tercero])
+
+  const cargarDocs = async (certId) => {
+    const { data } = await supabase.from('certificacion_documentos')
+      .select('id, tipo_documento, storage_path, created_at')
+      .eq('certificacion_id', certId).order('created_at', { ascending: true })
+    setDocsPor(p => ({ ...p, [certId]: data || [] }))
+  }
+  const abrir = (id) => { const nx = abierta === id ? null : id; setAbierta(nx); if (nx && !docsPor[nx]) cargarDocs(nx) }
+
+  const registrarCambio = async (cert, entrada) => {
+    const log = [...(cert.cambios_prospecto || []), { ...entrada, at: new Date().toISOString(), por: email || '' }]
+    await supabase.from('certificaciones').update({ cambios_prospecto: log, cambios_pendientes: true }).eq('id', cert.id)
+    setRows(rs => rs.map(r => r.id === cert.id ? { ...r, cambios_prospecto: log } : r))
+  }
+
+  const ver = async (d) => {
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(d.storage_path, 300)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
+  const reemplazar = async (cert, d, file) => {
+    if (!file) return
+    setBusyDoc(d.id)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${tercero.tercero_id}/${cert.id}/${d.tipo_documento}_${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
+      if (error) throw new Error(error.message)
+      await supabase.from('certificacion_documentos').update({ storage_path: path }).eq('id', d.id)
+      await registrarCambio(cert, { tipo: 'documento', campo: d.tipo_documento, accion: 'reemplazado' })
+      await cargarDocs(cert.id)
+      alert('✅ Documento reemplazado. El equipo de certificación fue notificado.')
+    } catch (e) { alert('No se pudo reemplazar: ' + e.message) }
+    finally { setBusyDoc(null) }
+  }
+
+  const eliminar = async (cert, d) => {
+    if (!confirm(`¿Eliminar ${d.tipo_documento}? Deberás cargar uno nuevo para continuar el proceso.`)) return
+    setBusyDoc(d.id)
+    try {
+      await supabase.storage.from(BUCKET).remove([d.storage_path])
+      await supabase.from('certificacion_documentos').delete().eq('id', d.id)
+      await registrarCambio(cert, { tipo: 'documento', campo: d.tipo_documento, accion: 'eliminado' })
+      await cargarDocs(cert.id)
+    } catch (e) { alert('No se pudo eliminar: ' + e.message) }
+    finally { setBusyDoc(null) }
+  }
+
+  const cargarNuevo = async (cert, file) => {
+    if (!file) return
+    setBusyDoc('nuevo')
+    try {
+      await subirDoc(tercero.tercero_id, cert.id, `${nuevoTipo}_${Date.now()}`, file)
+      await registrarCambio(cert, { tipo: 'documento', campo: nuevoTipo, accion: 'cargado' })
+      await cargarDocs(cert.id)
+      alert('✅ Documento cargado. El equipo de certificación fue notificado.')
+    } catch (e) { alert('No se pudo cargar: ' + e.message) }
+    finally { setBusyDoc(null) }
+  }
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>📋 Estado de certificación</h2>
+        <div className="lede">El avance de cada conductor, ayudante y vehículo que has enviado a validar — con sus documentos. Si algo fue observado o rechazado, reemplaza o carga los documentos aquí mismo.</div></div></div>
+      {rows === null ? <div className="loading">Cargando…</div>
+      : rows.length === 0 ? <div className="empty">No tienes certificaciones registradas.</div>
+      : rows.map(cert => {
+        const orden = cert.tipo === 'vehiculo' ? MISCERT_ORDEN_VEHICULO : MISCERT_ORDEN_PERSONA
+        const idx = orden.indexOf(cert.etapa_kanban)
+        const esFinal = cert.etapa_kanban === 'aceptado' || cert.etapa_kanban === 'rechazado'
+        const docs = docsPor[cert.id]
+        return (
+          <div key={cert.id} style={{ border: '1px solid #e4e7ec', borderRadius: 12, padding: '14px 16px', marginBottom: 12, background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{cert.titulo}</div>
+                <div style={{ fontSize: 12, color: '#777' }}>{cert.service_center || '—'} · {new Date(cert.created_at).toLocaleDateString('es-MX')}</div>
+              </div>
+              <span style={{ fontSize: 12.5, fontWeight: 800, borderRadius: 20, padding: '6px 14px',
+                background: cert.etapa_kanban === 'aceptado' ? '#e8f5ec' : cert.etapa_kanban === 'rechazado' ? '#fbeaea' : '#eef2ff',
+                color: cert.etapa_kanban === 'aceptado' ? '#166534' : cert.etapa_kanban === 'rechazado' ? '#c0392b' : '#1a3a6b',
+                border: '1px solid ' + (cert.etapa_kanban === 'aceptado' ? '#b7e0c2' : cert.etapa_kanban === 'rechazado' ? '#f0c4c4' : '#c7d7f9') }}>
+                {MISCERT_ETAPAS[cert.etapa_kanban] || cert.etapa_kanban}
+              </span>
+              <button className="btn" onClick={() => abrir(cert.id)}>{abierta === cert.id ? 'Cerrar' : '📎 Documentos'}</button>
+            </div>
+            {!esFinal && idx >= 0 && (
+              <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
+                {orden.map((e, i) => <div key={e} title={MISCERT_ETAPAS[e]} style={{ flex: 1, height: 6, borderRadius: 3, background: i <= idx ? '#F47B20' : '#e9edf3' }} />)}
+              </div>
+            )}
+            {obsPor[cert.id] && (
+              <div style={{ marginTop: 10, background: '#fff4e5', border: '1px solid #f5d9b8', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', textTransform: 'uppercase', marginBottom: 6 }}>
+                  📣 Observaciones del equipo BigTicket · {new Date(obsPor[cert.id].created_at).toLocaleDateString('es-MX')}
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {(Array.isArray(obsPor[cert.id].items) ? obsPor[cert.id].items : []).map((it, i) => (
+                    <li key={i} style={{ fontSize: 12.5, color: '#8a4a0f', marginBottom: 3 }}>{String(it)}</li>
+                  ))}
+                </ul>
+                <div style={{ fontSize: 11.5, color: '#8a6a3f', marginTop: 6 }}>Corrige lo señalado reemplazando o cargando los documentos abajo. 👇</div>
+              </div>
+            )}
+            {abierta === cert.id && (
+              <div style={{ marginTop: 12, borderTop: '1px solid #f0f2f5', paddingTop: 10 }}>
+                {!docs ? <div className="loading">Cargando documentos…</div>
+                : docs.length === 0 ? <div style={{ fontSize: 12.5, color: '#888', marginBottom: 10 }}>Sin documentos cargados.</div>
+                : docs.map(d => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f5f6f8', flexWrap: 'wrap' }}>
+                    <span style={{ flex: 1, minWidth: 140, fontSize: 13, fontWeight: 600 }}>{d.tipo_documento}</span>
+                    <button className="btn" onClick={() => ver(d)}>Ver</button>
+                    <button className="btn" disabled={busyDoc === d.id}
+                      onClick={() => { reemDocRef.current = { cert, d }; fileReemRef.current && fileReemRef.current.click() }}>
+                      {busyDoc === d.id ? '…' : 'Reemplazar'}
+                    </button>
+                    <button onClick={() => eliminar(cert, d)} disabled={busyDoc === d.id}
+                      style={{ background: 'none', border: 'none', color: '#c0392b', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Eliminar</button>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+                  <select value={nuevoTipo} onChange={e => setNuevoTipo(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e4e7ec', fontSize: 12.5 }}>
+                    {MISCERT_TIPOS_DOC.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  </select>
+                  <button className="btn btn-primary" disabled={busyDoc === 'nuevo'}
+                    onClick={() => { reemDocRef.current = { cert, nuevo: true }; fileNuevoRef.current && fileNuevoRef.current.click() }}>
+                    {busyDoc === 'nuevo' ? 'Subiendo…' : '📎 Cargar documento nuevo'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      <input ref={fileReemRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files[0]; e.target.value = ''; const ctx = reemDocRef.current; if (f && ctx && !ctx.nuevo) reemplazar(ctx.cert, ctx.d, f) }} />
+      <input ref={fileNuevoRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files[0]; e.target.value = ''; const ctx = reemDocRef.current; if (f && ctx && ctx.nuevo) cargarNuevo(ctx.cert, f) }} />
     </>
   )
 }
