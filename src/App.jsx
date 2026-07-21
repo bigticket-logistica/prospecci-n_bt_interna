@@ -684,10 +684,11 @@ function MisCertificaciones({ tercero, email, onBack }) {
   useEffect(() => { cargar() }, [tercero])
 
   const cargarDocs = async (certId) => {
-    const { data } = await supabase.from('certificacion_documentos')
-      .select('*')
-      .eq('certificacion_id', certId).order('created_at', { ascending: true })
-    setDocsPor(p => ({ ...p, [certId]: data || [] }))
+    const { data, error } = await supabase.from('certificacion_documentos')
+      .select('*').eq('certificacion_id', certId) // sin .order: la tabla puede no tener created_at
+    if (error) console.warn('lectura certificacion_documentos:', error.message)
+    const rows = [...(data || [])].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+    setDocsPor(p => ({ ...p, [certId]: rows }))
   }
   const abrir = (id) => { const nx = abierta === id ? null : id; setAbierta(nx); if (nx && !docsPor[nx]) cargarDocs(nx) }
 
@@ -728,7 +729,12 @@ function MisCertificaciones({ tercero, email, onBack }) {
     if (!confirm(`¿Eliminar ${docEtiqueta(d.tipo_documento)}? Deberás cargar uno nuevo para continuar el proceso.`)) return
     setBusyDoc(d.id)
     try {
-      await supabase.storage.from(BUCKET).remove([d.storage_path])
+      // protect_delete puede bloquear el DELETE del bucket — fallback: mover a papelera/ (rename)
+      const { data: rm, error: eRm } = await supabase.storage.from(BUCKET).remove([d.storage_path])
+      if (eRm || !Array.isArray(rm) || rm.length === 0) {
+        const { error: eMv } = await supabase.storage.from(BUCKET).move(d.storage_path, `papelera/${d.storage_path}`)
+        if (eMv) throw new Error((eRm && eRm.message) || 'No se pudo retirar el archivo del almacenamiento')
+      }
       await supabase.from('certificacion_documentos').delete().eq('id', d.id)
       await registrarCambio(cert, { tipo: 'documento', campo: docTipoLimpio(d.tipo_documento), accion: 'eliminado' })
       await cargarDocs(cert.id)
