@@ -460,7 +460,7 @@ function FirmaWidget({ widgetId, onSuccess }) {
 // ── Consultas (chat con Bigticket) ───────────────────────────────────
 
 // ─── 🗂 Documentos de mi empresa (archivador — solo lectura) ─────────
-const DOCS_CAT_LABEL = { contratos:'📑 Contratos', seguros:'🛡 Seguros', vehiculos:'🚚 Vehículos', personal:'👤 Personal', anexos:'📎 Anexos', otros:'🗃 Otros' }
+const DOCS_CAT_LABEL = { contratos:'📑 Contratos', empresa:'🏛 Documentación de empresa', seguros:'🛡 Seguros', vehiculos:'🚚 Vehículos', qr:'🔳 QR MELI', personal:'👤 Personal', anexos:'📎 Anexos', otros:'🗃 Otros' }
 const docsBytes = (b) => b == null ? '—' : b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(0) + ' KB' : (b/1048576).toFixed(1) + ' MB'
 
 function DocumentosEmpresa({ tercero, onBack }) {
@@ -514,7 +514,7 @@ function DocumentosEmpresa({ tercero, onBack }) {
 // ─── 🏢 PERFIL DE EMPRESA · Ficha de Ingreso Transportes México ─────
 // Identificación de la empresa + cuenta de pago con evidencia CLABE.
 // Sin estos datos completos, BigTicket no puede procesar los pagos.
-const PERFIL_REQUERIDOS = ['razon_social', 'rfc_razon_social', 'direccion', 'representante_legal', 'correo_contacto', 'fono_contacto', 'banco', 'titular_cuenta', 'tipo_cuenta', 'cuenta_clabe']
+const PERFIL_REQUERIDOS = ['razon_social', 'rfc_razon_social', 'regimen_fiscal', 'codigo_sat', 'direccion', 'fecha_ingreso_operacion', 'representante_legal', 'rfc_representante', 'curp_representante', 'correo_contacto', 'fono_contacto', 'banco', 'titular_cuenta', 'rfc_titular', 'tipo_cuenta', 'cuenta_clabe']
 function perfilCompleto(p) {
   if (!p) return false
   for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) return false
@@ -528,8 +528,10 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
+  const [intento, setIntento] = useState(false)   // ya intentó guardar → marcar faltantes en rojo
   const fileRef = useRef(null)
   const S = (k, v) => setP(prev => ({ ...prev, [k]: v }))
+  const rojo = (k) => intento && !String(p?.[k] || '').trim() ? { borderColor: '#e74c3c', background: '#fff5f5' } : {}
 
   useEffect(() => {
     ;(async () => {
@@ -554,13 +556,15 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   }
 
   const guardar = async () => {
+    setIntento(true)
     const falta = []
-    const ETQ = { razon_social: 'Razón social', rfc_razon_social: 'RFC razón social', direccion: 'Dirección', representante_legal: 'Representante legal', correo_contacto: 'Correo contacto', fono_contacto: 'Teléfono contacto', banco: 'Banco', titular_cuenta: 'Titular', tipo_cuenta: 'Tipo de cuenta', cuenta_clabe: 'CLABE' }
+    const ETQ = { razon_social: 'Razón social', rfc_razon_social: 'RFC razón social', regimen_fiscal: 'Régimen fiscal', codigo_sat: 'Código SAT', direccion: 'Dirección', fecha_ingreso_operacion: 'Fecha ingreso operación', representante_legal: 'Representante legal', rfc_representante: 'RFC representante legal', curp_representante: 'CURP representante legal', correo_contacto: 'Correo contacto', fono_contacto: 'Teléfono contacto', banco: 'Banco', titular_cuenta: 'Titular de la cuenta', rfc_titular: 'RFC del titular', tipo_cuenta: 'Tipo de cuenta', cuenta_clabe: 'CLABE' }
     for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) falta.push(ETQ[k] || k)
     if (String(p.cuenta_clabe || '').trim() && !/^\d{18}$/.test(String(p.cuenta_clabe).trim())) falta.push('CLABE válida (18 dígitos)')
     if (!p.evidencia_cuenta_path) falta.push('Print de pantalla del banco con la CLABE')
     if (falta.length) {
-      if (!confirm('Faltan datos obligatorios:\n\n• ' + falta.join('\n• ') + '\n\n⚠️ Sin el perfil completo, BigTicket NO podrá procesar tus pagos.\n\n¿Guardar de todos modos como borrador?')) return
+      alert('⚠️ No se puede guardar: todos los campos son obligatorios.\n\nFalta completar:\n\n• ' + falta.join('\n• ') + '\n\nLos campos faltantes quedaron marcados en rojo. Sin el perfil completo, BigTicket no podrá procesar tus pagos.')
+      return
     }
     setGuardando(true)
     try {
@@ -569,7 +573,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       if (!fila.fecha_ingreso_operacion) fila.fecha_ingreso_operacion = null
       const { error } = await supabase.from('perfiles_empresa').upsert(fila, { onConflict: 'tercero_id' })
       if (error) throw new Error(error.message)
-      alert(falta.length ? 'Borrador guardado. Recuerda completar los datos faltantes.' : '✅ Perfil de Empresa completo y guardado.')
+      alert('✅ Perfil de Empresa completo y guardado.')
       if (onGuardado) onGuardado()
     } catch (e) { alert('No se pudo guardar: ' + e.message) }
     finally { setGuardando(false) }
@@ -600,19 +604,19 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       <div className="card">
         <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px', paddingLeft: 8 }}>Identificación empresa transporte</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <F label="Razón social *"><input {...inp('razon_social')} /></F>
-          <F label="RFC razón social *"><input {...inp('rfc_razon_social', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
-          <F label="Régimen fiscal"><input {...inp('regimen_fiscal')} placeholder="Ej. 601 General de Ley PM" /></F>
-          <F label="Código SAT"><input {...inp('codigo_sat')} /></F>
-          <F label="Fecha ingreso operación"><input type="date" {...inp('fecha_ingreso_operacion')} /></F>
-          <F label="Representante legal *"><input {...inp('representante_legal')} /></F>
-          <F label="RFC representante legal"><input {...inp('rfc_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
-          <F label="CURP representante legal"><input {...inp('curp_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
-          <F label="Correo contacto *"><input {...inp('correo_contacto')} inputMode="email" /></F>
-          <F label="Teléfono contacto *"><input {...inp('fono_contacto')} inputMode="tel" /></F>
+          <F label="Razón social *"><input {...inp('razon_social', { style: rojo('razon_social') })} /></F>
+          <F label="RFC razón social *"><input {...inp('rfc_razon_social', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('rfc_razon_social') } })} /></F>
+          <F label="Régimen fiscal *"><input {...inp('regimen_fiscal', { style: rojo('regimen_fiscal') })} placeholder="Ej. 601 General de Ley PM" /></F>
+          <F label="Código SAT *"><input {...inp('codigo_sat', { style: rojo('codigo_sat') })} /></F>
+          <F label="Fecha ingreso operación *"><input type="date" {...inp('fecha_ingreso_operacion', { style: rojo('fecha_ingreso_operacion') })} /></F>
+          <F label="Representante legal *"><input {...inp('representante_legal', { style: rojo('representante_legal') })} /></F>
+          <F label="RFC representante legal *"><input {...inp('rfc_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('rfc_representante') } })} /></F>
+          <F label="CURP representante legal *"><input {...inp('curp_representante', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('curp_representante') } })} /></F>
+          <F label="Correo contacto *"><input {...inp('correo_contacto', { style: rojo('correo_contacto') })} inputMode="email" /></F>
+          <F label="Teléfono contacto *"><input {...inp('fono_contacto', { style: rojo('fono_contacto') })} inputMode="tel" /></F>
         </div>
         <div className="field" style={{ marginTop: 12 }}><label>Dirección de la empresa *</label>
-          <input {...inp('direccion')} placeholder="Calle, número, colonia, municipio, CP, estado" /></div>
+          <input {...inp('direccion', { style: rojo('direccion') })} placeholder="Calle, número, colonia, municipio, CP, estado" /></div>
       </div>
 
       <div className="card">
@@ -621,17 +625,18 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
           La cuenta bancaria debe estar a nombre de la empresa o del Representante Legal.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <F label="Banco *"><input {...inp('banco')} placeholder="Ej. BBVA, Banorte" /></F>
-          <F label="Titular de la cuenta *"><input {...inp('titular_cuenta')} /></F>
-          <F label="RFC del titular"><input {...inp('rfc_titular', { style: { fontFamily: 'monospace', textTransform: 'uppercase' } })} /></F>
+          <F label="Banco *"><input {...inp('banco', { style: rojo('banco') })} placeholder="Ej. BBVA, Banorte" /></F>
+          <F label="Titular de la cuenta *"><input {...inp('titular_cuenta', { style: rojo('titular_cuenta') })} /></F>
+          <F label="RFC del titular *"><input {...inp('rfc_titular', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('rfc_titular') } })} /></F>
           <F label="Tipo de cuenta *">
-            <select value={p.tipo_cuenta || ''} onChange={e => S('tipo_cuenta', e.target.value)}>
+            <select value={p.tipo_cuenta || ''} onChange={e => S('tipo_cuenta', e.target.value)} style={rojo('tipo_cuenta')}>
               <option value="">— Selecciona —</option><option>Cheques</option><option>Débito</option><option>Cuenta CLABE / concentradora</option>
             </select></F>
           <F label="Cuenta CLABE * (18 dígitos)">
             <input value={p.cuenta_clabe || ''} onChange={e => S('cuenta_clabe', e.target.value.replace(/[^0-9]/g, '').slice(0, 18))}
               inputMode="numeric" placeholder="18 dígitos" style={{ fontFamily: 'monospace', letterSpacing: '.1em',
-                borderColor: p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe) ? '#e74c3c' : undefined }} />
+                ...rojo('cuenta_clabe'),
+                borderColor: (intento && !p.cuenta_clabe) || (p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe)) ? '#e74c3c' : undefined }} />
             {p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe) && <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 3 }}>La CLABE debe tener exactamente 18 dígitos ({p.cuenta_clabe.length}/18)</div>}
           </F>
         </div>
@@ -649,7 +654,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
             </div>
           ) : (
             <button onClick={() => fileRef.current && fileRef.current.click()} disabled={subiendo}
-              style={{ width: '100%', border: '2px dashed #F47B20', background: '#fff8f2', color: '#c05e10', fontWeight: 700, fontSize: 13, borderRadius: 12, padding: 16, cursor: 'pointer' }}>
+              style={{ width: '100%', border: intento && !p.evidencia_cuenta_path ? '2px dashed #e74c3c' : '2px dashed #F47B20', background: intento && !p.evidencia_cuenta_path ? '#fff5f5' : '#fff8f2', color: intento && !p.evidencia_cuenta_path ? '#c0392b' : '#c05e10', fontWeight: 700, fontSize: 13, borderRadius: 12, padding: 16, cursor: 'pointer' }}>
               {subiendo ? 'Subiendo…' : '📸 Subir print de pantalla (banco + CLABE visibles)'}
             </button>
           )}
