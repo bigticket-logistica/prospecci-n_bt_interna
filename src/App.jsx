@@ -463,6 +463,11 @@ function DocumentosEmpresa({ tercero, onBack }) {
 // Identificación de la empresa + cuenta de pago con evidencia CLABE.
 // Sin estos datos completos, BigTicket no puede procesar los pagos.
 const PERFIL_REQUERIDOS = ['razon_social', 'rfc_razon_social', 'regimen_fiscal', 'codigo_sat', 'direccion', 'fecha_ingreso_operacion', 'representante_legal', 'rfc_representante', 'curp_representante', 'correo_contacto', 'fono_contacto', 'banco', 'titular_cuenta', 'rfc_titular', 'tipo_cuenta', 'cuenta_clabe']
+// Wrapper de campo del Perfil de Empresa — DEBE vivir a nivel de módulo:
+// si se define dentro del render, React lo trata como un componente nuevo en
+// cada tecla, remonta el input y se pierde el foco (bug de "una letra a la vez").
+const CampoPerfil = ({ label, children }) => (<div className="field"><label>{label}</label>{children}</div>)
+
 function perfilCompleto(p) {
   if (!p) return false
   for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) return false
@@ -530,7 +535,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   if (cargando || !p) return (<><button className="back-link" onClick={onBack}>← Volver</button><div className="loading">Cargando perfil…</div></>)
   const completo = perfilCompleto(p)
   const inp = (k, extra = {}) => ({ value: p[k] || '', onChange: e => S(k, e.target.value), ...extra })
-  const F = ({ label, children }) => (<div className="field"><label>{label}</label>{children}</div>)
+  const F = CampoPerfil   // referencia estable — no recrear componentes dentro del render
 
   return (
     <>
@@ -625,6 +630,10 @@ const MISCERT_ETAPAS = {
 }
 const MISCERT_ORDEN_PERSONA = ['recepcion', 'prevalidacion_biggy', 'validacion_meli', 'validacion_nubarium']
 const MISCERT_ORDEN_VEHICULO = ['recepcion', 'prevalidacion_biggy', 'validacion_nubarium']
+// Tarjetas creadas sin etapa_kanban (null) → se infiere del estado, igual que el Brain.
+const MISCERT_ETAPA_DE = (cert) => cert.etapa_kanban
+  || ({ enviado: 'recepcion', en_validacion: 'validacion_meli', validado: 'aceptado', con_alertas: 'aceptado', certificado: 'aceptado', rechazado: 'rechazado' }[cert.estado])
+  || 'recepcion'
 // Tipos REALES usados por FormPersona/FormVehiculo (deben coincidir para que el Brain y Biggy los encuentren)
 const MISCERT_TIPOS_DOC = ['ine', 'ine_reverso', 'curp', 'rfc', 'licencia', 'foto_frente', 'foto_trasera', 'foto_lado_izq', 'foto_lado_der', 'tarjeta_circulacion', 'poliza_seguro', 'otro']
 const MISCERT_DOC_LABEL = {
@@ -651,7 +660,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
   const cargar = async () => {
     const { data } = await supabase
       .from('certificaciones')
-      .select('id, tipo, etapa_kanban, service_center, created_at, cambios_prospecto, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca,modelo)')
+      .select('id, tipo, estado, etapa_kanban, service_center, created_at, cambios_prospecto, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca,modelo)')
       .eq('tercero_id', tercero.tercero_id)
       .order('created_at', { ascending: false })
     const norm = (x) => Array.isArray(x) ? x[0] : x
@@ -751,9 +760,10 @@ function MisCertificaciones({ tercero, email, onBack }) {
       {rows === null ? <div className="loading">Cargando…</div>
       : rows.length === 0 ? <div className="empty">No tienes certificaciones registradas.</div>
       : rows.map(cert => {
+        const etapa = MISCERT_ETAPA_DE(cert)
         const orden = cert.tipo === 'vehiculo' ? MISCERT_ORDEN_VEHICULO : MISCERT_ORDEN_PERSONA
-        const idx = orden.indexOf(cert.etapa_kanban)
-        const esFinal = cert.etapa_kanban === 'aceptado' || cert.etapa_kanban === 'rechazado'
+        const idx = orden.indexOf(etapa)
+        const esFinal = etapa === 'aceptado' || etapa === 'rechazado'
         const docs = docsPor[cert.id]
         return (
           <div key={cert.id} style={{ border: '1px solid #e4e7ec', borderRadius: 12, padding: '14px 16px', marginBottom: 12, background: '#fff' }}>
@@ -763,10 +773,10 @@ function MisCertificaciones({ tercero, email, onBack }) {
                 <div style={{ fontSize: 12, color: '#777' }}>{cert.service_center || '—'} · {new Date(cert.created_at).toLocaleDateString('es-MX')}</div>
               </div>
               <span style={{ fontSize: 12.5, fontWeight: 800, borderRadius: 20, padding: '6px 14px',
-                background: cert.etapa_kanban === 'aceptado' ? '#e8f5ec' : cert.etapa_kanban === 'rechazado' ? '#fbeaea' : '#eef2ff',
-                color: cert.etapa_kanban === 'aceptado' ? '#166534' : cert.etapa_kanban === 'rechazado' ? '#c0392b' : '#1a3a6b',
-                border: '1px solid ' + (cert.etapa_kanban === 'aceptado' ? '#b7e0c2' : cert.etapa_kanban === 'rechazado' ? '#f0c4c4' : '#c7d7f9') }}>
-                {MISCERT_ETAPAS[cert.etapa_kanban] || cert.etapa_kanban}
+                background: etapa === 'aceptado' ? '#e8f5ec' : etapa === 'rechazado' ? '#fbeaea' : '#eef2ff',
+                color: etapa === 'aceptado' ? '#166534' : etapa === 'rechazado' ? '#c0392b' : '#1a3a6b',
+                border: '1px solid ' + (etapa === 'aceptado' ? '#b7e0c2' : etapa === 'rechazado' ? '#f0c4c4' : '#c7d7f9') }}>
+                {MISCERT_ETAPAS[etapa] || etapa}
               </span>
               <button className="btn" onClick={() => abrir(cert.id)}>{abierta === cert.id ? 'Cerrar' : '📎 Documentos'}</button>
             </div>
@@ -1241,7 +1251,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
     setFaltan([]); setBusy(true)
     try {
       const { data: cert, error } = await supabase.from('certificaciones')
-        .insert({ tercero_id: tercero.tercero_id, tipo, estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc })
+        .insert({ tercero_id: tercero.tercero_id, tipo, estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc, etapa_kanban: 'recepcion' })
         .select().single()
       if (error) throw error
       await supabase.from('certificacion_conductor').insert({
@@ -1344,7 +1354,7 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     setFaltan([]); setBusy(true)
     try {
       const { data: cert, error } = await supabase.from('certificaciones')
-        .insert({ tercero_id: tercero.tercero_id, tipo: 'vehiculo', estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc })
+        .insert({ tercero_id: tercero.tercero_id, tipo: 'vehiculo', estado: 'enviado', origen: 'portal_web', enviado_por: email, service_center: sc, etapa_kanban: 'recepcion' })
         .select().single()
       if (error) throw error
       await supabase.from('certificacion_vehiculo').insert({
