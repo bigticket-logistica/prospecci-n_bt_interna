@@ -468,7 +468,7 @@ function DocumentosEmpresa({ tercero, onBack }) {
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.from('documentos_empresa')
-        .select('id, categoria, nombre_archivo, storage_path, mime_type, tamano_bytes, referencia, created_at')
+        .select('id, categoria, nombre_archivo, storage_path, bucket, mime_type, tamano_bytes, referencia, created_at')
         .eq('tercero_id', tercero.tercero_id)
         .order('created_at', { ascending: false })
       setDocs(data || [])
@@ -476,7 +476,7 @@ function DocumentosEmpresa({ tercero, onBack }) {
   }, [tercero])
 
   const abrir = async (d) => {
-    const { data, error } = await supabase.storage.from('archivador_empresas').createSignedUrl(d.storage_path, 300)
+    const { data, error } = await supabase.storage.from(d.bucket || 'archivador_empresas').createSignedUrl(d.storage_path, 300)
     if (error || !data?.signedUrl) { alert('No se pudo abrir el documento. Intenta de nuevo.'); return }
     window.open(data.signedUrl, '_blank')
   }
