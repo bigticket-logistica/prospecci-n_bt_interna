@@ -625,7 +625,17 @@ const MISCERT_ETAPAS = {
 }
 const MISCERT_ORDEN_PERSONA = ['recepcion', 'prevalidacion_biggy', 'validacion_meli', 'validacion_nubarium']
 const MISCERT_ORDEN_VEHICULO = ['recepcion', 'prevalidacion_biggy', 'validacion_nubarium']
-const MISCERT_TIPOS_DOC = ['ine_frente', 'ine_reverso', 'curp', 'rfc', 'licencia', 'foto_vehiculo', 'placa', 'tarjeta_circulacion', 'poliza_seguro', 'otro']
+// Tipos REALES usados por FormPersona/FormVehiculo (deben coincidir para que el Brain y Biggy los encuentren)
+const MISCERT_TIPOS_DOC = ['ine', 'ine_reverso', 'curp', 'rfc', 'licencia', 'foto_frente', 'foto_trasera', 'foto_lado_izq', 'foto_lado_der', 'tarjeta_circulacion', 'poliza_seguro', 'otro']
+const MISCERT_DOC_LABEL = {
+  ine: 'INE — frente', ine_reverso: 'INE — reverso', curp: 'CURP', rfc: 'RFC', licencia: 'Licencia',
+  foto_frente: 'Foto — frente', foto_trasera: 'Foto — trasera', foto_lado_izq: 'Foto — lado izquierdo',
+  foto_lado_der: 'Foto — lado derecho', tarjeta_circulacion: 'Tarjeta de circulación', poliza_seguro: 'Póliza de seguro', otro: 'Otro',
+}
+// Documentos antiguos quedaron con sufijo _timestamp en el tipo — se limpia solo para mostrar.
+const docTipoLimpio = (t) => String(t || '').replace(/_\d{10,}$/, '')
+const docEtiqueta = (t) => MISCERT_DOC_LABEL[docTipoLimpio(t)] || docTipoLimpio(t).replace(/_/g, ' ')
+const fmtFechaHora = (x) => x ? new Date(x).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
 function MisCertificaciones({ tercero, email, onBack }) {
   const [rows, setRows] = useState(null)
@@ -666,7 +676,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
 
   const cargarDocs = async (certId) => {
     const { data } = await supabase.from('certificacion_documentos')
-      .select('id, tipo_documento, storage_path, created_at')
+      .select('*')
       .eq('certificacion_id', certId).order('created_at', { ascending: true })
     setDocsPor(p => ({ ...p, [certId]: data || [] }))
   }
@@ -691,7 +701,9 @@ function MisCertificaciones({ tercero, email, onBack }) {
       const path = `${tercero.tercero_id}/${cert.id}/${d.tipo_documento}_${Date.now()}.${ext}`
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
       if (error) throw new Error(error.message)
-      await supabase.from('certificacion_documentos').update({ storage_path: path }).eq('id', d.id)
+      const { error: eUpd } = await supabase.from('certificacion_documentos')
+        .update({ storage_path: path, updated_at: new Date().toISOString(), subido_por: email || null }).eq('id', d.id)
+      if (eUpd) throw new Error('El archivo subió pero no se registró: ' + eUpd.message)
       await registrarCambio(cert, { tipo: 'documento', campo: d.tipo_documento, accion: 'reemplazado' })
       await cargarDocs(cert.id)
       alert('✅ Documento reemplazado. El equipo de certificación fue notificado.')
@@ -715,7 +727,14 @@ function MisCertificaciones({ tercero, email, onBack }) {
     if (!file) return
     setBusyDoc('nuevo')
     try {
-      await subirDoc(tercero.tercero_id, cert.id, `${nuevoTipo}_${Date.now()}`, file)
+      // El tipo va LIMPIO a la tabla; el timestamp solo al path (evita colisiones sin ensuciar tipo_documento)
+      const ext = file.name.split('.').pop()
+      const path = `${tercero.tercero_id}/${cert.id}/${nuevoTipo}_${Date.now()}.${ext}`
+      const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
+      if (eUp) throw new Error(eUp.message)
+      const { error: eIns } = await supabase.from('certificacion_documentos')
+        .insert({ certificacion_id: cert.id, tipo_documento: nuevoTipo, storage_path: path, subido_por: email || null })
+      if (eIns) throw new Error('El archivo subió pero no se registró: ' + eIns.message)
       await registrarCambio(cert, { tipo: 'documento', campo: nuevoTipo, accion: 'cargado' })
       await cargarDocs(cert.id)
       alert('✅ Documento cargado. El equipo de certificación fue notificado.')
@@ -774,7 +793,12 @@ function MisCertificaciones({ tercero, email, onBack }) {
                 : docs.length === 0 ? <div style={{ fontSize: 12.5, color: '#888', marginBottom: 10 }}>Sin documentos cargados.</div>
                 : docs.map(d => (
                   <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f5f6f8', flexWrap: 'wrap' }}>
-                    <span style={{ flex: 1, minWidth: 140, fontSize: 13, fontWeight: 600 }}>{d.tipo_documento}</span>
+                    <span style={{ flex: 1, minWidth: 140 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{docEtiqueta(d.tipo_documento)}</span>
+                      <span style={{ display: 'block', fontSize: 11, color: '#98a2b3' }}>
+                        Cargado {fmtFechaHora(d.created_at)}{d.updated_at ? ` · reemplazado ${fmtFechaHora(d.updated_at)}` : ''}
+                      </span>
+                    </span>
                     <button className="btn" onClick={() => ver(d)}>Ver</button>
                     <button className="btn" disabled={busyDoc === d.id}
                       onClick={() => { reemDocRef.current = { cert, d }; fileReemRef.current && fileReemRef.current.click() }}>
@@ -794,6 +818,16 @@ function MisCertificaciones({ tercero, email, onBack }) {
                     {busyDoc === 'nuevo' ? 'Subiendo…' : '📎 Cargar documento nuevo'}
                   </button>
                 </div>
+                {(cert.cambios_prospecto || []).length > 0 && (
+                  <div style={{ marginTop: 14, background: '#f8f9fb', border: '1px solid #eef0f4', borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#667085', textTransform: 'uppercase', marginBottom: 6 }}>🕓 Historial de cambios</div>
+                    {[...cert.cambios_prospecto].slice(-6).reverse().map((c, i) => (
+                      <div key={i} style={{ fontSize: 12, color: '#555', padding: '3px 0' }}>
+                        <b>{fmtFechaHora(c.at)}</b> · 📎 {docEtiqueta(c.campo)}: {c.accion}{c.por ? ` — ${c.por}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1168,7 +1202,9 @@ async function subirDoc(terceroId, certId, tipoDoc, file) {
   const path = `${terceroId}/${certId}/${tipoDoc}.${ext}`
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
   if (error) throw error
-  await supabase.from('certificacion_documentos').insert({ certificacion_id: certId, tipo_documento: tipoDoc, storage_path: path })
+  const { error: eIns } = await supabase.from('certificacion_documentos')
+    .insert({ certificacion_id: certId, tipo_documento: tipoDoc, storage_path: path })
+  if (eIns) throw new Error(`El documento ${tipoDoc} subió pero no se registró: ` + eIns.message)
 }
 
 // ── Formulario de persona (conductor o ayudante) ─────────────────────
