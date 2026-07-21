@@ -704,7 +704,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
       const { error: eUpd } = await supabase.from('certificacion_documentos')
         .update({ storage_path: path, updated_at: new Date().toISOString(), subido_por: email || null }).eq('id', d.id)
       if (eUpd) throw new Error('El archivo subió pero no se registró: ' + eUpd.message)
-      await registrarCambio(cert, { tipo: 'documento', campo: d.tipo_documento, accion: 'reemplazado' })
+      await registrarCambio(cert, { tipo: 'documento', campo: docTipoLimpio(d.tipo_documento), accion: 'reemplazado', doc_id: d.id, storage_path: path })
       await cargarDocs(cert.id)
       alert('✅ Documento reemplazado. El equipo de certificación fue notificado.')
     } catch (e) { alert('No se pudo reemplazar: ' + e.message) }
@@ -712,12 +712,12 @@ function MisCertificaciones({ tercero, email, onBack }) {
   }
 
   const eliminar = async (cert, d) => {
-    if (!confirm(`¿Eliminar ${d.tipo_documento}? Deberás cargar uno nuevo para continuar el proceso.`)) return
+    if (!confirm(`¿Eliminar ${docEtiqueta(d.tipo_documento)}? Deberás cargar uno nuevo para continuar el proceso.`)) return
     setBusyDoc(d.id)
     try {
       await supabase.storage.from(BUCKET).remove([d.storage_path])
       await supabase.from('certificacion_documentos').delete().eq('id', d.id)
-      await registrarCambio(cert, { tipo: 'documento', campo: d.tipo_documento, accion: 'eliminado' })
+      await registrarCambio(cert, { tipo: 'documento', campo: docTipoLimpio(d.tipo_documento), accion: 'eliminado' })
       await cargarDocs(cert.id)
     } catch (e) { alert('No se pudo eliminar: ' + e.message) }
     finally { setBusyDoc(null) }
@@ -732,10 +732,11 @@ function MisCertificaciones({ tercero, email, onBack }) {
       const path = `${tercero.tercero_id}/${cert.id}/${nuevoTipo}_${Date.now()}.${ext}`
       const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
       if (eUp) throw new Error(eUp.message)
-      const { error: eIns } = await supabase.from('certificacion_documentos')
+      const { data: nuevoDoc, error: eIns } = await supabase.from('certificacion_documentos')
         .insert({ certificacion_id: cert.id, tipo_documento: nuevoTipo, storage_path: path, subido_por: email || null })
+        .select('id').single()
       if (eIns) throw new Error('El archivo subió pero no se registró: ' + eIns.message)
-      await registrarCambio(cert, { tipo: 'documento', campo: nuevoTipo, accion: 'cargado' })
+      await registrarCambio(cert, { tipo: 'documento', campo: nuevoTipo, accion: 'cargado', doc_id: nuevoDoc?.id || null, storage_path: path })
       await cargarDocs(cert.id)
       alert('✅ Documento cargado. El equipo de certificación fue notificado.')
     } catch (e) { alert('No se pudo cargar: ' + e.message) }
