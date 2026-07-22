@@ -1403,7 +1403,7 @@ async function subirDoc(terceroId, certId, tipoDoc, file) {
 function FormPersona({ tipo, tercero, email, onBack, onDone }) {
   const esConductor = tipo === 'conductor'
   const [sc, setSc] = useState('')
-  const [f, setF] = useState({ nombre: '', curp: '', rfc: '', telefono: '', licencia_numero: '', licencia_estado: '', licencia_vigencia: '' })
+  const [f, setF] = useState({ nombre: '', curp: '', rfc: '', telefono: '', email: '', licencia_numero: '', licencia_estado: '', licencia_vigencia: '' })
   const [files, setFiles] = useState({})
   const [err, setErr] = useState(''); const [ok, setOk] = useState(''); const [busy, setBusy] = useState(false)
   const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
@@ -1418,6 +1418,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
     if (!f.curp.trim()) falta.push('CURP')
     if (!f.rfc.trim()) falta.push('RFC')
     if (!f.telefono.trim()) falta.push('Teléfono')
+    if (!f.email.trim() || !f.email.includes('@')) falta.push('Correo electrónico (ahí llega la invitación MELI)')
     if (esConductor) {
       if (!f.licencia_numero.trim()) falta.push('Número de licencia')
       if (!f.licencia_estado) falta.push('Estado emisor de la licencia')
@@ -1438,6 +1439,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
       await supabase.from('certificacion_conductor').insert({
         certificacion_id: cert.id, nombre: f.nombre.trim(), curp: f.curp.trim().toUpperCase(),
         rfc: f.rfc.trim().toUpperCase() || null, telefono: f.telefono || null,
+        email: f.email.trim().toLowerCase(),
         licencia_numero: esConductor ? (f.licencia_numero || null) : null,
         licencia_estado: esConductor ? (f.licencia_estado || null) : null,
         licencia_vigencia: esConductor ? (f.licencia_vigencia || null) : null,
@@ -1474,6 +1476,9 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
           <div className="field"><label>CURP *</label><input value={f.curp} onChange={e => set('curp', e.target.value)} placeholder="18 caracteres" maxLength={18} style={miss(!f.curp.trim())} /></div>
           <div className="field"><label>RFC *</label><input value={f.rfc} onChange={e => set('rfc', e.target.value)} placeholder="13 caracteres" maxLength={13} style={miss(!f.rfc.trim())} /></div>
           <div className="field"><label>Teléfono *</label><input value={f.telefono} onChange={e => set('telefono', e.target.value)} placeholder="10 dígitos" style={miss(!f.telefono.trim())} /></div>
+          <div className="field"><label>Correo electrónico *</label><input type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="correo@ejemplo.com" style={miss(!f.email.trim() || !f.email.includes('@'))} />
+            <div style={{ fontSize: 11, color: '#667085', marginTop: 3 }}>📩 A este correo llegará la invitación de MELI — verifica que sea el del {esConductor ? 'conductor' : 'ayudante'} y esté correcto.</div>
+          </div>
         </div>
 
         {esConductor && (
