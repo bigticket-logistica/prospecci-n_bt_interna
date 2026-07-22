@@ -862,7 +862,100 @@ function MisCertificaciones({ tercero, email, onBack }) {
   )
 }
 
+// ── Consultas: Preguntas frecuentes (acordeón) + chat directo ──
+// Ítems y respuestas replicados del modelo de Camilo. El chat con el equipo
+// (mensajes_terceros ↔ Brain) solo se abre desde "Escribir otra consulta".
+const FAQ_CATEGORIAS = [
+  { cat: 'Certificar conductor / ayudante', preguntas: [
+    { q: '¿Cómo certifico a un conductor?',
+      a: 'Entra a “Certificar conductor”, elige el centro de servicio (SC), completa los datos personales y de la licencia, y sube los documentos. Luego pulsa “Enviar a certificar”.',
+      guia: { titulo: 'Certificar un conductor', pasos: [
+        'Entra a “Certificar conductor” y elige el centro de servicio (SC).',
+        'Completa nombre completo, CURP, RFC y teléfono.',
+        'Ingresa número de licencia, estado emisor y vigencia.',
+        'Sube INE (frente y reverso), CURP (PDF), RFC (PDF) y licencia.',
+        'Pulsa “Enviar a certificar”.'] } },
+    { q: '¿Qué documentos necesito para certificar a alguien?',
+      a: 'INE frente y reverso, CURP (PDF) y RFC/Constancia (PDF). Si es conductor, además la licencia. Súbelos legibles y completos.' },
+    { q: '¿Qué diferencia hay entre conductor y ayudante?',
+      a: 'El conductor requiere licencia de conducir; el ayudante no. En ambos casos se valida identidad (CURP, RFC, INE) y antecedentes.' },
+    { q: '¿El ayudante necesita licencia?',
+      a: 'No. El ayudante no requiere licencia de conducir; solo se valida su identidad y antecedentes.' },
+  ]},
+  { cat: 'Certificar vehículo', preguntas: [
+    { q: '¿Cómo certifico un vehículo?',
+      a: 'Entra a “Certificar vehículo”, ingresa la placa (se valida contra REPUVE), confirma los datos oficiales y sube la documentación de la unidad.',
+      guia: { titulo: 'Certificar un vehículo', pasos: [
+        'Entra a “Certificar vehículo”.',
+        'Ingresa la placa (se valida contra REPUVE).',
+        'Confirma los datos oficiales de la unidad.',
+        'Sube tarjeta de circulación, póliza y fotos.',
+        'Pulsa “Enviar a certificar”.'] } },
+    { q: '¿Qué valida REPUVE?',
+      a: 'REPUVE valida el registro del vehículo y si la placa tiene reporte de robo. Por eso pedimos la placa correcta y legible.' },
+    { q: '¿Hasta qué año de antigüedad aceptan?',
+      a: 'No se aceptan unidades con más de 15 años de antigüedad.' },
+  ]},
+  { cat: 'Firma de contrato', preguntas: [
+    { q: '¿Cómo firmo mi contrato?',
+      a: 'En “Firma de contrato” abre el documento y fírmalo con Mifiel: puedes usar tu e.firma del SAT o verificación biométrica por cámara.',
+      guia: { titulo: 'Firmar tu contrato', pasos: [
+        'Entra a “Firma de contrato”.',
+        'Abre el documento y toca “Firmar”.',
+        'Elige e.firma del SAT o verificación biométrica (cámara).',
+        'Cuando ambas firmas queden en verde, quedó firmado.'] } },
+    { q: 'No tengo e.firma, ¿cómo firmo?',
+      a: 'Sin problema: puedes firmar con verificación biométrica desde la cámara, sin e.firma. El sistema te guía paso a paso.' },
+    { q: 'El contrato no corresponde o tiene un error.',
+      a: 'Cuéntanos qué dato no corresponde. Lo revisamos, corregimos y te regeneramos el contrato para que lo firmes.' },
+    { q: 'Ya firmé, ¿cuándo empiezo a operar?',
+      a: 'Una vez tengas tus unidades (vehículos) y personal de alta, serás informado para tu citación en operaciones.' },
+  ]},
+  { cat: 'Perfil de empresa y pagos', preguntas: [
+    { q: '¿Por qué debo completar el Perfil de Empresa?',
+      a: 'Porque sin los datos de tu cuenta de pago (banco, CLABE y su print de pantalla) no podemos realizar pagos a tu empresa. Complétalo en “Perfil de Empresa”.',
+      guia: { titulo: 'Completar tu Perfil de Empresa', pasos: [
+        'Entra a “Perfil de Empresa”.',
+        'Completa razón social y régimen fiscal.',
+        'Ingresa banco y CLABE, y sube el print donde se vea la CLABE.',
+        'Sube las fotos solicitadas; el aviso de “perfil incompleto” desaparece.'] } },
+    { q: '¿Cómo cargo mi cuenta de pago / CLABE?',
+      a: 'En “Perfil de Empresa” ingresa banco y CLABE, y sube un print donde se vea la CLABE. La cuenta debe estar a nombre de la empresa o del representante legal.' },
+    { q: '¿A nombre de quién debe estar la cuenta?',
+      a: 'A nombre de la empresa o del representante legal.' },
+    { q: 'Tengo una duda sobre mi pago / prefactura.',
+      a: 'Para temas de pago de prefactura, descuentos, multas, etc., favor de levantar un requerimiento en el Link enviado en el correo de su prefactura. Considere ser lo más específico posible para que el equipo de Conciliaciones pueda revisar su caso.' },
+  ]},
+  { cat: 'Solicitud de baja', preguntas: [
+    { q: '¿Cómo doy de baja un vehículo o una persona?',
+      a: 'Entra a “Solicitud de baja” y elige qué dar de baja (vehículo, personal certificado o la empresa completa). Indícanos placa o nombre y gestionamos la baja.' },
+  ]},
+  { cat: 'Documentos y estado', preguntas: [
+    { q: '¿Dónde veo mis documentos?',
+      a: 'En “Documentos de mi empresa” están los contratos, seguros, fotos y anexos que BigTicket guarda de tu empresa.' },
+    { q: '¿Cómo veo el avance de mi trámite?',
+      a: 'En “Estado de certificación” revisas el avance de cada trámite, sus documentos, y puedes reemplazar o cargar los que fueron observados.' },
+    { q: 'Me observaron un documento, ¿cómo lo reemplazo?',
+      a: 'En “Estado de certificación” ubica el documento observado y sube el corregido en el mismo lugar.',
+      guia: { titulo: 'Reemplazar un documento observado', pasos: [
+        'Entra a “Estado de certificación”.',
+        'Ubica el documento observado.',
+        'Sube el archivo corregido en el mismo lugar.',
+        'El estado se actualiza al recibirlo.'] } },
+  ]},
+  { cat: 'Soporte y horario', preguntas: [
+    { q: '¿A qué hora responden?',
+      a: 'Nuestro horario de atención es de lunes a viernes, de 6:00 a 15:00 (hora de México) / 8:00 a 17:00 (hora de Chile). No atendemos fines de semana ni días feriados.' },
+    { q: '¿Con quién hablo si tengo dudas?',
+      a: 'Por este mismo canal te atiende el equipo de Certificaciones de BigTicket.' },
+  ]},
+]
+
 function Consultas({ tercero, onBack }) {
+  const [modo, setModo] = useState('faq')          // faq | chat (el chat solo se abre desde "Otros")
+  const [catAbierta, setCatAbierta] = useState(0)
+  const [qAbierta, setQAbierta] = useState(null)   // "ci-qi"
+  const [guiaAbierta, setGuiaAbierta] = useState(null)
   const [msgs, setMsgs] = useState(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -891,9 +984,76 @@ function Consultas({ tercero, onBack }) {
     setEnviando(false)
   }
 
-  return (
+  // ── Vista FAQ (acordeón de categorías → pregunta → respuesta inline) ──
+  if (modo === 'faq') return (
     <>
       <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Consultas</h2>
+        <div className="lede">Revisa las preguntas frecuentes — la mayoría de las dudas se resuelven al instante. Si no encuentras la tuya, escríbenos en “Otros”.</div></div></div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#0b2b55', color: '#fff', padding: '12px 18px', fontWeight: 700, fontSize: 14 }}>Preguntas frecuentes</div>
+        {FAQ_CATEGORIAS.map((c, ci) => (
+          <div key={ci} style={{ borderBottom: '1px solid #e9edf3' }}>
+            <button onClick={() => { setCatAbierta(catAbierta === ci ? null : ci); setQAbierta(null); setGuiaAbierta(null) }}
+              style={{ width: '100%', textAlign: 'left', background: catAbierta === ci ? '#f5f8fc' : '#fff', border: 'none', padding: '13px 18px', fontSize: 13.5, fontWeight: 700, color: '#0b2b55', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: "'Geist',sans-serif" }}>
+              <span>{c.cat}</span>
+              <span style={{ color: '#FF6600', fontSize: 12, transform: catAbierta === ci ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>▶</span>
+            </button>
+            {catAbierta === ci && (
+              <div style={{ padding: '0 14px 12px' }}>
+                {c.preguntas.map((p, qi) => {
+                  const key = ci + '-' + qi
+                  const abierta = qAbierta === key
+                  return (
+                    <div key={qi} style={{ marginBottom: 6 }}>
+                      <button onClick={() => { setQAbierta(abierta ? null : key); setGuiaAbierta(null) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: abierta ? '#fff4ee' : '#f4f7fb', border: '1px solid ' + (abierta ? '#F47B20' : '#e3e8f0'), color: '#33425a', borderRadius: 9, padding: '9px 12px', fontSize: 12.5, lineHeight: 1.4, cursor: 'pointer', fontWeight: abierta ? 700 : 500, fontFamily: "'Geist',sans-serif" }}>
+                        {p.q}
+                      </button>
+                      {abierta && (
+                        <div style={{ background: '#fff', border: '1px solid #e3e8f0', borderTop: 'none', borderRadius: '0 0 9px 9px', padding: '10px 14px', fontSize: 12.5, color: '#28323f', lineHeight: 1.6 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: '#FF6600', marginBottom: 4 }}>Bigticket</div>
+                          {p.a}
+                          {p.guia && (
+                            <>
+                              <button onClick={() => setGuiaAbierta(guiaAbierta === key ? null : key)}
+                                style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, fontWeight: 700, color: '#0b2b55', background: '#fff', border: '1px solid #e3e8f0', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', fontFamily: "'Geist',sans-serif" }}>
+                                <span style={{ color: '#FF6600' }}>▶ </span>Ver guía: {p.guia.titulo}
+                              </button>
+                              {guiaAbierta === key && (
+                                <ol style={{ margin: '8px 0 2px', padding: '8px 12px 8px 26px', fontSize: 12, lineHeight: 1.55, color: '#33425a', background: '#f8fafc', border: '1px solid #e3e8f0', borderRadius: 9 }}>
+                                  {p.guia.pasos.map((s, si) => <li key={si} style={{ marginBottom: 3 }}>{s}</li>)}
+                                </ol>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+        {/* Otros → abre el chat directo con el equipo */}
+        <div style={{ padding: 14 }}>
+          <button onClick={() => setModo('chat')}
+            style={{ display: 'block', width: '100%', textAlign: 'left', background: '#eaf1fb', border: '1px solid #cdddf3', color: '#0b2b55', borderRadius: 9, padding: '11px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Geist',sans-serif" }}>
+            💬 Otros — Escribir otra consulta al equipo BigTicket
+            {Array.isArray(msgs) && msgs.length > 0 && (
+              <span style={{ float: 'right', fontSize: 11, fontWeight: 800, color: '#FF6600' }}>{msgs.length} mensaje{msgs.length === 1 ? '' : 's'} en tu hilo →</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+
+  // ── Vista chat directo (la consola existente, tal cual) ──
+  return (
+    <>
+      <button className="back-link" onClick={() => setModo('faq')}>← Preguntas frecuentes</button>
       <div className="page-head"><div><h2>Consultas</h2>
         <div className="lede">Escríbenos cualquier duda sobre tus certificaciones, pagos o documentos. El equipo de Bigticket te responde por aquí.</div></div></div>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 420 }}>
