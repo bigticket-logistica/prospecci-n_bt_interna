@@ -416,10 +416,12 @@ function DocumentosEmpresa({ tercero, onBack }) {
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.from('documentos_empresa')
-        .select('id, categoria, nombre_archivo, storage_path, bucket, mime_type, tamano_bytes, referencia, created_at')
+        .select('*')
         .eq('tercero_id', tercero.tercero_id)
         .order('created_at', { ascending: false })
-      setDocs(data || [])
+      // Confidenciales (informes RHCHECK) JAMÁS se muestran al tercero.
+      // Doble filtro: por marca `confidencial` y por categoría (cubre filas viejas sin la columna).
+      setDocs((data || []).filter(d => d.confidencial !== true && d.categoria !== 'rhcheck'))
     })()
   }, [tercero])
 
