@@ -87,6 +87,7 @@ export default function App() {
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
       {view === 'perfil' && <PerfilEmpresa tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} />}
       {(view === 'conductor' || view === 'ayudante') &&
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
@@ -181,6 +182,8 @@ function Home({ onPick }) {
           <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
         <button className="type-card" onClick={() => onPick('perfil')}>
           <div className="ic">🏢</div><h3>Perfil de Empresa</h3><p>Ficha de ingreso y datos de la cuenta de pago (obligatorio para recibir pagos).</p></button>
+        <button className="type-card" onClick={() => onPick('flota')}>
+          <div className="ic">🚛</div><h3>Vehículos y Personal</h3><p>Tu flota y personal vigentes en la operación: unidades y personas activas, con sus documentos.</p></button>
         <button className="type-card" onClick={() => onPick('docs')}>
           <div className="ic">🗂</div><h3>Documentos de mi empresa</h3><p>Contratos, seguros, fotos y anexos que BigTicket guarda de tu empresa.</p></button>
         <button className="type-card" onClick={() => onPick('consultas')}>
@@ -406,6 +409,90 @@ function FirmaWidget({ widgetId, onSuccess }) {
 }
 
 // ── Consultas (chat con Bigticket) ───────────────────────────────────
+
+// ─── 🚛 Vehículos y Personal (padrón vigente de la empresa) ──────────
+// Muestra flota_personal_terceros: lo que ya opera. Se alimenta por altas del
+// analista en el Brain y por certificaciones que quedan Aceptadas.
+function FlotaPersonal({ tercero, onBack }) {
+  const [rows, setRows] = useState(null)
+  const [err, setErr] = useState('')
+  useEffect(() => { (async () => {
+    const { data, error } = await supabase.from('flota_personal_terceros')
+      .select('*').eq('tercero_id', tercero.tercero_id)
+      .order('created_at', { ascending: false })
+    if (error) { setErr('No se pudo cargar tu flota y personal: ' + error.message); setRows([]); return }
+    setRows(data || [])
+  })() }, [tercero])
+
+  const verDoc = async (d) => {
+    const { data, error } = await supabase.storage.from(d.bucket || 'archivador_empresas').createSignedUrl(d.storage_path, 300)
+    if (error || !data?.signedUrl) { alert('No se pudo abrir el documento.'); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
+  const personas = (rows || []).filter(r => r.tipo !== 'vehiculo')
+  const vehiculos = (rows || []).filter(r => r.tipo === 'vehiculo')
+
+  const Item = ({ r }) => (
+    <div style={{ padding: '11px 0', borderBottom: '1px solid #eef1f5', opacity: r.estado === 'baja' ? 0.55 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 18 }}>{r.tipo === 'vehiculo' ? '🚚' : r.tipo === 'ayudante' ? '🧰' : '🚗'}</span>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700 }}>
+            {r.tipo === 'vehiculo'
+              ? `${r.placa || '—'} · ${[r.marca, r.modelo, r.anio].filter(Boolean).join(' ')}`
+              : r.nombre || '—'}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#667085' }}>
+            {r.tipo === 'vehiculo'
+              ? `${r.service_center ? 'SC ' + r.service_center : 'Sin SC'}${r.vin ? ' · VIN ' + r.vin : ''}`
+              : `${r.tipo === 'ayudante' ? 'Ayudante' : 'Conductor'}${r.curp ? ' · CURP ' + r.curp : ''}${r.service_center ? ' · SC ' + r.service_center : ''}`}
+          </div>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 12,
+          background: r.estado === 'baja' ? '#fdecea' : '#e8f5ec', color: r.estado === 'baja' ? '#c0392b' : '#166534' }}>
+          {r.estado === 'baja' ? 'BAJA' : 'ACTIVO'}
+        </span>
+      </div>
+      {(r.documentos || []).length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 7, paddingLeft: 28 }}>
+          {r.documentos.map((d, i) => (
+            <button key={i} onClick={() => verDoc(d)}
+              style={{ background: '#f4f7fb', border: '1px solid #dbe3ee', color: '#0b2b55', borderRadius: 7, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              📎 {d.label || d.tipo}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>Vehículos y Personal</h2>
+        <div className="lede">Tu operación vigente con BigTicket: las unidades y personas activas de tu empresa. Cada certificación nueva que quede aceptada se agrega aquí automáticamente.</div></div></div>
+      {err && <div className="form-error" style={{ marginBottom: 12 }}>{err}</div>}
+      {rows === null ? <div className="loading">Cargando…</div>
+      : rows.length === 0 ? (
+        <div className="empty"><h3>Sin registros</h3><p>Aún no hay vehículos ni personal registrados para tu empresa. Cuando BigTicket cargue tu operación vigente, o cuando una certificación quede aceptada, aparecerán aquí.</p></div>
+      ) : (
+        <>
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#667085', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>👤 Personal ({personas.filter(p => p.estado !== 'baja').length} activos)</div>
+            {personas.length === 0 ? <div style={{ fontSize: 12.5, color: '#888', padding: '8px 0' }}>Sin personal registrado.</div>
+              : personas.map(r => <Item key={r.id} r={r} />)}
+          </div>
+          <div className="card">
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#667085', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>🚚 Vehículos ({vehiculos.filter(v => v.estado !== 'baja').length} activos)</div>
+            {vehiculos.length === 0 ? <div style={{ fontSize: 12.5, color: '#888', padding: '8px 0' }}>Sin vehículos registrados.</div>
+              : vehiculos.map(r => <Item key={r.id} r={r} />)}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
 
 // ─── 🗂 Documentos de mi empresa (archivador — solo lectura) ─────────
 const DOCS_CAT_LABEL = { contratos:'📑 Contratos', empresa:'🏛 Documentación de empresa', seguros:'🛡 Seguros', vehiculos:'🚚 Vehículos', qr:'🔳 QR MELI', personal:'👤 Personal', anexos:'📎 Anexos', otros:'🗃 Otros' }
@@ -659,12 +746,23 @@ function MisCertificaciones({ tercero, email, onBack }) {
   const reemDocRef = useRef(null)
 
   const [obsPor, setObsPor] = useState({})       // certId → observaciones del equipo BT
+  const [errCarga, setErrCarga] = useState('')
   const cargar = async () => {
-    const { data } = await supabase
+    setErrCarga('')
+    // Con reintento: si certificaciones aún no tiene cambios_prospecto, se pide sin ella
+    let { data, error } = await supabase
       .from('certificaciones')
       .select('id, tipo, estado, etapa_kanban, service_center, created_at, cambios_prospecto, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca,modelo)')
       .eq('tercero_id', tercero.tercero_id)
       .order('created_at', { ascending: false })
+    if (error) {
+      ({ data, error } = await supabase
+        .from('certificaciones')
+        .select('id, tipo, estado, etapa_kanban, service_center, created_at, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca,modelo)')
+        .eq('tercero_id', tercero.tercero_id)
+        .order('created_at', { ascending: false }))
+    }
+    if (error) { setErrCarga('No se pudieron cargar tus certificaciones: ' + error.message); setRows([]); return }
     const norm = (x) => Array.isArray(x) ? x[0] : x
     const ids = (data || []).map(r => r.id)
     if (ids.length) {
@@ -767,6 +865,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
       <button className="back-link" onClick={onBack}>← Volver</button>
       <div className="page-head"><div><h2>📋 Estado de certificación</h2>
         <div className="lede">El avance de cada conductor, ayudante y vehículo que has enviado a validar — con sus documentos. Si algo fue observado o rechazado, reemplaza o carga los documentos aquí mismo.</div></div></div>
+      {errCarga && <div className="form-error" style={{ marginBottom: 12 }}>{errCarga}</div>}
       {rows === null ? <div className="loading">Cargando…</div>
       : rows.length === 0 ? <div className="empty">No tienes certificaciones registradas.</div>
       : rows.map(cert => {
