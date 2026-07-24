@@ -1654,6 +1654,7 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     if (!files.foto_lado_izq) falta.push('Foto: Lado izquierdo')
     if (!files.foto_lado_der) falta.push('Foto: Lado derecho')
     if (!files.tarjeta_circulacion) falta.push('Documento: Tarjeta de circulación')
+    if (!files.poliza_seguro) falta.push('Documento: Póliza de seguro')
     if (falta.length) { setIntentado(true); setFaltan(falta); return }
     setFaltan([]); setBusy(true)
     try {
@@ -1709,7 +1710,10 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
         </div>
 
         <div className="section-title">Documentos (obligatorios)</div>
-        <div className="form-grid"><FileField label="Tarjeta de circulación" tipoDoc="tarjeta_circulacion" files={files} setFiles={setFiles} missing={intentado} /></div>
+        <div className="form-grid">
+          <FileField label="Tarjeta de circulación" tipoDoc="tarjeta_circulacion" files={files} setFiles={setFiles} missing={intentado} />
+          <FileField label="Póliza de seguro" tipoDoc="poliza_seguro" files={files} setFiles={setFiles} missing={intentado} />
+        </div>
 
         <div className="form-actions">
           <button className="btn btn-ghost" onClick={onBack}>Cancelar</button>
