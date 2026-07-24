@@ -1218,21 +1218,24 @@ function SolicitudBaja({ tercero, email, onBack }) {
 
   useEffect(() => {
     (async () => {
+      // Fuente: el PADRÓN (todo lo que opera — certificados Y altas directas
+      // del analista). Solo activos: lo dado de baja no se vuelve a solicitar.
       const { data } = await supabase
-        .from('certificaciones')
-        .select('id, tipo, etapa_kanban, service_center, certificacion_conductor(nombre,curp), certificacion_vehiculo(placa,marca)')
+        .from('flota_personal_terceros')
+        .select('id, tipo, estado, origen, service_center, placa, marca, nombre, curp, certificacion_id')
         .eq('tercero_id', tercero.tercero_id)
-        .neq('etapa_kanban', 'rechazado')
+        .eq('estado', 'activo')
       const all = data || []
-      const norm = (x) => Array.isArray(x) ? x[0] : x
       setVehiculos(all.filter(r => r.tipo === 'vehiculo').map(r => ({
-        id: r.id, placa: norm(r.certificacion_vehiculo)?.placa || 'Sin placa',
-        marca: norm(r.certificacion_vehiculo)?.marca || '', sc: r.service_center || '—', etapa: r.etapa_kanban,
+        id: r.id, certificacion_id: r.certificacion_id || null,
+        placa: r.placa || 'Sin placa', marca: r.marca || '',
+        sc: r.service_center || '—', origen: r.origen,
       })))
       setPersonal(all.filter(r => r.tipo !== 'vehiculo').map(r => ({
-        id: r.id, nombre: norm(r.certificacion_conductor)?.nombre || 'Sin nombre',
-        curp: norm(r.certificacion_conductor)?.curp || '', rol: r.tipo === 'ayudante' ? 'Ayudante' : 'Conductor',
-        sc: r.service_center || '—', etapa: r.etapa_kanban,
+        id: r.id, certificacion_id: r.certificacion_id || null,
+        nombre: r.nombre || 'Sin nombre', curp: r.curp || '',
+        rol: r.tipo === 'ayudante' ? 'Ayudante' : 'Conductor',
+        sc: r.service_center || '—', origen: r.origen,
       })))
     })()
     cargarSolicitudes()
@@ -1254,8 +1257,8 @@ function SolicitudBaja({ tercero, email, onBack }) {
   // Bloqueo de duplicados: cada vehículo/persona con solicitud en curso
   // (en revisión o en proceso) no puede volver a solicitarse hasta resolverse.
   const enCurso = (rows || []).filter(r => ['en_revision', 'en_proceso'].includes(r.estado))
-  const idsEnCurso = new Set(enCurso.flatMap(r => Array.isArray(r.seleccion) ? r.seleccion.map(x => x.certificacion_id) : []))
-  const folioDe = (id) => enCurso.find(r => Array.isArray(r.seleccion) && r.seleccion.some(x => x.certificacion_id === id))?.folio
+  const idsEnCurso = new Set(enCurso.flatMap(r => Array.isArray(r.seleccion) ? r.seleccion.flatMap(x => [x.padron_id, x.certificacion_id].filter(Boolean)) : []))
+  const folioDe = (id) => enCurso.find(r => Array.isArray(r.seleccion) && r.seleccion.some(x => x.padron_id === id || x.certificacion_id === id))?.folio
   const empresaEnCurso = enCurso.find(r => r.tipo === 'empresa')
 
   const listo = tipo && motivoOk && (tipo === 'empresa' ? (chkEmpresa && !empresaEnCurso) : selIds.length > 0)
@@ -1268,11 +1271,11 @@ function SolicitudBaja({ tercero, email, onBack }) {
       let seleccion, itemsTxt
       if (tipo === 'vehiculo') {
         const sel = vehiculos.filter(v => selIds.includes(v.id))
-        seleccion = sel.map(v => ({ certificacion_id: v.id, placa: v.placa, sc: v.sc }))
+        seleccion = sel.map(v => ({ padron_id: v.id, certificacion_id: v.certificacion_id, placa: v.placa, sc: v.sc }))
         itemsTxt = sel.map(v => v.placa).join(', ')
       } else if (tipo === 'personal') {
         const sel = personal.filter(p => selIds.includes(p.id))
-        seleccion = sel.map(p => ({ certificacion_id: p.id, nombre: p.nombre, curp: p.curp, rol: p.rol, sc: p.sc }))
+        seleccion = sel.map(p => ({ padron_id: p.id, certificacion_id: p.certificacion_id, nombre: p.nombre, curp: p.curp, rol: p.rol, sc: p.sc }))
         itemsTxt = sel.map(p => p.nombre).join(', ')
       } else {
         seleccion = { empresa: tercero.nombre, vehiculos: (vehiculos || []).length, personal: (personal || []).length }
@@ -1296,10 +1299,11 @@ function SolicitudBaja({ tercero, email, onBack }) {
     finally { setBusy(false) }
   }
 
-  const EtapaChip = ({ etapa }) => {
-    const e = ETAPA_PORTAL[etapa]
-    if (!e) return null
-    return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22`, whiteSpace: 'nowrap' }}>{e.t}</span>
+  const OrigenChip = ({ origen }) => {
+    const certificado = origen === 'certificacion'
+    return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
+      color: certificado ? '#166534' : '#1a3a6b', background: certificado ? '#e8f5ec' : '#eef2f7',
+      border: `1px solid ${certificado ? '#166534' : '#1a3a6b'}22` }}>{certificado ? 'Certificado ✓' : 'Registrado por BigTicket'}</span>
   }
 
   const PickItem = ({ checked, onToggle, main, sub, right, bloqueado }) => (
@@ -1367,7 +1371,7 @@ function SolicitudBaja({ tercero, email, onBack }) {
             : vehiculos.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes vehículos registrados en certificación.</div>
             : vehiculos.map(v => (
               <PickItem key={v.id} checked={selIds.includes(v.id)} onToggle={() => toggleSel(v.id)} bloqueado={idsEnCurso.has(v.id)}
-                main={v.placa} sub={idsEnCurso.has(v.id) ? `⏳ Solicitud en curso (${folioDe(v.id)}) — no puedes duplicarla` : `${v.marca || 'Vehículo'} · ${v.sc}`} right={<EtapaChip etapa={v.etapa} />} />
+                main={v.placa} sub={idsEnCurso.has(v.id) ? `⏳ Solicitud en curso (${folioDe(v.id)}) — no puedes duplicarla` : `${v.marca || 'Vehículo'} · ${v.sc}`} right={<OrigenChip origen={v.origen} />} />
             ))}
             <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de un vehículo en la misma solicitud.</div>
           </div>
@@ -1382,7 +1386,7 @@ function SolicitudBaja({ tercero, email, onBack }) {
             : personal.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes personal registrado en certificación.</div>
             : personal.map(p => (
               <PickItem key={p.id} checked={selIds.includes(p.id)} onToggle={() => toggleSel(p.id)} bloqueado={idsEnCurso.has(p.id)}
-                main={p.nombre} sub={idsEnCurso.has(p.id) ? `⏳ Solicitud en curso (${folioDe(p.id)}) — no puedes duplicarla` : `${p.rol} · CURP ${p.curp ? '****' + p.curp.slice(-4) : '—'} · ${p.sc}`} right={<EtapaChip etapa={p.etapa} />} />
+                main={p.nombre} sub={idsEnCurso.has(p.id) ? `⏳ Solicitud en curso (${folioDe(p.id)}) — no puedes duplicarla` : `${p.rol} · CURP ${p.curp ? '****' + p.curp.slice(-4) : '—'} · ${p.sc}`} right={<OrigenChip origen={p.origen} />} />
             ))}
             <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de una persona en la misma solicitud.</div>
           </div>
