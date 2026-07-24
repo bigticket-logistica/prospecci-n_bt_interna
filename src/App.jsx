@@ -1247,13 +1247,22 @@ function SolicitudBaja({ tercero, email, onBack }) {
   }
 
   const elegirTipo = (t) => { setTipo(t); setSelIds([]); setChkEmpresa(false); setMotivo(''); setDetalle('') }
-  const toggleSel = (id) => setSelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleSel = (id) => { if (idsEnCurso.has(id)) return; setSelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
 
   const motivoOk = motivo !== '' && (motivo !== 'Otro' || detalle.trim() !== '')
-  const listo = tipo && motivoOk && (tipo === 'empresa' ? chkEmpresa : selIds.length > 0)
+
+  // Bloqueo de duplicados: cada vehículo/persona con solicitud en curso
+  // (en revisión o en proceso) no puede volver a solicitarse hasta resolverse.
+  const enCurso = (rows || []).filter(r => ['en_revision', 'en_proceso'].includes(r.estado))
+  const idsEnCurso = new Set(enCurso.flatMap(r => Array.isArray(r.seleccion) ? r.seleccion.map(x => x.certificacion_id) : []))
+  const folioDe = (id) => enCurso.find(r => Array.isArray(r.seleccion) && r.seleccion.some(x => x.certificacion_id === id))?.folio
+  const empresaEnCurso = enCurso.find(r => r.tipo === 'empresa')
+
+  const listo = tipo && motivoOk && (tipo === 'empresa' ? (chkEmpresa && !empresaEnCurso) : selIds.length > 0)
 
   async function enviar() {
     if (!listo || busy) return
+    if (tipo !== 'empresa' && selIds.some(id => idsEnCurso.has(id))) { alert('Alguno de los seleccionados ya tiene una solicitud en curso.'); return }
     setBusy(true)
     try {
       let seleccion, itemsTxt
@@ -1293,10 +1302,10 @@ function SolicitudBaja({ tercero, email, onBack }) {
     return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, color: e.c, background: e.bg, border: `1px solid ${e.c}22`, whiteSpace: 'nowrap' }}>{e.t}</span>
   }
 
-  const PickItem = ({ checked, onToggle, main, sub, right }) => (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, marginBottom: 8, cursor: 'pointer',
-      border: checked ? '1.5px solid #FF6600' : '1px solid #e4e7ec', background: checked ? '#fff7f0' : '#fff' }}>
-      <input type="checkbox" checked={checked} onChange={onToggle} style={{ width: 16, height: 16, accentColor: '#FF6600' }} />
+  const PickItem = ({ checked, onToggle, main, sub, right, bloqueado }) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, marginBottom: 8, cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.55 : 1,
+      border: checked ? '1.5px solid #FF6600' : '1px solid #e4e7ec', background: bloqueado ? '#f8f9fb' : checked ? '#fff7f0' : '#fff' }}>
+      <input type="checkbox" checked={checked} disabled={bloqueado} onChange={onToggle} style={{ width: 16, height: 16, accentColor: '#FF6600' }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: 13 }}>{main}</div>
         <div style={{ fontSize: 11, color: '#888' }}>{sub}</div>
@@ -1357,8 +1366,8 @@ function SolicitudBaja({ tercero, email, onBack }) {
             {vehiculos === null ? <div className="loading">Cargando…</div>
             : vehiculos.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes vehículos registrados en certificación.</div>
             : vehiculos.map(v => (
-              <PickItem key={v.id} checked={selIds.includes(v.id)} onToggle={() => toggleSel(v.id)}
-                main={v.placa} sub={`${v.marca || 'Vehículo'} · ${v.sc}`} right={<EtapaChip etapa={v.etapa} />} />
+              <PickItem key={v.id} checked={selIds.includes(v.id)} onToggle={() => toggleSel(v.id)} bloqueado={idsEnCurso.has(v.id)}
+                main={v.placa} sub={idsEnCurso.has(v.id) ? `⏳ Solicitud en curso (${folioDe(v.id)}) — no puedes duplicarla` : `${v.marca || 'Vehículo'} · ${v.sc}`} right={<EtapaChip etapa={v.etapa} />} />
             ))}
             <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de un vehículo en la misma solicitud.</div>
           </div>
@@ -1372,8 +1381,8 @@ function SolicitudBaja({ tercero, email, onBack }) {
             {personal === null ? <div className="loading">Cargando…</div>
             : personal.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>No tienes personal registrado en certificación.</div>
             : personal.map(p => (
-              <PickItem key={p.id} checked={selIds.includes(p.id)} onToggle={() => toggleSel(p.id)}
-                main={p.nombre} sub={`${p.rol} · CURP ${p.curp ? '****' + p.curp.slice(-4) : '—'} · ${p.sc}`} right={<EtapaChip etapa={p.etapa} />} />
+              <PickItem key={p.id} checked={selIds.includes(p.id)} onToggle={() => toggleSel(p.id)} bloqueado={idsEnCurso.has(p.id)}
+                main={p.nombre} sub={idsEnCurso.has(p.id) ? `⏳ Solicitud en curso (${folioDe(p.id)}) — no puedes duplicarla` : `${p.rol} · CURP ${p.curp ? '****' + p.curp.slice(-4) : '—'} · ${p.sc}`} right={<EtapaChip etapa={p.etapa} />} />
             ))}
             <div style={{ fontSize: 11, color: '#888' }}>Puedes seleccionar más de una persona en la misma solicitud.</div>
           </div>
@@ -1391,10 +1400,16 @@ function SolicitudBaja({ tercero, email, onBack }) {
             <div style={{ background: '#fff4ec', border: '1px solid #fbd9c0', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#7c3a12', marginBottom: 12 }}>
               <b>Atención:</b> la baja de empresa da de baja también <b>todos sus vehículos y personal certificado</b> asociados. Esta acción pasa a revisión de Bigticket antes de hacerse efectiva.
             </div>
+            {empresaEnCurso ? (
+              <div style={{ background: '#fff4ec', border: '1px solid #fbd9c0', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#7c3a12' }}>
+                ⏳ Ya existe una solicitud de baja de empresa en curso ({empresaEnCurso.folio}). Espera su resolución antes de crear otra.
+              </div>
+            ) : (
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, cursor: 'pointer' }}>
               <input type="checkbox" checked={chkEmpresa} onChange={e => setChkEmpresa(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: '#FF6600' }} />
               <span>Entiendo que esta solicitud incluye la baja de todos los vehículos y el personal de la empresa.</span>
             </label>
+            )}
           </div>
         )}
 
@@ -1424,8 +1439,8 @@ function SolicitudBaja({ tercero, email, onBack }) {
         )}
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' }}>Mis solicitudes</div>
+      <div className="card" style={{ marginTop: 16, padding: '18px 22px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px' }}>Mis solicitudes</div>
         {rows === null ? <div className="loading">Cargando…</div>
         : rows.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Aún no has enviado solicitudes de baja.</div>
         : (
