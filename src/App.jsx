@@ -1518,6 +1518,40 @@ async function subirDoc(terceroId, certId, tipoDoc, file) {
 }
 
 // ── Formulario de persona (conductor o ayudante) ─────────────────────
+// Verifica si una placa/CURP ya está ACTIVA en el padrón de OTRA empresa.
+// Devuelve { empresa } si hay conflicto, o null si está libre.
+async function verificarTitularidad({ campo, valor, terceroId }) {
+  const v = String(valor || '').toUpperCase().trim()
+  if (!v) return null
+  try {
+    const { data, error } = await supabase
+      .from('flota_personal_terceros')
+      .select('tercero_id, placa, curp, tipo')
+      .eq('estado', 'activo')
+      .ilike(campo, v)
+    if (error || !data) return null
+    const ajeno = data.find(r => r.tercero_id && r.tercero_id !== terceroId)
+    if (!ajeno) return null
+    const { data: emp } = await supabase.from('terceros').select('nombre').eq('id', ajeno.tercero_id).maybeSingle()
+    return { empresa: emp?.nombre || 'otra empresa', tipo: ajeno.tipo }
+  } catch (e) { return null }
+}
+
+function AvisoTitularidad({ conflicto, queEs }) {
+  if (!conflicto) return null
+  return (
+    <div style={{ background: '#fff4ec', border: '1.5px solid #F47B20', borderRadius: 10, padding: '12px 14px', margin: '10px 0' }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#b45309', marginBottom: 4 }}>
+        ⚠️ Este {queEs} aún está asociado a la empresa "{conflicto.empresa}"
+      </div>
+      <div style={{ fontSize: 12.5, color: '#7c3a12', lineHeight: 1.55 }}>
+        Para poder certificarlo con tu empresa, esa empresa debe iniciar la <b>solicitud de baja</b> primero.
+        Si consideras que es un error, escríbenos en <b>Consultas</b> y el equipo de Certificaciones lo revisa.
+      </div>
+    </div>
+  )
+}
+
 function FormPersona({ tipo, tercero, email, onBack, onDone }) {
   const esConductor = tipo === 'conductor'
   const [sc, setSc] = useState('')
@@ -1527,9 +1561,21 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
   const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
   const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
   const set = (k, v) => setF({ ...f, [k]: v })
+  const [conflicto, setConflicto] = useState(null)
+  const [chk, setChk] = useState(false)
+  const revisarCurp = async () => {
+    setConflicto(null)
+    if (!f.curp.trim()) return
+    setChk(true)
+    setConflicto(await verificarTitularidad({ campo: 'curp', valor: f.curp, terceroId: tercero.tercero_id }))
+    setChk(false)
+  }
 
   async function enviar() {
     setErr(''); setOk('')
+    // Candado de titularidad: no se puede certificar algo que sigue activo en otra empresa
+    const c = await verificarTitularidad({ campo: 'curp', valor: f.curp, terceroId: tercero.tercero_id })
+    if (c) { setConflicto(c); setErr(`No se puede certificar: sigue asociado a la empresa "${c.empresa}". Esa empresa debe iniciar la baja primero.`); return }
     const falta = []
     if (!sc) falta.push('Centro de servicio (SC)')
     if (!f.nombre.trim()) falta.push('Nombre completo')
@@ -1591,7 +1637,8 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
         <div className="section-title">Datos personales</div>
         <div className="form-grid">
           <div className="field full"><label>Nombre completo *</label><input value={f.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Nombre y apellidos" style={miss(!f.nombre.trim())} /></div>
-          <div className="field"><label>CURP *</label><input value={f.curp} onChange={e => set('curp', e.target.value)} placeholder="18 caracteres" maxLength={18} style={miss(!f.curp.trim())} /></div>
+          <div className="field"><label>CURP *</label><input value={f.curp} onChange={e => { set('curp', e.target.value); setConflicto(null) }} onBlur={revisarCurp} placeholder="18 caracteres" maxLength={18} style={conflicto ? { borderColor: '#F47B20', background: '#fff8f2' } : miss(!f.curp.trim())} />
+            {chk && <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 3 }}>Verificando titularidad…</div>}</div>
           <div className="field"><label>RFC *</label><input value={f.rfc} onChange={e => set('rfc', e.target.value)} placeholder="13 caracteres" maxLength={13} style={miss(!f.rfc.trim())} /></div>
           <div className="field"><label>Teléfono *</label><input value={f.telefono} onChange={e => set('telefono', e.target.value)} placeholder="10 dígitos" style={miss(!f.telefono.trim())} /></div>
           <div className="field"><label>Correo electrónico *</label><input type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="correo@ejemplo.com" style={miss(!f.email.trim() || !f.email.includes('@'))} />
@@ -1622,6 +1669,7 @@ function FormPersona({ tipo, tercero, email, onBack, onDone }) {
           {esConductor && <FileField label="Licencia" tipoDoc="licencia" files={files} setFiles={setFiles} missing={intentado} />}
         </div>
 
+        <AvisoTitularidad conflicto={conflicto} queEs="conductor o ayudante" />
         <div className="form-actions">
           <button className="btn btn-ghost" onClick={onBack}>Cancelar</button>
           <button className="btn btn-primary" onClick={enviar} disabled={busy}>{busy ? 'Enviando…' : 'Enviar a certificar'}</button>
@@ -1640,9 +1688,21 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
   const [intentado, setIntentado] = useState(false); const [faltan, setFaltan] = useState([])
   const miss = (vacio) => (intentado && vacio ? { borderColor: '#dc2626', background: '#fff5f5' } : undefined)
   const set = (k, v) => setF({ ...f, [k]: v })
+  const [conflicto, setConflicto] = useState(null)
+  const [chk, setChk] = useState(false)
+  const revisarPlaca = async () => {
+    setConflicto(null)
+    if (!f.placa.trim()) return
+    setChk(true)
+    setConflicto(await verificarTitularidad({ campo: 'placa', valor: f.placa, terceroId: tercero.tercero_id }))
+    setChk(false)
+  }
 
   async function enviar() {
     setErr(''); setOk('')
+    // Candado de titularidad: la placa no puede estar activa en otra empresa
+    const c = await verificarTitularidad({ campo: 'placa', valor: f.placa, terceroId: tercero.tercero_id })
+    if (c) { setConflicto(c); setErr(`No se puede certificar: la placa sigue asociada a la empresa "${c.empresa}". Esa empresa debe iniciar la baja primero.`); return }
     const falta = []
     if (!sc) falta.push('Centro de servicio (SC)')
     if (!f.placa.trim()) falta.push('Placa')
@@ -1694,7 +1754,8 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
 
         <div className="section-title">Datos del vehículo</div>
         <div className="form-grid">
-          <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => set('placa', e.target.value)} placeholder="Ej. ST2965E" style={miss(!f.placa.trim())} /></div>
+          <div className="field"><label>Placa *</label><input value={f.placa} onChange={e => { set('placa', e.target.value); setConflicto(null) }} onBlur={revisarPlaca} placeholder="Ej. ST2965E" style={conflicto ? { borderColor: '#F47B20', background: '#fff8f2' } : miss(!f.placa.trim())} />
+            {chk && <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 3 }}>Verificando titularidad…</div>}</div>
           <div className="field"><label>Marca *</label><input value={f.marca} onChange={e => set('marca', e.target.value)} placeholder="Ej. RAM, Nissan" style={miss(!f.marca.trim())} /></div>
           <div className="field"><label>Modelo *</label><input value={f.modelo} onChange={e => set('modelo', e.target.value)} placeholder="Ej. ProMaster City" style={miss(!f.modelo.trim())} /></div>
           <div className="field"><label>Año *</label><input value={f.anio} onChange={e => set('anio', e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} placeholder="Ej. 2021" inputMode="numeric" style={miss(!/^(19|20)\d{2}$/.test(f.anio.trim()))} /></div>
@@ -1715,6 +1776,7 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
           <FileField label="Póliza de seguro" tipoDoc="poliza_seguro" files={files} setFiles={setFiles} missing={intentado} />
         </div>
 
+        <AvisoTitularidad conflicto={conflicto} queEs="vehículo" />
         <div className="form-actions">
           <button className="btn btn-ghost" onClick={onBack}>Cancelar</button>
           <button className="btn btn-primary" onClick={enviar} disabled={busy}>{busy ? 'Enviando…' : 'Enviar a certificar'}</button>
