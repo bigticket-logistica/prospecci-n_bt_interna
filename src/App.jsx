@@ -26,14 +26,71 @@ const ETAPA_PORTAL = {
 }
 const TIPO_LABEL = { conductor:'Conductor', ayudante:'Ayudante', vehiculo:'Vehículo' }
 
+// ─── Definir nueva contraseña (llegada desde el correo de restablecimiento) ───
+function DefinirPassword({ onListo }) {
+  const [p1, setP1] = useState('')
+  const [p2, setP2] = useState('')
+  const [err, setErr] = useState('')
+  const [ok, setOk] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const guardar = async () => {
+    setErr('')
+    if (p1.length < 8) { setErr('La contraseña debe tener al menos 8 caracteres.'); return }
+    if (p1 !== p2) { setErr('Las contraseñas no coinciden.'); return }
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: p1 })
+    setBusy(false)
+    if (error) { setErr('No se pudo guardar: ' + error.message); return }
+    setOk(true)
+  }
+
+  return (
+    <div className="login-form-side" style={{ minHeight: '100vh' }}>
+      <div className="login-card">
+        <h1>Define tu contraseña</h1>
+        <p className="login-sub">Crea la contraseña con la que entrarás al portal de tu empresa.</p>
+        {ok ? (
+          <>
+            <div style={{ background: '#e8f5ec', border: '1px solid #b7e0c2', color: '#166534', borderRadius: 10, padding: '12px 14px', fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+              ✅ Contraseña guardada. Ya puedes usar el portal.
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={onListo}>Ir al portal</button>
+          </>
+        ) : (
+          <>
+            {err && <div className="form-error" style={{ marginBottom: 12 }}>{err}</div>}
+            <div className="field"><label>Nueva contraseña</label>
+              <input type="password" value={p1} onChange={e => setP1(e.target.value)} placeholder="Mínimo 8 caracteres" /></div>
+            <div className="field"><label>Repite la contraseña</label>
+              <input type="password" value={p2} onChange={e => setP2(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') guardar() }} placeholder="Debe coincidir" /></div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={guardar} disabled={busy}>
+              {busy ? 'Guardando…' : 'Guardar contraseña'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [session, setSession] = useState(null)
   const [view, setView] = useState('home') // home | estado | conductor | ayudante | vehiculo | firma
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
+  // Modo recuperación: el enlace del correo llega con type=recovery en el hash.
+  const [modoRecovery, setModoRecovery] = useState(
+    typeof window !== 'undefined' && /type=recovery/.test(window.location.hash || '')
+  )
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+      setSession(s)
+      if (e === 'PASSWORD_RECOVERY') setModoRecovery(true)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
@@ -54,6 +111,11 @@ export default function App() {
     })()
     return () => { cancel = true }
   }, [session])
+
+  if (modoRecovery) return <DefinirPassword onListo={() => {
+    setModoRecovery(false)
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname)
+  }} />
 
   const [perfilOk, setPerfilOk] = useState(null)   // null = sin revisar aún
   const revisarPerfil = async () => {
