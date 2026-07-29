@@ -325,6 +325,14 @@ function Firma({ tercero, email, onBack }) {
 
   async function firmaGestionExitosa(doc) {
     await supabase.from('contratos_gestion').update({ firmado_tercero: true }).eq('id', doc.id)
+    // Avisa al Brain: sincroniza el estado con MIFIEL y, si ya firmaron ambos,
+    // descarga el PDF firmado al archivador. No bloquea la pantalla del tercero.
+    try {
+      fetch('https://bigticket2026.app.n8n.cloud/webhook/sincronizar-firmados', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contrato_id: doc.id, origen: 'portal_tercero' }),
+      }).catch(() => {})
+    } catch (e) { /* silencioso */ }
     setAbierto(null)
     cargar()
   }
