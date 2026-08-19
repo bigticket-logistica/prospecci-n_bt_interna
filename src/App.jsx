@@ -135,7 +135,7 @@ export default function App() {
 
   const email = session.user.email
   return (
-    <Shell tercero={tercero} email={email} onCampana={() => setView('consultas')}>
+    <Shell tercero={tercero} email={email} onNavegar={setView}>
       {view === 'home' && perfilOk === false && (
         <div onClick={() => setView('perfil')} style={{ cursor: 'pointer', background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '13px 16px', marginBottom: 16, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
@@ -207,10 +207,13 @@ function PantallaCentro({ titulo, texto, accion }) {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────
-function Shell({ tercero, email, children, onCampana }) {
-  // 🔔 Campana: mensajes sin leer + solicitudes pendientes, desde
-  // vw_campana_tercero. Se refresca al montar y cada 60 s.
+function Shell({ tercero, email, children, onNavegar }) {
+  // 🔔 Campana con desplegable: el badge suma mensajes sin leer +
+  // solicitudes vivas; al abrirla se ve el DETALLE y cada ítem lleva a su
+  // sección (mensajes → Consultas, firmas → Firma, datos → Perfil…).
   const [campana, setCampana] = useState(null)
+  const [abierta, setAbierta] = useState(false)
+  const [detalle, setDetalle] = useState(null)   // solicitudes vivas
   useEffect(() => {
     if (!tercero?.tercero_id) return
     const leer = async () => {
@@ -224,6 +227,28 @@ function Shell({ tercero, email, children, onCampana }) {
     return () => clearInterval(t)
   }, [tercero])
 
+  // El detalle se carga al abrir (no en cada refresco del badge)
+  const abrirCampana = async () => {
+    const ya = abierta
+    setAbierta(!ya)
+    if (ya) return
+    const { data } = await supabase.from('solicitudes_tercero')
+      .select('id, tipo, titulo, estado, solicitado_at')
+      .eq('tercero_id', tercero.tercero_id)
+      .in('estado', ['pendiente', 'avisado', 'escalado'])
+      .order('solicitado_at', { ascending: true })
+    setDetalle(data || [])
+  }
+  // Mapa: tipo de pendiente → sección del portal + ícono
+  const DESTINO = {
+    firma_contrato:      { v: 'firma',     ic: '✍️' },
+    firma_anexo:         { v: 'firma',     ic: '📎' },
+    actualizacion_datos: { v: 'perfil',    ic: '🏢' },
+    documento_pendiente: { v: 'docs',      ic: '📄' },
+    otro:                { v: 'consultas', ic: '🔔' },
+  }
+  const irA = (v) => { setAbierta(false); onNavegar && onNavegar(v) }
+
   return (
     <>
       <div className="topbar">
@@ -232,20 +257,78 @@ function Shell({ tercero, email, children, onCampana }) {
           <b style={{ opacity: .9 }}>· Certificación</b>
         </div>
         <div className="who" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Campana: al tocarla abre Consultas (mensajes) */}
-          <button onClick={() => onCampana && onCampana()} title={campana && campana.total > 0
-              ? `${campana.mensajes_sin_leer} mensaje(s) · ${campana.solicitudes_pendientes} pendiente(s)` : 'Sin novedades'}
-            style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}>
-            🔔
-            {campana && campana.total > 0 && (
-              <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 17, height: 17, padding: '0 4px',
-                borderRadius: 999, background: '#F47B20', color: '#fff', fontSize: 10, fontWeight: 800,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
-                border: '1.5px solid #fff' }}>
-                {campana.total > 99 ? '99+' : campana.total}
-              </span>
+          {/* Campana con desplegable de pendientes */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={abrirCampana}
+              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}>
+              🔔
+              {campana && campana.total > 0 && (
+                <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 17, height: 17, padding: '0 4px',
+                  borderRadius: 999, background: '#F47B20', color: '#fff', fontSize: 10, fontWeight: 800,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                  border: '1.5px solid #fff' }}>
+                  {campana.total > 99 ? '99+' : campana.total}
+                </span>
+              )}
+            </button>
+            {abierta && (
+              <>
+                {/* clic fuera = cerrar */}
+                <div onClick={() => setAbierta(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                <div style={{ position: 'absolute', right: -8, top: 32, zIndex: 41, width: 320, maxWidth: '86vw',
+                  background: '#fff', border: '1px solid #e4e7ec', borderRadius: 14,
+                  boxShadow: '0 10px 32px rgba(26,58,107,.16)', overflow: 'hidden' }}>
+                  <div style={{ padding: '11px 15px', borderBottom: '1px solid #f0f1f3', fontSize: 12.5, fontWeight: 800, color: '#1a3a6b' }}>
+                    🔔 Tus pendientes
+                  </div>
+                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+                    {/* Mensajes sin leer */}
+                    {campana && campana.mensajes_sin_leer > 0 && (
+                      <button onClick={() => irA('consultas')} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                        padding: '11px 15px', border: 'none', borderBottom: '1px solid #f6f7f9', background: '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                        <span style={{ fontSize: 17 }}>💬</span>
+                        <span style={{ flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>
+                            {campana.mensajes_sin_leer} mensaje(s) de BigTicket sin leer</span>
+                          <span style={{ fontSize: 11.5, color: '#8a94a6' }}>Leer y responder en Consultas</span>
+                        </span>
+                        <span style={{ color: '#c3cad6' }}>›</span>
+                      </button>
+                    )}
+                    {/* Solicitudes vivas */}
+                    {detalle === null ? (
+                      <div style={{ padding: '14px 15px', fontSize: 12.5, color: '#8a94a6' }}>Cargando…</div>
+                    ) : detalle.map(d => {
+                      const dst = DESTINO[d.tipo] || DESTINO.otro
+                      const urgente = d.estado === 'escalado'
+                      return (
+                        <button key={d.id} onClick={() => irA(dst.v)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                          padding: '11px 15px', border: 'none', borderBottom: '1px solid #f6f7f9',
+                          background: urgente ? '#fff7f5' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                          <span style={{ fontSize: 17 }}>{dst.ic}</span>
+                          <span style={{ flex: 1 }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{d.titulo}</span>
+                            <span style={{ fontSize: 11.5, color: urgente ? '#c0392b' : '#8a94a6', fontWeight: urgente ? 700 : 400 }}>
+                              {urgente ? '⚠️ Urgente — afecta el pago de tus servicios' : d.estado === 'avisado' ? 'Recordatorio enviado — pendiente de tu parte' : 'Pendiente de tu parte'}
+                            </span>
+                          </span>
+                          <span style={{ color: '#c3cad6' }}>›</span>
+                        </button>
+                      )
+                    })}
+                    {/* Nada pendiente */}
+                    {campana && campana.total === 0 && detalle !== null && detalle.length === 0 && (
+                      <div style={{ padding: '22px 15px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 26, marginBottom: 6 }}>✅</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>Estás al día</div>
+                        <div style={{ fontSize: 11.5, color: '#8a94a6' }}>No tienes mensajes ni pendientes.</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
-          </button>
+          </div>
           <span><span className="name">{tercero.nombre}</span> · {email}</span>
           <button className="logout" onClick={() => supabase.auth.signOut()}>Salir</button>
         </div>
@@ -1927,4 +2010,3 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     </>
   )
 }
-
