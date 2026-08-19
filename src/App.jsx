@@ -625,7 +625,7 @@ const PERFIL_REQUERIDOS = ['razon_social', 'rfc_razon_social', 'regimen_fiscal',
 // Wrapper de campo del Perfil de Empresa — DEBE vivir a nivel de módulo:
 // si se define dentro del render, React lo trata como un componente nuevo en
 // cada tecla, remonta el input y se pierde el foco (bug de "una letra a la vez").
-const CampoPerfil = ({ label, children }) => (<div className="field"><label>{label}</label>{children}</div>)
+const CampoPerfil = ({ label, children }) => (<div className="pe-field"><label>{label}</label>{children}</div>)
 
 function perfilCompleto(p) {
   if (!p) return false
@@ -698,6 +698,29 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
 
   return (
     <>
+      {/* Estilos SOLO de esta pantalla (prefijo pe-): el .card/.field global
+          del portal dejaba el formulario pegado a los bordes. */}
+      <style>{`
+        .pe-card { background:#fff; border:1px solid #e8ecf3; border-radius:16px;
+          padding:24px 22px; margin-bottom:18px; box-shadow:0 1px 4px rgba(26,58,107,.05); }
+        .pe-sec { display:flex; align-items:center; gap:9px; margin-bottom:4px; }
+        .pe-sec .pe-ic { width:32px; height:32px; border-radius:9px; background:#eef2f9;
+          display:flex; align-items:center; justify-content:center; font-size:15px; }
+        .pe-sec h3 { margin:0; font-size:13.5px; font-weight:800; color:#1a3a6b;
+          text-transform:uppercase; letter-spacing:.5px; }
+        .pe-hint { font-size:12.5px; color:#8a4a0f; margin:0 0 16px 41px; font-style:italic; }
+        .pe-sep { border:none; border-top:1px solid #f0f3f8; margin:14px 0 18px; }
+        .pe-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px 18px; }
+        .pe-field label { display:block; font-size:11px; font-weight:700; color:#5b6b85;
+          text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+        .pe-field input, .pe-field select { width:100%; box-sizing:border-box;
+          border:1.5px solid #dfe5ee; border-radius:10px; padding:11px 13px; font-size:14px;
+          background:#fbfcfe; transition:border-color .15s, box-shadow .15s; color:#1a1a2e; }
+        .pe-field input:focus, .pe-field select:focus { outline:none; border-color:#F47B20;
+          background:#fff; box-shadow:0 0 0 3px rgba(244,123,32,.12); }
+        .pe-field input::placeholder { color:#a8b3c4; }
+        @media (max-width:520px){ .pe-card{ padding:18px 14px; } .pe-hint{ margin-left:0; } }
+      `}</style>
       <button className="back-link" onClick={onBack}>← Volver</button>
       <div className="page-head"><div><h2>🏢 Perfil de Empresa</h2>
         <div className="lede">Ficha de ingreso de {tercero.nombre}. Estos datos —en especial la cuenta de pago— son los que BigTicket usa para procesar tus pagos.</div></div></div>
@@ -713,9 +736,10 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
         </div>
       )}
 
-      <div className="card">
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px', paddingLeft: 8 }}>Identificación empresa transporte</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+      <div className="pe-card">
+        <div className="pe-sec"><div className="pe-ic">🏢</div><h3>Identificación empresa transporte</h3></div>
+        <hr className="pe-sep" />
+        <div className="pe-grid">
           <F label="Razón social *"><input {...inp('razon_social', { style: rojo('razon_social') })} /></F>
           <F label="RFC razón social *"><input {...inp('rfc_razon_social', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('rfc_razon_social') } })} /></F>
           <F label="Régimen fiscal *"><input {...inp('regimen_fiscal', { style: rojo('regimen_fiscal') })} placeholder="Ej. 601 General de Ley PM" /></F>
@@ -727,16 +751,15 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
           <F label="Correo contacto *"><input {...inp('correo_contacto', { style: rojo('correo_contacto') })} inputMode="email" /></F>
           <F label="Teléfono contacto *"><input {...inp('fono_contacto', { style: rojo('fono_contacto') })} inputMode="tel" /></F>
         </div>
-        <div className="field" style={{ marginTop: 12 }}><label>Dirección de la empresa *</label>
+        <div className="pe-field" style={{ marginTop: 16 }}><label>Dirección de la empresa *</label>
           <input {...inp('direccion', { style: rojo('direccion') })} placeholder="Calle, número, colonia, municipio, CP, estado" /></div>
       </div>
 
-      <div className="card">
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a3a6b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.4px', paddingLeft: 8 }}>Identificación cuenta de pago</div>
-        <div style={{ fontSize: 12, color: '#8a4a0f', fontStyle: 'italic', marginBottom: 12, paddingLeft: 8 }}>
-          La cuenta bancaria debe estar a nombre de la empresa o del Representante Legal.
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+      <div className="pe-card">
+        <div className="pe-sec"><div className="pe-ic">🏦</div><h3>Identificación cuenta de pago</h3></div>
+        <div className="pe-hint">La cuenta bancaria debe estar a nombre de la empresa o del Representante Legal.</div>
+        <hr className="pe-sep" />
+        <div className="pe-grid">
           <F label="Banco *"><input {...inp('banco', { style: rojo('banco') })} placeholder="Ej. BBVA, Banorte" /></F>
           <F label="Titular de la cuenta *"><input {...inp('titular_cuenta', { style: rojo('titular_cuenta') })} /></F>
           <F label="RFC del titular *"><input {...inp('rfc_titular', { style: { fontFamily: 'monospace', textTransform: 'uppercase', ...rojo('rfc_titular') } })} /></F>
@@ -752,8 +775,8 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
             {p.cuenta_clabe && !/^\d{18}$/.test(p.cuenta_clabe) && <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 3 }}>La CLABE debe tener exactamente 18 dígitos ({p.cuenta_clabe.length}/18)</div>}
           </F>
         </div>
-        <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 6 }}>Print de pantalla del banco donde se vea el banco y la CLABE *</label>
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #f0f3f8' }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#5b6b85', textTransform: 'uppercase', letterSpacing: '.04em', display: 'block', marginBottom: 8 }}>Print de pantalla del banco donde se vea el banco y la CLABE *</label>
           <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={subirEvidencia} />
           {p.evidencia_cuenta_path ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -773,7 +796,8 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
         </div>
       </div>
 
-      <button className="btn btn-primary" onClick={guardar} disabled={guardando} style={{ width: '100%', padding: '14px', fontSize: 15 }}>
+      <button className="btn btn-primary" onClick={guardar} disabled={guardando}
+        style={{ width: '100%', padding: '15px', fontSize: 15, borderRadius: 12, marginTop: 4, marginBottom: 28 }}>
         {guardando ? 'Guardando…' : '💾 Guardar Perfil de Empresa'}
       </button>
     </>
@@ -1855,3 +1879,4 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     </>
   )
 }
+
