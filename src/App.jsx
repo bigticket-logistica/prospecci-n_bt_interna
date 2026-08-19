@@ -135,7 +135,7 @@ export default function App() {
 
   const email = session.user.email
   return (
-    <Shell tercero={tercero} email={email}>
+    <Shell tercero={tercero} email={email} onCampana={() => setView('consultas')}>
       {view === 'home' && perfilOk === false && (
         <div onClick={() => setView('perfil')} style={{ cursor: 'pointer', background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '13px 16px', marginBottom: 16, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
@@ -207,7 +207,23 @@ function PantallaCentro({ titulo, texto, accion }) {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────
-function Shell({ tercero, email, children }) {
+function Shell({ tercero, email, children, onCampana }) {
+  // 🔔 Campana: mensajes sin leer + solicitudes pendientes, desde
+  // vw_campana_tercero. Se refresca al montar y cada 60 s.
+  const [campana, setCampana] = useState(null)
+  useEffect(() => {
+    if (!tercero?.tercero_id) return
+    const leer = async () => {
+      const { data } = await supabase.from('vw_campana_tercero')
+        .select('mensajes_sin_leer, solicitudes_pendientes, total')
+        .eq('tercero_id', tercero.tercero_id).maybeSingle()
+      setCampana(data || null)
+    }
+    leer()
+    const t = setInterval(() => { if (!document.hidden) leer() }, 60000)
+    return () => clearInterval(t)
+  }, [tercero])
+
   return (
     <>
       <div className="topbar">
@@ -215,7 +231,21 @@ function Shell({ tercero, email, children }) {
           <img src="/bt_logo_naranjo.png" alt="Bigticket" style={{ height: 24, width: 'auto', display: 'block' }} />
           <b style={{ opacity: .9 }}>· Certificación</b>
         </div>
-        <div className="who">
+        <div className="who" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Campana: al tocarla abre Consultas (mensajes) */}
+          <button onClick={() => onCampana && onCampana()} title={campana && campana.total > 0
+              ? `${campana.mensajes_sin_leer} mensaje(s) · ${campana.solicitudes_pendientes} pendiente(s)` : 'Sin novedades'}
+            style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}>
+            🔔
+            {campana && campana.total > 0 && (
+              <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 17, height: 17, padding: '0 4px',
+                borderRadius: 999, background: '#F47B20', color: '#fff', fontSize: 10, fontWeight: 800,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                border: '1.5px solid #fff' }}>
+                {campana.total > 99 ? '99+' : campana.total}
+              </span>
+            )}
+          </button>
           <span><span className="name">{tercero.nombre}</span> · {email}</span>
           <button className="logout" onClick={() => supabase.auth.signOut()}>Salir</button>
         </div>
@@ -1160,8 +1190,26 @@ function Consultas({ tercero, onBack }) {
       .eq('tercero_id', tercero.tercero_id)
       .order('created_at', { ascending: true })
     setMsgs(data || [])
+    // Al entrar a Consultas, los mensajes de BigTicket quedan leídos: la
+    // campana baja y el aviso agrupado de WhatsApp deja de reintentarse.
+    supabase.rpc('marcar_mensajes_leidos_tercero', { p_tercero_id: tercero.tercero_id }).then(() => {})
   }
   useEffect(() => { cargar() }, [tercero])
+
+  // El hilo se refresca solo cada 25 s: si el analista responde mientras el
+  // tercero mira la conversación, el mensaje aparece sin recargar.
+  useEffect(() => {
+    const t = setInterval(async () => {
+      if (document.hidden || modo !== 'chat') return
+      const { data } = await supabase.from('mensajes_terceros')
+        .select('*').eq('tercero_id', tercero.tercero_id).order('created_at', { ascending: true })
+      if (data) {
+        setMsgs(prev => (prev && data.length === prev.length) ? prev : data)
+        supabase.rpc('marcar_mensajes_leidos_tercero', { p_tercero_id: tercero.tercero_id }).then(() => {})
+      }
+    }, 25000)
+    return () => clearInterval(t)
+  }, [tercero, modo])
 
   async function enviar() {
     const t = texto.trim()
