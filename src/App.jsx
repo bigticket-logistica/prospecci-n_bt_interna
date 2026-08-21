@@ -745,6 +745,9 @@ function perfilCompleto(p) {
   for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) return false
   if (!/^\d{18}$/.test(String(p.cuenta_clabe || '').trim())) return false
   if (!p.evidencia_cuenta_path) return false
+  // La persona moral acredita su constitución y las facultades de quien
+  // firma; la física no lo necesita.
+  if (p.figura_juridica === 'moral' && !p.acta_constitutiva_path) return false
   return true
 }
 
@@ -753,8 +756,10 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
+  const [subiendoActa, setSubiendoActa] = useState(false)
   const [intento, setIntento] = useState(false)   // ya intentó guardar → marcar faltantes en rojo
   const fileRef = useRef(null)
+  const actaRef = useRef(null)
   const S = (k, v) => setP(prev => ({ ...prev, [k]: v }))
   const rojo = (k) => intento && !String(p?.[k] || '').trim() ? { borderColor: '#e74c3c', background: '#fff5f5' } : {}
 
@@ -780,6 +785,26 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
     finally { setSubiendo(false) }
   }
 
+  // Acta constitutiva (solo persona moral). Mismo bucket y mismo patrón de
+  // URL firmada que la evidencia bancaria.
+  const subirActa = async (ev) => {
+    const file = ev.target.files && ev.target.files[0]
+    ev.target.value = ''
+    if (!file) return
+    setSubiendoActa(true)
+    try {
+      const path = `${tercero.tercero_id}/perfil/acta_constitutiva_${Date.now()}.${(file.name.split('.').pop() || 'pdf').toLowerCase()}`
+      const { error } = await supabase.storage.from('archivador_empresas').upload(path, file, { upsert: true })
+      if (error) throw new Error(error.message)
+      S('acta_constitutiva_path', path)
+    } catch (e) { alert('No se pudo subir el acta: ' + e.message) }
+    finally { setSubiendoActa(false) }
+  }
+  const verArchivo = async (path) => {
+    const { data } = await supabase.storage.from('archivador_empresas').createSignedUrl(path, 300)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
   const guardar = async () => {
     setIntento(true)
     const falta = []
@@ -787,6 +812,8 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
     for (const k of PERFIL_REQUERIDOS) if (!String(p[k] || '').trim()) falta.push(ETQ[k] || k)
     if (String(p.cuenta_clabe || '').trim() && !/^\d{18}$/.test(String(p.cuenta_clabe).trim())) falta.push('CLABE válida (18 dígitos)')
     if (!p.evidencia_cuenta_path) falta.push('Print de pantalla del banco con la CLABE')
+    if (p.figura_juridica === 'moral' && !p.acta_constitutiva_path) falta.push('Acta constitutiva')
+    if (!p.figura_juridica) falta.push('Figura jurídica (física o moral)')
     if (falta.length) {
       alert('⚠️ No se puede guardar: todos los campos son obligatorios.\n\nFalta completar:\n\n• ' + falta.join('\n• ') + '\n\nLos campos faltantes quedaron marcados en rojo. Sin el perfil completo, BigTicket no podrá procesar tus pagos.')
       return
@@ -866,6 +893,50 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
         </div>
         <div className="pe-field" style={{ marginTop: 16 }}><label>Dirección de la empresa *</label>
           <input {...inp('direccion', { style: rojo('direccion') })} placeholder="Calle, número, colonia, municipio, CP, estado" /></div>
+
+        {/* Figura jurídica: define si se pide acta constitutiva */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #f0f3f8' }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#5b6b85', textTransform: 'uppercase', letterSpacing: '.04em', display: 'block', marginBottom: 8 }}>Figura jurídica *</label>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {[['fisica', '👤 Persona física', 'con actividad empresarial'],
+              ['moral', '🏢 Persona moral', 'sociedad constituida']].map(([val, tit, sub]) => {
+              const on = p.figura_juridica === val
+              return (
+                <button key={val} type="button" onClick={() => S('figura_juridica', val)}
+                  style={{ flex: 1, minWidth: 150, textAlign: 'left', cursor: 'pointer',
+                    background: on ? '#1a3a6b' : '#fff', color: on ? '#fff' : '#333',
+                    border: `1.5px solid ${on ? '#1a3a6b' : (intento && !p.figura_juridica ? '#e74c3c' : '#dfe5ee')}`,
+                    borderRadius: 10, padding: '11px 14px', fontFamily: "'Geist',sans-serif" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{tit}</div>
+                  <div style={{ fontSize: 11, opacity: on ? .85 : .6 }}>{sub}</div>
+                </button>
+              )
+            })}
+          </div>
+
+          {p.figura_juridica === 'moral' && (
+            <div style={{ marginTop: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#5b6b85', textTransform: 'uppercase', letterSpacing: '.04em', display: 'block', marginBottom: 8 }}>Acta constitutiva *</label>
+              <input ref={actaRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={subirActa} />
+              {p.acta_constitutiva_path ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#166534', background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 20, padding: '6px 14px' }}>✓ Acta cargada</span>
+                  <button className="btn" onClick={() => verArchivo(p.acta_constitutiva_path)}>Ver</button>
+                  <button className="btn" onClick={() => actaRef.current && actaRef.current.click()} disabled={subiendoActa}>{subiendoActa ? 'Subiendo…' : 'Reemplazar'}</button>
+                </div>
+              ) : (
+                <button onClick={() => actaRef.current && actaRef.current.click()} disabled={subiendoActa}
+                  style={{ width: '100%', border: intento && !p.acta_constitutiva_path ? '2px dashed #e74c3c' : '2px dashed #1a3a6b', background: intento && !p.acta_constitutiva_path ? '#fff5f5' : '#f5f8fd', color: intento && !p.acta_constitutiva_path ? '#c0392b' : '#1a3a6b', fontWeight: 700, fontSize: 13, borderRadius: 12, padding: 16, cursor: 'pointer' }}>
+                  {subiendoActa ? 'Subiendo…' : '📄 Subir acta constitutiva (PDF o foto)'}
+                </button>
+              )}
+              <div style={{ fontSize: 11, color: '#8a94a6', marginTop: 6, lineHeight: 1.5 }}>
+                Documento completo con sello del Registro Público. Si el poder del representante
+                legal está en un instrumento aparte, puedes subir un PDF con ambos.
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="pe-card">
