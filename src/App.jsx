@@ -398,7 +398,7 @@ function Firma({ tercero, email, onBack }) {
     // Documentos del Gestionador (anexos, bajas, contratos sueltos) enviados desde el Brain
     const { data: dg } = await supabase
       .from('contratos_gestion')
-      .select('id, titulo, tipo, descripcion, estado, enviado_at, firmado_at, mifiel_widget_tercero, firmado_tercero, firmado_bigticket')
+      .select('id, titulo, tipo, descripcion, estado, enviado_at, firmado_at, mifiel_documento_id, mifiel_widget_tercero, firmado_tercero, firmado_bigticket')
       .eq('tercero_id', tercero.tercero_id)
       .in('estado', ['enviado', 'firmado'])
       .order('enviado_at', { ascending: false })
@@ -2093,4 +2093,3 @@ function FormVehiculo({ tercero, email, onBack, onDone }) {
     </>
   )
 }
-
