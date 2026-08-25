@@ -452,6 +452,18 @@ function Firma({ tercero, email, onBack }) {
 
   const TIPO_DOC = { contrato: 'Contrato', anexo: 'Anexo', baja_vehiculo: 'Baja de vehículo', otro: 'Documento' }
 
+  // Un mismo documento MIFIEL puede estar referenciado por la tarjeta de
+  // certificación Y por el Gestionador (pasa cuando el contrato de ingreso
+  // se reemplaza por uno hecho en el Gestionador). Para el transportista es
+  // UN contrato: se muestra arriba y no se repite abajo.
+  const docsArriba = new Set([
+    ...(rows || []).map(r => r.mifiel_documento_id).filter(Boolean),
+    ...(contratosMx || []).map(r => r.mifiel_documento_id).filter(Boolean),
+  ].map(String))
+  const docsGestionVisibles = (docsGestion || []).filter(
+    d => !(d.mifiel_documento_id && docsArriba.has(String(d.mifiel_documento_id)))
+  )
+
   return (
     <>
       <button className="back-link" onClick={onBack}>← Volver</button>
@@ -459,7 +471,7 @@ function Firma({ tercero, email, onBack }) {
         <div className="lede">Contratos enviados a firma digital. Firma aquí mismo con tu e.firma (SAT), sin salir del portal.</div></div></div>
       <div className="card">
         {rows === null || docsGestion === null || contratosMx === null ? <div className="loading">Cargando…</div>
-        : rows.length === 0 && docsGestion.length === 0 && contratosMx.length === 0 ? (
+        : rows.length === 0 && docsGestionVisibles.length === 0 && contratosMx.length === 0 ? (
           <div className="empty"><h3>No tienes documentos por firmar</h3>
             <p>Cuando tu personal esté validado, o Bigticket te envíe un contrato, anexo o baja, aparecerá aquí para firmarlo digitalmente.</p></div>
         ) : (
@@ -534,12 +546,12 @@ function Firma({ tercero, email, onBack }) {
           )
         })}
 
-        {docsGestion.length > 0 && (
+        {docsGestionVisibles.length > 0 && (
           <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', margin: '18px 0 10px', textTransform: 'uppercase', letterSpacing: '.4px' }}>
             📑 Otros documentos (anexos, bajas y más)
           </div>
         )}
-        {docsGestion.map(d => {
+        {docsGestionVisibles.map(d => {
           const firmado = d.estado === 'firmado'
           const puedeFirmar = !firmado && !d.firmado_tercero && d.mifiel_widget_tercero
           const key = `g-${d.id}`
