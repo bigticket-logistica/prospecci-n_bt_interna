@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
+import MisPagos from './MisPagos'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -101,13 +102,15 @@ export default function App() {
     ;(async () => {
       const { data } = await supabase
         .from('usuarios_terceros')
-        .select('tercero_id, terceros(nombre)')
+        .select('tercero_id, terceros(nombre, portal_activo)')
         .eq('auth_email', session.user.email.toLowerCase())
         .maybeSingle()
       if (cancel) return
       if (!data) { setTercero(null); return }
       const t = Array.isArray(data.terceros) ? data.terceros[0] : data.terceros
-      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa' })
+      // portal_activo = contrato firmado: habilita el módulo de pagos.
+      // No controla el acceso general al portal (eso es usuarios_terceros).
+      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa', pagosHabilitados: !!t?.portal_activo })
     })()
     return () => { cancel = true }
   }, [session])
@@ -143,10 +146,11 @@ export default function App() {
           <span style={{ background: '#F47B20', color: '#fff', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Completar ahora →</span>
         </div>
       )}
-      {view === 'home' && <Home onPick={setView} />}
+      {view === 'home' && <Home onPick={setView} pagosHabilitados={tercero.pagosHabilitados} />}
       {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'pagos' && <MisPagos tercero={tercero} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
@@ -339,7 +343,7 @@ function Shell({ tercero, email, children, onNavegar }) {
 }
 
 // ── Home: 4 tarjetas ─────────────────────────────────────────────────
-function Home({ onPick }) {
+function Home({ onPick, pagosHabilitados }) {
   return (
     <>
       <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
@@ -355,6 +359,10 @@ function Home({ onPick }) {
           <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
         <button className="type-card" onClick={() => onPick('baja')}>
           <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
+        {pagosHabilitados && (
+          <button className="type-card" onClick={() => onPick('pagos')}>
+            <div className="ic">💵</div><h3>Mis pagos</h3><p>El detalle de cada ruta que operaste, día por día, con lo que se te paga por ella.</p></button>
+        )}
         <button className="type-card" onClick={() => onPick('perfil')}>
           <div className="ic">🏢</div><h3>Perfil de Empresa</h3><p>Ficha de ingreso y datos de la cuenta de pago (obligatorio para recibir pagos).</p></button>
         <button className="type-card" onClick={() => onPick('flota')}>
