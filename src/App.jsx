@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
-import MisPagos from './MisPagos'
+import Movimientos from './Movimientos'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -150,7 +150,7 @@ export default function App() {
       {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
-      {view === 'pagos' && <MisPagos tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
@@ -360,8 +360,8 @@ function Home({ onPick, pagosHabilitados }) {
         <button className="type-card" onClick={() => onPick('baja')}>
           <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
         {pagosHabilitados && (
-          <button className="type-card" onClick={() => onPick('pagos')}>
-            <div className="ic">💵</div><h3>Mis pagos</h3><p>El detalle de cada ruta que operaste, día por día, con lo que se te paga por ella.</p></button>
+          <button className="type-card" onClick={() => onPick('movimientos')}>
+            <div className="ic">💵</div><h3>Movimientos del día</h3><p>Tus pagos y cobros día por día, con el detalle de cada ruta. Desde acá levantas diferencias.</p></button>
         )}
         <button className="type-card" onClick={() => onPick('perfil')}>
           <div className="ic">🏢</div><h3>Perfil de Empresa</h3><p>Ficha de ingreso y datos de la cuenta de pago (obligatorio para recibir pagos).</p></button>
