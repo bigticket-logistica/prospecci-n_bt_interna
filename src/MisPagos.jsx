@@ -44,7 +44,7 @@ const ESTADOS = {
   bloqueada: { label: 'En revisión', bg: 'var(--amber-soft)', fg: 'var(--amber)' },
 }
 
-export default function MisPagos({ tercero }) {
+export default function MisPagos({ tercero, onBack }) {
   const [lunes, setLunes] = useState(() => lunesDe(new Date()))
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -91,6 +91,8 @@ export default function MisPagos({ tercero }) {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+
 
       {/* Cabecera: semana y total */}
       <div style={{
