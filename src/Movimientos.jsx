@@ -231,7 +231,7 @@ export default function Movimientos({ tercero, email, onBack }) {
       try {
         const { data: payload } = await supabase.rpc('fn_payload_aviso_diferencia', { p_dif: dif.id })
         if (payload) {
-          await fetch('https://n8n.bigticket.mx/webhook/diferencia-notificar', {
+          await fetch('https://bigticket2026.app.n8n.cloud/webhook/diferencia-notificar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
