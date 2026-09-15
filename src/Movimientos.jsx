@@ -217,6 +217,14 @@ export default function Movimientos({ tercero, email, onBack }) {
         detalle: `${lineas.length} línea(s) reclamada(s)${fotos.length ? ` · ${fotos.length} adjunto(s)` : ''}`,
       })
 
+      // Abre el caso: calcula el SLA de 48 h y genera la tarea al supervisor
+      // de cada centro involucrado. Si esto falla, el reclamo igual quedó
+      // guardado — pero nadie se entera, así que hay que decirlo.
+      const { error: eAbrir } = await supabase.rpc('fn_abrir_diferencia', { p_dif: dif.id })
+      if (eAbrir) {
+        alert(`Tu diferencia #${dif.folio} quedó registrada, pero no se pudo avisar al supervisor.\n\nAvísanos por el chat de consultas citando ese número.`)
+      }
+
       setEnviado(dif.folio)
       setSel({}); setFaltantes([]); setFotos([]); setReclamando(false)
     } catch (e) {
