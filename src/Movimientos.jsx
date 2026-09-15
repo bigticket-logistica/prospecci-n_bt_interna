@@ -225,6 +225,20 @@ export default function Movimientos({ tercero, email, onBack }) {
         alert(`Tu diferencia #${dif.folio} quedó registrada, pero no se pudo avisar al supervisor.\n\nAvísanos por el chat de consultas citando ese número.`)
       }
 
+      // Correo al supervisor del centro, con copia a análisis. El envío no
+      // bloquea: si el correo falla, la tarea ya está creada y el caso vive
+      // igual en la bitácora del supervisor.
+      try {
+        const { data: payload } = await supabase.rpc('fn_payload_aviso_diferencia', { p_dif: dif.id })
+        if (payload) {
+          await fetch('https://n8n.bigticket.mx/webhook/diferencia-notificar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        }
+      } catch (e) { console.error('No se pudo enviar el aviso por correo:', e) }
+
       setEnviado(dif.folio)
       setSel({}); setFaltantes([]); setFotos([]); setReclamando(false)
     } catch (e) {
