@@ -50,6 +50,16 @@ const ESTADOS = {
 
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
 
+const EST_DIF = {
+  abierta:     { l: 'Recibida',    bg: 'var(--amber-soft)', fg: 'var(--amber)', ayuda: 'La recibimos. Un analista la va a revisar.' },
+  en_revision: { l: 'En revisión', bg: '#dbeafe',           fg: '#1e40af',      ayuda: 'Un analista la está revisando.' },
+  aceptada:    { l: 'Aceptada',    bg: 'var(--green-soft)', fg: 'var(--green)', ayuda: 'Se te reconoce lo reclamado. Entra en tu prefactura.' },
+  parcial:     { l: 'Parcial',     bg: '#e0e7ff',           fg: '#3730a3',      ayuda: 'Se aceptó una parte. Mira el detalle de cada línea.' },
+  rechazada:   { l: 'Rechazada',   bg: 'var(--red-soft)',   fg: 'var(--red)',   ayuda: 'No procede. La razón está en cada línea.' },
+  retirada:    { l: 'Retirada',    bg: '#f1f5f9',           fg: 'var(--muted)', ayuda: 'La retiraste.' },
+  vencida:     { l: 'Vencida',     bg: '#f1f5f9',           fg: 'var(--muted)', ayuda: 'Se cerró por plazo.' },
+}
+
 export default function Movimientos({ tercero, email, onBack }) {
   const [lunes, setLunes] = useState(() => lunesDe(new Date()))
   const [filas, setFilas] = useState([])
@@ -64,6 +74,8 @@ export default function Movimientos({ tercero, email, onBack }) {
   const [fotos, setFotos] = useState([])
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(null) // folio
+  const [misDif, setMisDif] = useState([])     // reclamos del tercero, con sus líneas
+  const [difAbierta, setDifAbierta] = useState(null)
 
   const domingo = useMemo(() => sumaDias(lunes, 6), [lunes])
 
@@ -81,6 +93,44 @@ export default function Movimientos({ tercero, email, onBack }) {
   }, [tercero, lunes, domingo])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // Los reclamos del tercero, con sus líneas y la respuesta del analista.
+  // Sin esto, levantar una diferencia es gritar a un pozo.
+  const cargarDif = useCallback(async () => {
+    if (!tercero?.tercero_id) return
+    const { data } = await supabase
+      .from('diferencias')
+      .select('*, diferencias_lineas(*)')
+      .eq('tercero_id', tercero.tercero_id)
+      .order('creada_at', { ascending: false })
+    setMisDif(data || [])
+  }, [tercero])
+
+  useEffect(() => { cargarDif() }, [cargarDif, enviado])
+
+  // Qué líneas del listado ya están reclamadas, para marcarlas
+  const reclamadas = useMemo(() => {
+    const m = {}
+    for (const d of misDif) {
+      if (d.estado === 'retirada') continue
+      for (const l of (d.diferencias_lineas || [])) {
+        if (l.id_ruta) m[`pago|${l.fecha}|${l.id_ruta}`] = { folio: d.folio, estado: d.estado, linea: l }
+        if (l.cobro_id) m[`cobro|${l.cobro_id}`] = { folio: d.folio, estado: d.estado, linea: l }
+      }
+    }
+    return m
+  }, [misDif])
+
+  const retirar = async (d) => {
+    if (!confirm(`¿Retirar la diferencia #${d.folio}?\n\nDeja de estar en revisión y no se vuelve a abrir.`)) return
+    const { error } = await supabase.from('diferencias').update({ estado: 'retirada' }).eq('id', d.id)
+    if (error) { alert('No se pudo retirar: ' + error.message); return }
+    await supabase.from('diferencias_eventos').insert({
+      diferencia_id: d.id, tipo: 'retirada', actor: email || tercero.nombre,
+      detalle: 'El tercero retiró el reclamo',
+    })
+    cargarDif()
+  }
 
   const dias = useMemo(() => {
     const m = new Map()
@@ -239,6 +289,68 @@ export default function Movimientos({ tercero, email, onBack }) {
         )}
       </div>
 
+      {/* Mis diferencias: en qué va cada reclamo */}
+      {misDif.length > 0 && !reclamando && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--line)', fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>
+            Mis diferencias
+          </div>
+          {misDif.map(d => {
+            const e = EST_DIF[d.estado] || EST_DIF.abierta
+            const abierta = difAbierta === d.id
+            const puedeRetirar = d.estado === 'abierta'
+            return (
+              <div key={d.id} style={{ borderBottom: '1px solid #f1f4f8' }}>
+                <button onClick={() => setDifAbierta(abierta ? null : d.id)}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '12px 18px', background: 'transparent', border: 'none', textAlign: 'left' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600 }}>Diferencia #{d.folio}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: e.bg, color: e.fg, letterSpacing: '.04em' }}>
+                        {e.l.toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
+                      {(d.diferencias_lineas || []).length} línea(s) · {new Date(d.creada_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} · {e.ayuda}
+                    </div>
+                  </div>
+                  <span style={{ color: 'var(--muted)', fontSize: 13 }}>{abierta ? '▴' : '▾'}</span>
+                </button>
+
+                {abierta && (
+                  <div style={{ padding: '0 18px 14px' }}>
+                    {(d.diferencias_lineas || []).map(l => (
+                      <div key={l.id} style={{ background: 'var(--page)', borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600 }}>
+                            {l.tipo === 'cobro' ? 'Cobro' : l.tipo === 'faltante' ? 'Ruta que falta' : 'Ruta'}
+                            {l.placa ? ` · ${l.placa}` : ''}{l.id_ruta ? ` · ${l.id_ruta}` : ''}
+                          </span>
+                          <span style={{ color: 'var(--muted)' }}>{l.fecha || ''}</span>
+                        </div>
+                        <div style={{ color: 'var(--muted)', marginTop: 4 }}>Reclamaste: {l.comentario}</div>
+                        {l.estado !== 'pendiente' && (
+                          <div style={{ marginTop: 6, color: l.estado === 'aceptada' ? 'var(--green)' : 'var(--red)' }}>
+                            <b>{l.estado === 'aceptada' ? 'Aceptada' : 'Rechazada'}
+                              {l.monto_reconocido ? ` · ${money(l.monto_reconocido)}` : ''}:</b> {l.resolucion}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {puedeRetirar && (
+                      <button onClick={() => retirar(d)}
+                        style={{ background: '#fff', color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', fontSize: 12.5 }}>
+                        Retirar este reclamo
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {error && <div className="form-error">No se pudieron cargar tus movimientos: {error}</div>}
 
       {cargando ? (
@@ -293,6 +405,16 @@ export default function Movimientos({ tercero, email, onBack }) {
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                               {esCobro ? `PNR ${m.ref}` : `Ruta ${m.ref}`}
                             </span>
+                            {(() => {
+                              const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
+                              if (!rec) return null
+                              const e = EST_DIF[rec.estado] || EST_DIF.abierta
+                              return (
+                                <span title={e.ayuda} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: e.bg, color: e.fg, letterSpacing: '.04em' }}>
+                                  DIFERENCIA #{rec.folio} · {e.l.toUpperCase()}
+                                </span>
+                              )
+                            })()}
                           </div>
                           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
                             {m.driver_name || 'Sin conductor registrado'}{m.sc ? ` · ${m.sc}` : ''}
