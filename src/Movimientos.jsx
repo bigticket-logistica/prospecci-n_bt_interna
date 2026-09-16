@@ -50,6 +50,10 @@ const ESTADOS = {
 
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
 
+// El portal arranca el 14 de septiembre de 2026: antes de esa fecha no hay
+// publicaciones, así que retroceder solo mostraría semanas vacías.
+const INICIO_PORTAL = '2026-09-14'
+
 const EST_DIF = {
   abierta:     { l: 'Recibida',    bg: 'var(--amber-soft)', fg: 'var(--amber)', ayuda: 'La recibimos. Un analista la va a revisar.' },
   en_revision: { l: 'En revisión', bg: '#dbeafe',           fg: '#1e40af',      ayuda: 'Un analista la está revisando.' },
@@ -255,7 +259,11 @@ export default function Movimientos({ tercero, email, onBack }) {
       <div style={{ background: 'var(--navy)', color: '#fff', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setLunes(sumaDias(lunes, -7))} style={navBtn}>‹</button>
+            <button onClick={() => setLunes(sumaDias(lunes, -7))}
+              disabled={iso(lunes) <= INICIO_PORTAL}
+              title={iso(lunes) <= INICIO_PORTAL ? 'Es la primera semana disponible' : ''}
+              style={{ ...navBtn, opacity: iso(lunes) <= INICIO_PORTAL ? 0.35 : 1,
+                cursor: iso(lunes) <= INICIO_PORTAL ? 'not-allowed' : 'pointer' }}>‹</button>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>Semana {semanaBrain(lunes)}</div>
               <div style={{ fontSize: 12.5, color: '#b8c6de' }}>{rango(lunes, domingo)}</div>
