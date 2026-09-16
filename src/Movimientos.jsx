@@ -438,6 +438,9 @@ export default function Movimientos({ tercero, email, onBack }) {
                             </span>
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                               {esCobro ? `PNR ${m.ref}` : `Ruta ${m.ref}`}
+                              {esCobro && m.shipment_id && (
+                                <span style={{ display: 'block', fontSize: 11 }}>Guía {m.shipment_id}</span>
+                              )}
                             </span>
                             {(() => {
                               const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
