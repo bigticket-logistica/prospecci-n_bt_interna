@@ -48,7 +48,8 @@ const ESTADOS = {
   aprobada:  { label: 'Por pagar',   bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
   no_pagada: { label: 'No se paga',  bg: 'var(--red-soft)',    fg: 'var(--red)' },
   pausada:   { label: 'En revisión', bg: '#e8eefb',            fg: 'var(--navy)' },
-  cobrado:   { label: 'Cobro',       bg: 'var(--orange-soft)', fg: '#b45309' },
+  // Igual que el pago: todavía no se descontó, se descuenta en la prefactura.
+  cobrado:   { label: 'Por cobrar',  bg: '#fdeaea',            fg: '#c0392b' },
 }
 
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
