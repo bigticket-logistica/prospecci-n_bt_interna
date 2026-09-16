@@ -41,10 +41,13 @@ const fechaLarga = (s) => {
 const fechaCorta = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—'
 const rango = (a, b) => `${a.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} – ${b.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}`
 
+// "Pagada" era falso: la ruta se aprueba el día siguiente, entra en la
+// prefactura del lunes y se paga el viernes. Hasta entonces es "Por pagar".
+// El verde queda reservado para cuando exista el registro del pago efectivo.
 const ESTADOS = {
-  aprobada:  { label: 'Pagada',      bg: 'var(--green-soft)',  fg: 'var(--green)' },
-  no_pagada: { label: 'No pagada',   bg: 'var(--red-soft)',    fg: 'var(--red)' },
-  pausada:   { label: 'En revisión', bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
+  aprobada:  { label: 'Por pagar',   bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
+  no_pagada: { label: 'No se paga',  bg: 'var(--red-soft)',    fg: 'var(--red)' },
+  pausada:   { label: 'En revisión', bg: '#e8eefb',            fg: 'var(--navy)' },
   cobrado:   { label: 'Cobro',       bg: 'var(--orange-soft)', fg: '#b45309' },
 }
 
@@ -271,7 +274,7 @@ export default function Movimientos({ tercero, email, onBack }) {
             <button onClick={() => setLunes(sumaDias(lunes, 7))} style={navBtn}>›</button>
           </div>
           <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-            <Tot label="Pagos" valor={money(totalPagos)} />
+            <Tot label="Por pagar" valor={money(totalPagos)} />
             <Tot label="Cobros" valor={money(totalCobros)} tenue />
             <Tot label="Neto" valor={money(totalPagos + totalCobros)} grande />
           </div>
@@ -537,7 +540,7 @@ export default function Movimientos({ tercero, email, onBack }) {
 
       {dias.length > 0 && !reclamando && (
         <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '8px 0 24px' }}>
-          Estos montos son los que irán en tu prefactura.
+          Estos montos son los que irán en tu prefactura del lunes y se pagan el viernes.
         </div>
       )}
     </div>
