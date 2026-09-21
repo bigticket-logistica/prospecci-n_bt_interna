@@ -137,6 +137,24 @@ export default function Facturacion({ tercero, email, onBack }) {
         ? (problemas.length ? 'Factura subida. Un analista la va a revisar.' : 'Factura subida y conciliada con la prefactura.')
         : 'Factura subida. Sube también el XML si quieres que se concilie sola.')
       await cargar()
+
+      // Validación contra el SAT, después de guardar y sin bloquear: si el SAT
+      // está caído o la factura es muy reciente y todavía no aparece, la
+      // factura ya quedó subida y el reintento del Brain la vuelve a tomar.
+      if (cfdi?.uuid) {
+        try {
+          const { data: reciente } = await supabase.from('facturas_tercero')
+            .select('id').eq('uuid', cfdi.uuid).maybeSingle()
+          if (reciente?.id) {
+            const r = await fetch(`/api/reportes/validar-cfdi?factura_id=${reciente.id}`)
+            const j = await r.json()
+            const res = j?.resultados?.[0]
+            if (res?.vigente) setAviso('Factura subida. El SAT la confirma como vigente.')
+            else if (res?.estado) setAviso(`Factura subida. El SAT la reporta como ${res.estado.toLowerCase()}: un analista la va a revisar.`)
+            await cargar()
+          }
+        } catch (e) { console.error('No se pudo validar con el SAT:', e) }
+      }
     } catch (e) { setError('No se pudo subir la factura: ' + (e.message || e)) }
     setSubiendo(null)
   }
@@ -323,6 +341,16 @@ export default function Facturacion({ tercero, email, onBack }) {
                                 <div style={{ marginTop: 3, color: 'var(--muted)', fontSize: 11.5 }}>
                                   Folio fiscal {f.uuid}
                                   {f.serie_folio ? ` · ${f.serie_folio}` : ''}
+                                </div>
+                              )}
+                              {/* Lo que dice el SAT. "Vigente" es lo único que
+                                  confirma la factura; cancelada o no encontrada
+                                  necesitan que alguien la mire. */}
+                              {f.sat_estado && (
+                                <div style={{ marginTop: 5, fontSize: 11.5, fontWeight: 600,
+                                  color: String(f.sat_estado).toLowerCase() === 'vigente' ? 'var(--green)' : 'var(--red)' }}>
+                                  SAT: {f.sat_estado}
+                                  {String(f.sat_estado).toLowerCase() !== 'vigente' && ' — un analista la va a revisar'}
                                 </div>
                               )}
                               {f.monto_factura == null && (
