@@ -459,7 +459,16 @@ export default function Movimientos({ tercero, email, onBack }) {
 
                           {esCobro ? (
                             <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>
-                              {m.concepto || 'Cobro'} · ruta del <b style={{ color: 'var(--ink)' }}>{fechaCorta(m.fecha_hecho)}</b>
+                              {/* El cobro se muestra el día que se imputa, no el del hecho.
+                                  Sin decir de cuándo viene, un descuento aparece en un día
+                                  donde no pasó nada. Y "ruta del" no sirve para un no show,
+                                  donde justamente no hubo ruta. */}
+                              {m.concepto || 'Cobro'}
+                              {m.fecha_hecho && (
+                                <> · {m.tipo_cobro === 'noshow' ? 'del día' : 'ruta del'}{' '}
+                                  <b style={{ color: 'var(--ink)' }}>{fechaCorta(m.fecha_hecho)}</b>
+                                </>
+                              )}
                             </div>
                           ) : (
                             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
