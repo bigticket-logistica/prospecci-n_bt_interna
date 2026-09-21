@@ -22,6 +22,7 @@ const fechaCorta = (s) => s ? new Date(s + (String(s).length <= 10 ? 'T12:00:00'
 export default function Facturacion({ tercero, email, onBack }) {
   const [filas, setFilas] = useState(null)
   const [abierta, setAbierta] = useState(null)
+  const [scSel, setScSel] = useState('todos')
   const [subiendo, setSubiendo] = useState(null)
   const [error, setError] = useState(null)
   const [aviso, setAviso] = useState(null)
@@ -29,11 +30,17 @@ export default function Facturacion({ tercero, email, onBack }) {
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     setError(null)
-    const [pref, fact] = await Promise.all([
+    const [pref, fact, extra] = await Promise.all([
       supabase.from('vw_portal_prefactura').select('*')
         .eq('tercero_id', tercero.tercero_id)
         .order('semana', { ascending: false }),
       supabase.from('facturas_tercero').select('*')
+        .eq('tercero_id', tercero.tercero_id),
+      // Las líneas que el analista agregó a mano: cobros de paquetes perdidos,
+      // saldos de semanas anteriores, reliquidaciones. No están en Movimientos
+      // porque no nacen del día, y sin esto el tercero las ve por primera vez
+      // como un descuento sin explicación.
+      supabase.from('vw_portal_linea_prefactura').select('*')
         .eq('tercero_id', tercero.tercero_id),
     ])
     if (pref.error) { setError(pref.error.message); setFilas([]); return }
@@ -41,7 +48,13 @@ export default function Facturacion({ tercero, email, onBack }) {
     for (const f of (fact.data || [])) {
       (porPref[f.conciliacion_id] = porPref[f.conciliacion_id] || []).push(f)
     }
-    setFilas((pref.data || []).map(p => ({ ...p, facturas: porPref[p.id] || [] })))
+    const porConc = {}
+    for (const l of (extra.data || [])) {
+      (porConc[l.conciliacion_id] = porConc[l.conciliacion_id] || []).push(l)
+    }
+    setFilas((pref.data || []).map(p => ({
+      ...p, facturas: porPref[p.id] || [], extras: porConc[p.id] || [],
+    })))
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -177,11 +190,20 @@ export default function Facturacion({ tercero, email, onBack }) {
     window.open(data.signedUrl, '_blank')
   }
 
+  // Los centros donde la empresa tuvo prefactura. Cada SC es una prefactura y
+  // una factura distinta, así que quien opera en varios necesita poder mirarlos
+  // de a uno sin que se le mezclen los números.
+  const centros = useMemo(() => {
+    const cs = new Set((filas || []).map(p => p.service_center).filter(Boolean))
+    return [...cs].sort()
+  }, [filas])
+
   // Agrupadas por semana: una empresa puede tener una prefactura por centro,
   // y lo que le importa es cuánto cobra esa semana en total.
   const semanas = useMemo(() => {
     const m = new Map()
     for (const p of (filas || [])) {
+      if (scSel !== 'todos' && p.service_center !== scSel) continue
       if (!m.has(p.semana)) m.set(p.semana, [])
       m.get(p.semana).push(p)
     }
@@ -191,7 +213,7 @@ export default function Facturacion({ tercero, email, onBack }) {
       liquido: prefs.reduce((t, p) => t + Number(p.liquido_pago || 0), 0),
       conFactura: prefs.filter(p => p.facturas.length > 0).length,
     }))
-  }, [filas])
+  }, [filas, scSel])
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -204,6 +226,22 @@ export default function Facturacion({ tercero, email, onBack }) {
           Lo que ves acá es el mismo detalle que revisaste día por día en Movimientos.
         </div>
       </div>
+
+      {centros.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          {['todos', ...centros].map(c => (
+            <button key={c} onClick={() => setScSel(c)}
+              style={{
+                padding: '6px 14px', borderRadius: 16, fontSize: 12.5, fontWeight: 600,
+                border: `1px solid ${scSel === c ? 'var(--navy)' : 'var(--line)'}`,
+                background: scSel === c ? 'var(--navy)' : '#fff',
+                color: scSel === c ? '#fff' : 'var(--muted)',
+              }}>
+              {c === 'todos' ? 'Todos los centros' : c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <div className="form-error">{error}</div>}
       {aviso && (
@@ -234,8 +272,16 @@ export default function Facturacion({ tercero, email, onBack }) {
           {s.prefs.map(p => {
             const exp = abierta === p.id
             const lineas = Array.isArray(p.detalle) ? p.detalle : []
-            const viajes = lineas.filter(d => Number(d.monto || 0) >= 0)
-            const descuentos = lineas.filter(d => Number(d.monto || 0) < 0)
+            // Cuatro bloques, no dos. Un saldo de la semana 37 no es un descuento
+            // de esta semana, y un ajuste del analista tampoco: mezclarlos deja al
+            // tercero sin saber de dónde salió cada peso.
+            const viajes = lineas.filter(d => String(d.origen || 'motor') === 'motor'
+              && !d._saldo && Number(d.monto || 0) >= 0)
+            // Los extras ya vienen clasificados por la vista: cobro, saldo o ajuste.
+            const ex = p.extras || []
+            const cobros = ex.filter(l => l.tipo === 'cobro')
+            const saldos = ex.filter(l => l.tipo === 'saldo')
+            const ajustes = ex.filter(l => l.tipo === 'ajuste')
             return (
               <div key={p.id} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 8, overflow: 'hidden' }}>
                 <button onClick={() => setAbierta(exp ? null : p.id)}
@@ -283,24 +329,14 @@ export default function Facturacion({ tercero, email, onBack }) {
                       <Tot k="A pagar" v={money(p.liquido_pago)} fuerte />
                     </div>
 
-                    {descuentos.length > 0 && (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                          Descuentos ({descuentos.length})
-                        </div>
-                        <div style={{ background: 'var(--red-soft)', borderRadius: 10, padding: '4px 0', marginBottom: 14 }}>
-                          {descuentos.map((d, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px', fontSize: 12.5 }}>
-                              <span style={{ color: 'var(--ink)' }}>
-                                {d.driver_name || d.placa || 'Descuento'}
-                                {d.fecha && <span style={{ color: 'var(--muted)' }}> · {fechaCorta(d.fecha)}</span>}
-                              </span>
-                              <b style={{ color: 'var(--red)', whiteSpace: 'nowrap' }}>{money(d.monto)}</b>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                    <Bloque titulo="Cobros del período" lineas={cobros}
+                      nota="PNR, paquetes perdidos y no shows. Cada uno dice de qué día viene." />
+
+                    <Bloque titulo="Saldo de semanas anteriores" lineas={saldos}
+                      nota="Lo que quedó pendiente de conciliaciones previas. No es de esta semana." />
+
+                    <Bloque titulo="Ajustes" lineas={ajustes}
+                      nota="Correcciones que hizo el analista sobre esta prefactura." />
 
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                       Viajes ({viajes.length})
@@ -391,6 +427,36 @@ export default function Facturacion({ tercero, email, onBack }) {
           })}
         </div>
       ))}
+    </div>
+  )
+}
+
+// Un bloque por tipo de línea. Rojo si resta, verde si suma: hay ajustes que
+// devuelven plata y se leerían como descuento si todo fuera rojo.
+function Bloque({ titulo, lineas, nota }) {
+  if (!lineas || lineas.length === 0) return null
+  const total = lineas.reduce((t, d) => t + Number(d.monto || 0), 0)
+  const resta = total < 0
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{titulo} ({lineas.length})</span>
+        <b style={{ fontSize: 13, color: resta ? 'var(--red)' : 'var(--green)' }}>{money(total)}</b>
+      </div>
+      {nota && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4 }}>{nota}</div>}
+      <div style={{ background: resta ? 'var(--red-soft)' : 'var(--green-soft)', borderRadius: 10, padding: '4px 0' }}>
+        {lineas.map((d, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px', fontSize: 12.5 }}>
+            <span style={{ color: 'var(--ink)' }}>
+              {d.concepto || d.driver_name || d.placa || 'Línea'}
+              {d.fecha && <span style={{ color: 'var(--muted)' }}> · {fechaCorta(d.fecha)}</span>}
+            </span>
+            <b style={{ color: Number(d.monto || 0) < 0 ? 'var(--red)' : 'var(--green)', whiteSpace: 'nowrap' }}>
+              {money(d.monto)}
+            </b>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
