@@ -153,6 +153,18 @@ export default function Facturacion({ tercero, email, onBack }) {
 
                 {exp && (
                   <div style={{ borderTop: '1px solid var(--line)', padding: '14px 18px' }}>
+                    {/* El documento tal como se envió por correo, no una
+                        regeneración: si algún día se discute qué decía la
+                        prefactura, este archivo es la prueba. */}
+                    {p.pdf_url && (
+                      <button onClick={() => abrirArchivo(p.pdf_url)}
+                        style={{ width: '100%', marginBottom: 14, padding: '11px', borderRadius: 10,
+                          border: '1px solid var(--navy)', background: '#fff', color: 'var(--navy)',
+                          fontSize: 13, fontWeight: 600 }}>
+                        Ver la prefactura como se envió
+                      </button>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
                       <Tot k="Viajes" v={money(p.total_neto)} />
                       <Tot k="IVA 16%" v={money(p.iva_16)} />
