@@ -24,6 +24,7 @@ export default function Facturacion({ tercero, email, onBack }) {
   const [abierta, setAbierta] = useState(null)
   const [subiendo, setSubiendo] = useState(null)
   const [error, setError] = useState(null)
+  const [aviso, setAviso] = useState(null)
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
@@ -45,21 +46,96 @@ export default function Facturacion({ tercero, email, onBack }) {
 
   useEffect(() => { cargar() }, [cargar])
 
+  // Lee el CFDI antes de guardarlo. Si el RFC o el monto no calzan, se avisa
+  // acá y no tres días después cuando alguien lo revise a mano.
+  const leerCfdi = async (file) => {
+    if (!/\.xml$/i.test(file.name)) return null   // un PDF suelto no se puede leer
+    const texto = await file.text()
+    const doc = new DOMParser().parseFromString(texto, 'application/xml')
+    if (doc.querySelector('parsererror')) return null
+    const compro = doc.documentElement
+    const busca = (etiqueta) => {
+      const n = doc.getElementsByTagName('*')
+      for (const el of n) if (el.localName === etiqueta) return el
+      return null
+    }
+    const emisor = busca('Emisor')
+    const receptor = busca('Receptor')
+    const timbre = busca('TimbreFiscalDigital')
+    return {
+      uuid: timbre?.getAttribute('UUID') || null,
+      rfc_emisor: emisor?.getAttribute('Rfc') || null,
+      rfc_receptor: receptor?.getAttribute('Rfc') || null,
+      total: Number(compro.getAttribute('Total') || 0) || null,
+      fecha_emision: compro.getAttribute('Fecha') || null,
+      serie_folio: [compro.getAttribute('Serie'), compro.getAttribute('Folio')].filter(Boolean).join('-') || null,
+    }
+  }
+
   const subirFactura = async (p, file) => {
     if (!file) return
-    setSubiendo(p.id); setError(null)
+    setSubiendo(p.id); setError(null); setAviso(null)
     try {
+      const cfdi = await leerCfdi(file)
+      const problemas = []
+
+      if (cfdi) {
+        // El RFC es lo primero: un monto distinto puede ser un error de captura,
+        // un RFC distinto es una factura de otra empresa.
+        if (cfdi.rfc_emisor && tercero.rfc &&
+            cfdi.rfc_emisor.toUpperCase().trim() !== String(tercero.rfc).toUpperCase().trim()) {
+          problemas.push(`El RFC del emisor (${cfdi.rfc_emisor}) no es el de tu empresa (${tercero.rfc}).`)
+        }
+        if (cfdi.total != null) {
+          const dif = Number((cfdi.total - Number(p.liquido_pago || 0)).toFixed(2))
+          // Tolerancia de $1: el líquido puede diferir en centavos por el
+          // redondeo del IVA, y bloquear por eso sería ruido.
+          if (Math.abs(dif) > 1) {
+            problemas.push(`La factura es de ${money(cfdi.total)} y la prefactura de ${money(p.liquido_pago)}: ${dif > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(dif))}.`)
+          }
+        }
+      }
+
+      if (problemas.length) {
+        const seguir = window.confirm(
+          `Revisa esto antes de subirla:\n\n· ${problemas.join('\n· ')}\n\n` +
+          `Puedes subirla igual y un analista la revisa, o cancelar y corregirla.\n\n¿La subes igual?`
+        )
+        if (!seguir) { setSubiendo(null); return }
+      }
+
       const limpio = file.name.replace(/[^\w.\-]/g, '_')
       const path = `facturas/${tercero.tercero_id}/${p.semana}_${p.service_center}_${Date.now()}_${limpio}`
       const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file)
       if (eUp) throw eUp
+
       const { error: eIns } = await supabase.from('facturas_tercero').insert({
         tercero_id: tercero.tercero_id, conciliacion_id: p.id,
         semana: p.semana, service_center: p.service_center,
         storage_path: path, nombre_archivo: file.name,
         monto_prefactura: p.liquido_pago, subido_por: email || tercero.nombre,
+        monto_factura: cfdi?.total ?? null,
+        uuid: cfdi?.uuid ?? null,
+        rfc_emisor: cfdi?.rfc_emisor ?? null,
+        rfc_receptor: cfdi?.rfc_receptor ?? null,
+        fecha_emision: cfdi?.fecha_emision ?? null,
+        serie_folio: cfdi?.serie_folio ?? null,
+        diferencia: cfdi?.total != null
+          ? Number((cfdi.total - Number(p.liquido_pago || 0)).toFixed(2)) : null,
+        estado: problemas.length ? 'recibida' : (cfdi ? 'conciliada' : 'recibida'),
+        validaciones: cfdi ? { problemas, leido: true } : { problemas: [], leido: false },
       })
-      if (eIns) throw eIns
+      if (eIns) {
+        // El folio fiscal es único: si ya está, es la misma factura otra vez.
+        if (String(eIns.message || '').includes('ux_factura_uuid')) {
+          throw new Error('Esa factura ya está cargada. Revisa si la subiste antes.')
+        }
+        throw eIns
+      }
+
+      setAviso(cfdi
+        ? (problemas.length ? 'Factura subida. Un analista la va a revisar.' : 'Factura subida y conciliada con la prefactura.')
+        : 'Factura subida. Sube también el XML si quieres que se concilie sola.')
       await cargar()
     } catch (e) { setError('No se pudo subir la factura: ' + (e.message || e)) }
     setSubiendo(null)
@@ -100,6 +176,10 @@ export default function Facturacion({ tercero, email, onBack }) {
       </div>
 
       {error && <div className="form-error">{error}</div>}
+      {aviso && (
+        <div style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 10,
+          padding: '11px 14px', fontSize: 13, marginBottom: 12 }}>{aviso}</div>
+      )}
 
       {filas === null ? (
         <div style={{ color: 'var(--muted)', fontSize: 14, padding: 24, textAlign: 'center' }}>Cargando…</div>
@@ -210,18 +290,49 @@ export default function Facturacion({ tercero, email, onBack }) {
                     <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Tu factura</div>
                       {p.facturas.length > 0 ? (
-                        p.facturas.map(f => (
-                          <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--green-soft)', borderRadius: 8, padding: '9px 12px', marginBottom: 6, fontSize: 12.5 }}>
-                            <span style={{ flex: 1, color: 'var(--green)' }}>
-                              {f.nombre_archivo}
-                              <span style={{ color: 'var(--muted)' }}> · subida el {fechaCorta(f.created_at)}</span>
-                            </span>
-                            <button onClick={() => abrirArchivo(f.storage_path)}
-                              style={{ border: '1px solid var(--green)', background: '#fff', color: 'var(--green)', borderRadius: 6, padding: '5px 12px', fontSize: 12 }}>
-                              Ver
-                            </button>
-                          </div>
-                        ))
+                        p.facturas.map(f => {
+                          const cuadra = f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
+                          const revisar = f.monto_factura != null && !cuadra
+                          return (
+                            <div key={f.id} style={{
+                              background: revisar ? 'var(--amber-soft)' : 'var(--green-soft)',
+                              borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ flex: 1, color: revisar ? 'var(--amber)' : 'var(--green)' }}>
+                                  {f.nombre_archivo}
+                                  <span style={{ color: 'var(--muted)' }}> · subida el {fechaCorta(f.created_at)}</span>
+                                </span>
+                                <button onClick={() => abrirArchivo(f.storage_path)}
+                                  style={{ border: `1px solid ${revisar ? 'var(--amber)' : 'var(--green)'}`, background: '#fff',
+                                    color: revisar ? 'var(--amber)' : 'var(--green)', borderRadius: 6, padding: '5px 12px', fontSize: 12 }}>
+                                  Ver
+                                </button>
+                              </div>
+                              {/* Lo que se leyó del XML. Si no hay monto, es un PDF suelto
+                                  y no se pudo conciliar sola. */}
+                              {f.monto_factura != null && (
+                                <div style={{ marginTop: 6, color: revisar ? 'var(--amber)' : 'var(--green)' }}>
+                                  {money(f.monto_factura)}
+                                  {cuadra
+                                    ? ' · cuadra con la prefactura'
+                                    : ` · la prefactura es de ${money(f.monto_prefactura)}, una diferencia de ${money(Math.abs(Number(f.diferencia)))}`}
+                                </div>
+                              )}
+                              {f.uuid && (
+                                <div style={{ marginTop: 3, color: 'var(--muted)', fontSize: 11.5 }}>
+                                  Folio fiscal {f.uuid}
+                                  {f.serie_folio ? ` · ${f.serie_folio}` : ''}
+                                </div>
+                              )}
+                              {f.monto_factura == null && (
+                                <div style={{ marginTop: 5, color: 'var(--muted)' }}>
+                                  Sin XML no se puede conciliar sola: un analista la revisa.
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
                       ) : (
                         <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5 }}>
                           Sube tu factura contra esta prefactura. Así queda conciliada y no se pierde en el correo.

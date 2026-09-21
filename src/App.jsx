@@ -103,7 +103,7 @@ export default function App() {
     ;(async () => {
       const { data } = await supabase
         .from('usuarios_terceros')
-        .select('tercero_id, terceros(nombre, portal_activo)')
+        .select('tercero_id, terceros(nombre, portal_activo, rfc)')
         .eq('auth_email', session.user.email.toLowerCase())
         .maybeSingle()
       if (cancel) return
@@ -111,7 +111,7 @@ export default function App() {
       const t = Array.isArray(data.terceros) ? data.terceros[0] : data.terceros
       // portal_activo = contrato firmado: habilita el módulo de pagos.
       // No controla el acceso general al portal (eso es usuarios_terceros).
-      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa', pagosHabilitados: !!t?.portal_activo })
+      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa', rfc: t?.rfc || null, pagosHabilitados: !!t?.portal_activo })
     })()
     return () => { cancel = true }
   }, [session])
