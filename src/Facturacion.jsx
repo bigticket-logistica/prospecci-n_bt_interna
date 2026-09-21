@@ -161,8 +161,20 @@ export default function Facturacion({ tercero, email, onBack }) {
 
   const abrirArchivo = async (path) => {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
-    else setError('No se pudo abrir el archivo.')
+    if (!data?.signedUrl) { setError('No se pudo abrir el archivo.'); return }
+    // Los .html firmados llegan como texto plano y el navegador los muestra
+    // como código. Se bajan y se abren desde un blob para que se rendericen.
+    if (/\.html?($|\?)/i.test(path)) {
+      try {
+        const r = await fetch(data.signedUrl)
+        const t = await r.text()
+        const url = URL.createObjectURL(new Blob([t], { type: 'text/html;charset=utf-8' }))
+        window.open(url, '_blank')
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+        return
+      } catch (e) { console.error('No se pudo renderizar:', e) }
+    }
+    window.open(data.signedUrl, '_blank')
   }
 
   // Agrupadas por semana: una empresa puede tener una prefactura por centro,
