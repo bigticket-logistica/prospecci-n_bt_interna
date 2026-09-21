@@ -146,7 +146,7 @@ export default function Facturacion({ tercero, email, onBack }) {
           const { data: reciente } = await supabase.from('facturas_tercero')
             .select('id').eq('uuid', cfdi.uuid).maybeSingle()
           if (reciente?.id) {
-            const r = await fetch(`/api/reportes/validar-cfdi?factura_id=${reciente.id}`)
+            const r = await fetch(`https://bigticket-brain.vercel.app/api/reportes/validar-cfdi?factura_id=${reciente.id}`)
             const j = await r.json()
             const res = j?.resultados?.[0]
             if (res?.vigente) setAviso('Factura subida. El SAT la confirma como vigente.')
