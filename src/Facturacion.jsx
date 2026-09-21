@@ -161,7 +161,7 @@ export default function Facturacion({ tercero, email, onBack }) {
                         style={{ width: '100%', marginBottom: 14, padding: '11px', borderRadius: 10,
                           border: '1px solid var(--navy)', background: '#fff', color: 'var(--navy)',
                           fontSize: 13, fontWeight: 600 }}>
-                        Ver la prefactura como se envió
+                        Ver prefactura
                       </button>
                     )}
 
