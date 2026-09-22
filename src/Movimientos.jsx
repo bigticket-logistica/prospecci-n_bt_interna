@@ -52,6 +52,16 @@ const ESTADOS = {
   cobrado:   { label: 'Por cobrar',  bg: '#fdeaea',            fg: '#c0392b' },
 }
 
+// Numeración del Brain: ISO + 1. Tiene que coincidir con la de la prefactura
+// o los extras de la semana no se encontrarían.
+function semanaDe(d) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  const dn = x.getUTCDay() || 7
+  x.setUTCDate(x.getUTCDate() + 4 - dn)
+  const ini = new Date(Date.UTC(x.getUTCFullYear(), 0, 1))
+  return Math.ceil(((x - ini) / 86400000 + 1) / 7) + 1
+}
+
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
 
 // El portal arranca el 14 de septiembre de 2026: antes de esa fecha no hay
@@ -70,6 +80,8 @@ const EST_DIF = {
 
 export default function Movimientos({ tercero, email, onBack }) {
   const [lunes, setLunes] = useState(() => lunesDe(new Date()))
+  const [scSel, setScSel] = useState('todos')
+  const [extras, setExtras] = useState([])
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
@@ -97,6 +109,18 @@ export default function Movimientos({ tercero, email, onBack }) {
       .gte('fecha', iso(lunes)).lte('fecha', iso(domingo))
       .order('fecha', { ascending: false })
     if (error) { setError(error.message); setFilas([]) } else { setFilas(data || []) }
+
+    // Cobros y ajustes que el analista agregó a la prefactura. No van en un día
+    // porque no pertenecen a uno: un saldo de la semana 37 o un paquete perdido
+    // cargado a mano no tienen fecha de operación. Van al final, aparte.
+    const sem = semanaDe(lunes)
+    const { data: ex } = await supabase
+      .from('vw_portal_linea_prefactura')
+      .select('*')
+      .eq('tercero_id', tercero.tercero_id)
+      .eq('semana', sem)
+    setExtras(ex || [])
+
     setCargando(false)
   }, [tercero, lunes, domingo])
 
@@ -143,6 +167,7 @@ export default function Movimientos({ tercero, email, onBack }) {
   const dias = useMemo(() => {
     const m = new Map()
     for (const f of filas) {
+      if (scSel !== 'todos' && f.sc !== scSel) continue
       if (!m.has(f.fecha)) m.set(f.fecha, [])
       m.get(f.fecha).push(f)
     }
@@ -153,10 +178,23 @@ export default function Movimientos({ tercero, email, onBack }) {
       enRevision: movs.filter(r => r.estado === 'pausada').length,
       noPagadas: movs.filter(r => r.estado === 'no_pagada').length,
     }))
-  }, [filas])
+  }, [filas, scSel])
+
+  // Los centros donde operó esta semana. Cada uno es una prefactura distinta,
+  // así que quien trabaja en varios necesita poder mirarlos de a uno.
+  const centros = useMemo(() => {
+    const cs = new Set([...filas.map(f => f.sc), ...extras.map(e => e.service_center)].filter(Boolean))
+    return [...cs].sort()
+  }, [filas, extras])
+
+  const extrasSC = useMemo(() =>
+    scSel === 'todos' ? extras : extras.filter(e => e.service_center === scSel),
+  [extras, scSel])
 
   const totalPagos = filas.filter(f => f.tipo === 'pago' && f.estado === 'aprobada').reduce((s, f) => s + Number(f.monto || 0), 0)
   const totalCobros = filas.filter(f => f.tipo === 'cobro').reduce((s, f) => s + Number(f.monto || 0), 0)
+    + extrasSC.reduce((s, e) => s + Math.min(Number(e.monto || 0), 0), 0)
+  const totalAjustes = extrasSC.reduce((s, e) => s + Math.max(Number(e.monto || 0), 0), 0)
 
   const nSel = Object.keys(sel).length + faltantes.length
 
@@ -279,6 +317,22 @@ export default function Movimientos({ tercero, email, onBack }) {
             <Tot label="Cobros" valor={money(totalCobros)} tenue />
             <Tot label="Neto" valor={money(totalPagos + totalCobros)} grande />
           </div>
+
+          {centros.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+              {['todos', ...centros].map(c => (
+                <button key={c} onClick={() => setScSel(c)}
+                  style={{
+                    padding: '5px 13px', borderRadius: 14, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${scSel === c ? '#fff' : 'rgba(255,255,255,.28)'}`,
+                    background: scSel === c ? '#fff' : 'transparent',
+                    color: scSel === c ? 'var(--navy)' : 'rgba(255,255,255,.85)',
+                  }}>
+                  {c === 'todos' ? 'Todos los centros' : c}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -547,6 +601,38 @@ export default function Movimientos({ tercero, email, onBack }) {
             {fotos.length > 0 && (
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{fotos.length} archivo(s) listo(s)</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cobros y ajustes que no pertenecen a un día: saldos de semanas
+          anteriores, paquetes perdidos cargados a mano, reliquidaciones. Van al
+          final y no dentro de un día, porque meterlos en uno sería inventarles
+          una fecha que no tienen. */}
+      {extrasSC.length > 0 && !reclamando && (
+        <div style={{ background: '#f6f1ea', border: '1px solid #e0d3c2', borderRadius: 14, padding: '14px 16px', marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#6b4f2a' }}>Cobros y ajustes de la semana</span>
+            <b style={{ fontSize: 13.5, color: extrasSC.reduce((s, e) => s + Number(e.monto || 0), 0) < 0 ? 'var(--red)' : 'var(--green)' }}>
+              {money(extrasSC.reduce((s, e) => s + Number(e.monto || 0), 0))}
+            </b>
+          </div>
+          <div style={{ fontSize: 11.5, color: '#8a7355', marginTop: 3, lineHeight: 1.5 }}>
+            Van en tu prefactura pero no pertenecen a un día concreto. El detalle completo está en Facturación.
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {extrasSC.map((e, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0', fontSize: 12.5, color: '#6b4f2a' }}>
+                <span>
+                  {e.concepto}
+                  {e.fecha && <span style={{ color: '#a08a6c' }}> · {fechaCorta(e.fecha)}</span>}
+                  {centros.length > 1 && scSel === 'todos' && <span style={{ color: '#a08a6c' }}> · {e.service_center}</span>}
+                </span>
+                <b style={{ whiteSpace: 'nowrap', color: Number(e.monto || 0) < 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {money(e.monto)}
+                </b>
+              </div>
+            ))}
           </div>
         </div>
       )}
