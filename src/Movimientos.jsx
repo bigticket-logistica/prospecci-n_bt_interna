@@ -221,11 +221,6 @@ export default function Movimientos({ tercero, email, onBack }) {
     return { filas: out, saldoDias: saldo }
   }, [dias])
 
-  const lineasExtra = useMemo(() => {
-    let saldo = lineas.saldoDias
-    return extrasSC.map(e => { saldo += Number(e.monto || 0); return { e, saldo } })
-  }, [extrasSC, lineas.saldoDias])
-
   // Los centros donde operó esta semana. Cada uno es una prefactura distinta,
   // así que quien trabaja en varios necesita poder mirarlos de a uno.
   const centros = useMemo(() => {
@@ -236,6 +231,14 @@ export default function Movimientos({ tercero, email, onBack }) {
   const extrasSC = useMemo(() =>
     scSel === 'todos' ? extras : extras.filter(e => e.service_center === scSel),
   [extras, scSel])
+
+  // El saldo de los agregados continúa desde donde quedaron los días: va
+  // después de extrasSC porque depende de él.
+  const lineasExtra = useMemo(() => {
+    let saldo = lineas.saldoDias
+    return extrasSC.map(e => { saldo += Number(e.monto || 0); return { e, saldo } })
+  }, [extrasSC, lineas.saldoDias])
+
 
   // Todos los totales respetan el centro elegido. Antes los cobros no lo hacían
   // y el número no cambiaba al filtrar, que es peor que no tener el filtro.
