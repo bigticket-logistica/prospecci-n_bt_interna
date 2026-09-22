@@ -153,6 +153,7 @@ export default function App() {
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'facturacion' && <Facturacion tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
@@ -344,41 +345,102 @@ function Shell({ tercero, email, children, onNavegar }) {
   )
 }
 
-// ── Home: 4 tarjetas ─────────────────────────────────────────────────
-function Home({ onPick, pagosHabilitados }) {
+// ── Home ─────────────────────────────────────────────────────────────
+// Agrupadas por con qué frecuencia entra a cada cosa, no por tipo de trámite.
+// Lo del dinero arriba porque es lo que mira todos los días; certificar abajo
+// porque es algo que hace cuando suma un conductor o una unidad.
+function Home({ onPick, pagosHabilitados, observados = 0 }) {
   return (
     <>
       <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
-        <div className="lede">Elige el tipo de certificación o revisa el estado de lo enviado.</div></div></div>
+        <div className="lede">Tus pagos, tu operación y tus trámites, en un solo lugar.</div></div></div>
+
+      {/* Sin contrato firmado no ve nada de plata: el bloque entero desaparece. */}
+      {pagosHabilitados && (
+        <Seccion titulo="Tu dinero">
+          <button className="type-card" onClick={() => onPick('movimientos')}>
+            <div className="ic">💵</div><h3>Movimientos del día</h3>
+            <p>Tus pagos y descuentos día por día, con el detalle de cada ruta. Desde acá levantas diferencias.</p></button>
+          <button className="type-card" onClick={() => onPick('facturacion')}>
+            <div className="ic">🧾</div><h3>Facturación</h3>
+            <p>Tus prefacturas semanales y las facturas que subes contra cada una.</p></button>
+        </Seccion>
+      )}
+
+      <Seccion titulo="Tu operación">
+        <button className="type-card" onClick={() => onPick('flota')}>
+          <div className="ic">🚛</div><h3>Vehículos y personal</h3>
+          <p>Tu flota y tu gente activa en la operación, con sus documentos.</p></button>
+        <button className="type-card" onClick={() => onPick('baja')}>
+          <div className="ic">🚫</div><h3>Dar de baja</h3>
+          <p>Vehículos, personal certificado o la empresa completa.</p></button>
+      </Seccion>
+
+      <Seccion titulo="Dar de alta">
+        <button className="type-card" onClick={() => onPick('certificar')}>
+          <div className="ic">🪪</div><h3>Certificar</h3>
+          <p>Un conductor, un ayudante o un vehículo nuevo.</p></button>
+        <button className="type-card estado" onClick={() => onPick('estado')}>
+          <div className="ic">📋</div><h3>Estado de certificación</h3>
+          <p>Avance de cada trámite y qué documentos faltan.
+            {observados > 0 && (
+              <b style={{ color: 'var(--orange)', display: 'block', marginTop: 4 }}>
+                {observados} documento{observados === 1 ? '' : 's'} observado{observados === 1 ? '' : 's'}
+              </b>
+            )}
+          </p></button>
+        <button className="type-card" onClick={() => onPick('firma')}>
+          <div className="ic">✍️</div><h3>Firma de contrato</h3>
+          <p>Firma digitalmente los contratos de tu personal certificado.</p></button>
+      </Seccion>
+
+      <Seccion titulo="Tu empresa">
+        <button className="type-card" onClick={() => onPick('perfil')}>
+          <div className="ic">🏢</div><h3>Perfil de empresa</h3>
+          <p>Tus datos y la cuenta donde recibes los pagos.</p></button>
+        <button className="type-card" onClick={() => onPick('docs')}>
+          <div className="ic">🗂</div><h3>Documentos</h3>
+          <p>Contratos, seguros y anexos que BigTicket guarda de tu empresa.</p></button>
+      </Seccion>
+
+      <button className="type-card" onClick={() => onPick('consultas')}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: 20 }}>
+        <div className="ic" style={{ marginBottom: 0, flexShrink: 0 }}>💬</div>
+        <div><h3 style={{ marginBottom: 2 }}>Consultas</h3>
+          <p>Escríbenos cualquier duda y te respondemos por aquí.</p></div>
+      </button>
+    </>
+  )
+}
+
+function Seccion({ titulo, children }) {
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--muted)', letterSpacing: '.07em',
+        textTransform: 'uppercase', fontWeight: 600, marginBottom: 10 }}>{titulo}</div>
+      <div className="type-grid" style={{ marginBottom: 0 }}>{children}</div>
+    </div>
+  )
+}
+
+// Las tres certificaciones son el mismo trámite con distintos campos. Tenerlas
+// como tres tarjetas obligaba a leer tres títulos para elegir una.
+function ElegirCertificacion({ onPick, onBack }) {
+  return (
+    <>
+      <button className="back-link" onClick={onBack}>← Volver</button>
+      <div className="page-head"><div><h2>¿Qué vas a certificar?</h2>
+        <div className="lede">Elige el tipo y te pedimos solo los documentos que corresponden.</div></div></div>
       <div className="type-grid">
         <button className="type-card" onClick={() => onPick('conductor')}>
-          <div className="ic">🧍</div><h3>Certificar conductor</h3><p>Valida identidad (CURP, RFC, INE), antecedentes y licencia.</p></button>
+          <div className="ic">🧍</div><h3>Conductor</h3>
+          <p>Valida identidad (CURP, RFC, INE), antecedentes y licencia.</p></button>
         <button className="type-card" onClick={() => onPick('ayudante')}>
-          <div className="ic">🧑‍🤝‍🧑</div><h3>Certificar ayudante</h3><p>Valida identidad (CURP, RFC, INE) y antecedentes de un ayudante.</p></button>
+          <div className="ic">🧑‍🤝‍🧑</div><h3>Ayudante</h3>
+          <p>Valida identidad (CURP, RFC, INE) y antecedentes.</p></button>
         <button className="type-card" onClick={() => onPick('vehiculo')}>
-          <div className="ic">🚚</div><h3>Certificar vehículo</h3><p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p></button>
-        <button className="type-card" onClick={() => onPick('firma')}>
-          <div className="ic">✍️</div><h3>Firma de contrato</h3><p>Firma digitalmente los contratos de tu personal certificado.</p></button>
-        <button className="type-card" onClick={() => onPick('baja')}>
-          <div className="ic">🚫</div><h3>Solicitud de baja</h3><p>Gestiona la baja de vehículos, personal certificado o de la empresa completa.</p></button>
-        {/* Las dos viven detrás del contrato firmado: sin él, el tercero no ve
-            nada de plata. */}
-        {pagosHabilitados && (<>
-          <button className="type-card" onClick={() => onPick('movimientos')}>
-            <div className="ic">💵</div><h3>Movimientos del día</h3><p>Tus pagos y cobros día por día, con el detalle de cada ruta. Desde acá levantas diferencias.</p></button>
-          <button className="type-card" onClick={() => onPick('facturacion')}>
-            <div className="ic">🧾</div><h3>Facturación</h3><p>Tus prefacturas semanales y las facturas que subes contra cada una.</p></button>
-        </>)}
-        <button className="type-card" onClick={() => onPick('perfil')}>
-          <div className="ic">🏢</div><h3>Perfil de Empresa</h3><p>Ficha de ingreso y datos de la cuenta de pago (obligatorio para recibir pagos).</p></button>
-        <button className="type-card" onClick={() => onPick('flota')}>
-          <div className="ic">🚛</div><h3>Vehículos y Personal</h3><p>Tu flota y personal vigentes en la operación: unidades y personas activas, con sus documentos.</p></button>
-        <button className="type-card" onClick={() => onPick('docs')}>
-          <div className="ic">🗂</div><h3>Documentos de mi empresa</h3><p>Contratos, seguros, fotos y anexos que BigTicket guarda de tu empresa.</p></button>
-        <button className="type-card" onClick={() => onPick('consultas')}>
-          <div className="ic">💬</div><h3>Consultas</h3><p>Escríbenos cualquier duda y te respondemos por aquí.</p></button>
-        <button className="type-card estado" onClick={() => onPick('estado')}>
-          <div className="ic">📋</div><h3>Estado de certificación</h3><p>Revisa el avance de cada trámite, sus documentos, y reemplaza o carga los que fueron observados.</p></button>
+          <div className="ic">🚚</div><h3>Vehículo</h3>
+          <p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p></button>
       </div>
     </>
   )
