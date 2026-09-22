@@ -70,6 +70,9 @@ function semanaDe(d) {
   return Math.ceil(((x - ini) / 86400000 + 1) / 7) + 1
 }
 
+const thC = { padding: '9px 12px', fontSize: 10, fontWeight: 600, color: 'var(--muted)', letterSpacing: '.05em', textAlign: 'right' }
+const tdC = { padding: '9px 12px', fontSize: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
 
 // El portal arranca el 14 de septiembre de 2026: antes de esa fecha no hay
@@ -189,14 +192,39 @@ export default function Movimientos({ tercero, email, onBack }) {
       if (!m.has(f.fecha)) m.set(f.fecha, [])
       m.get(f.fecha).push(f)
     }
-    return [...m.entries()].map(([fecha, movs]) => ({
-      fecha,
-      movs: movs.sort((a, b) => a.tipo.localeCompare(b.tipo) || String(a.placa).localeCompare(String(b.placa))),
-      neto: movs.reduce((s, r) => s + (r.estado === 'aprobada' || r.tipo === 'cobro' ? Number(r.monto || 0) : 0), 0),
-      enRevision: movs.filter(r => r.estado === 'pausada').length,
-      noPagadas: movs.filter(r => r.estado === 'no_pagada').length,
-    }))
+    // Se ordena de más antiguo a más nuevo: un saldo corrido solo se entiende
+    // si avanza hacia adelante, como una cartola.
+    return [...m.entries()]
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      .map(([fecha, movs]) => ({
+        fecha,
+        movs: movs.sort((a, b) => a.tipo.localeCompare(b.tipo) || String(a.placa).localeCompare(String(b.placa))),
+        neto: movs.reduce((s, r) => s + (r.estado === 'aprobada' || r.tipo === 'cobro' ? Number(r.monto || 0) : 0), 0),
+        enRevision: movs.filter(r => r.estado === 'pausada').length,
+        noPagadas: movs.filter(r => r.estado === 'no_pagada').length,
+      }))
   }, [filas, scSel])
+
+  // Cada línea con su saldo acumulado, que es lo que hace legible una cartola:
+  // se puede seguir el hilo sin sumar de cabeza.
+  const lineas = useMemo(() => {
+    let saldo = 0
+    const out = []
+    for (const d of dias) {
+      out.push({ _sep: true, fecha: d.fecha })
+      for (const m of d.movs) {
+        const cuenta = m.estado === 'aprobada' || m.tipo === 'cobro'
+        if (cuenta) saldo += Number(m.monto || 0)
+        out.push({ m, saldo, cuenta })
+      }
+    }
+    return { filas: out, saldoDias: saldo }
+  }, [dias])
+
+  const lineasExtra = useMemo(() => {
+    let saldo = lineas.saldoDias
+    return extrasSC.map(e => { saldo += Number(e.monto || 0); return { e, saldo } })
+  }, [extrasSC, lineas.saldoDias])
 
   // Los centros donde operó esta semana. Cada uno es una prefactura distinta,
   // así que quien trabaja en varios necesita poder mirarlos de a uno.
@@ -492,124 +520,108 @@ export default function Movimientos({ tercero, email, onBack }) {
             Cada día se revisa y se publica al día siguiente. Si operaste un día que no aparece, levanta una diferencia.
           </div>
         </div>
-      ) : dias.map(d => {
-        const abierto = !cerrados[d.fecha]
-        return (
-          <div key={d.fecha} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
-            <button onClick={() => setCerrados(p => ({ ...p, [d.fecha]: abierto }))}
-              style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 18px', background: 'transparent', border: 'none', textAlign: 'left' }}>
-              <div>
-                <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--navy)' }}>{fechaLarga(d.fecha)}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
-                  {d.movs.length} movimiento{d.movs.length > 1 ? 's' : ''}
-                  {d.noPagadas > 0 && <span style={{ color: 'var(--red)' }}> · {d.noPagadas} no pagada{d.noPagadas > 1 ? 's' : ''}</span>}
-                  {d.enRevision > 0 && <span style={{ color: 'var(--amber)' }}> · {d.enRevision} en revisión</span>}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{money(d.neto)}</span>
-                <span style={{ color: 'var(--muted)', fontSize: 13 }}>{abierto ? '▴' : '▾'}</span>
-              </div>
-            </button>
-
-            {abierto && (
-              <div style={{ borderTop: '1px solid var(--line)' }}>
-                {d.movs.map(m => {
-                  const k = claveDe(m)
-                  const marcado = k in sel
-                  const tabla = pagada ? ESTADOS_PAGADOS : ESTADOS
-                  const est = tabla[m.estado] || tabla.aprobada
-                  const esCobro = m.tipo === 'cobro'
-                  return (
-                    <div key={k} style={{ borderBottom: '1px solid #f1f4f8', background: marcado ? 'var(--orange-soft)' : 'transparent' }}>
-                      <div style={{ padding: '13px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        {reclamando && (
-                          <input type="checkbox" checked={marcado} onChange={() => toggleSel(m)}
-                            style={{ marginTop: 4, width: 17, height: 17, accentColor: 'var(--orange)' }} />
+      ) : (
+        /* Estado de cuenta: cada línea suma o resta y el saldo va corriendo,
+           como una cartola bancaria. Los días quedan como separadores para no
+           perder la lectura por jornada. */
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'auto', marginBottom: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <thead>
+              <tr style={{ background: 'rgba(26,58,107,.05)' }}>
+                {reclamando && <th style={thC} />}
+                <th style={{ ...thC, textAlign: 'left', width: 78 }}>FECHA</th>
+                <th style={{ ...thC, textAlign: 'left' }}>DETALLE</th>
+                <th style={thC}>ABONO</th>
+                <th style={thC}>CARGO</th>
+                <th style={thC}>SALDO</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineas.filas.map((ln, i) => {
+                if (ln._sep) return (
+                  <tr key={'s' + ln.fecha}>
+                    <td colSpan={reclamando ? 6 : 5} style={{
+                      padding: '7px 12px', background: 'rgba(26,58,107,.03)',
+                      fontSize: 11.5, fontWeight: 600, color: 'var(--navy)',
+                    }}>{fechaLarga(ln.fecha)}</td>
+                  </tr>
+                )
+                const m = ln.m
+                const k = claveDe(m)
+                const marcado = k in sel
+                const tabla = pagada ? ESTADOS_PAGADOS : ESTADOS
+                const est = tabla[m.estado] || tabla.aprobada
+                const esCobro = m.tipo === 'cobro'
+                const monto = Number(m.monto || 0)
+                const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
+                return (
+                  <tr key={k} style={{ background: marcado ? 'var(--orange-soft)' : 'transparent' }}>
+                    {reclamando && (
+                      <td style={{ ...tdC, width: 34 }}>
+                        <input type="checkbox" checked={marcado} onChange={() => toggleSel(m)}
+                          style={{ width: 16, height: 16, accentColor: 'var(--orange)' }} />
+                      </td>
+                    )}
+                    <td style={{ ...tdC, textAlign: 'left', color: 'var(--muted)', fontSize: 11.5 }}>
+                      {fechaCorta(m.fecha)}
+                    </td>
+                    <td style={{ ...tdC, textAlign: 'left' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <b style={{ fontSize: 12.5 }}>{m.placa || '—'}</b>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {esCobro ? (m.ref ? `· ${m.concepto || 'Cobro'}` : m.concepto) : `· Ruta ${m.ref}`}
+                        </span>
+                        {m.sc && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {m.sc}</span>}
+                        {m.estado !== 'aprobada' && (
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: est.bg, color: est.fg }}>
+                            {est.label.toUpperCase()}
+                          </span>
                         )}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 14, fontWeight: 600 }}>{m.placa || '—'}</span>
-                            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: est.bg, color: est.fg, letterSpacing: '.04em' }}>
-                              {est.label.toUpperCase()}
+                        {rec && (() => {
+                          const e = EST_DIF[rec.estado] || EST_DIF.abierta
+                          return (
+                            <span title={e.ayuda} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: e.bg, color: e.fg }}>
+                              DIF #{rec.folio}
                             </span>
-                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                              {esCobro ? `PNR ${m.ref}` : `Ruta ${m.ref}`}
-                              {esCobro && m.shipment_id && (
-                                <span style={{ display: 'block', fontSize: 11 }}>Guía {m.shipment_id}</span>
-                              )}
-                            </span>
-                            {(() => {
-                              const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
-                              if (!rec) return null
-                              const e = EST_DIF[rec.estado] || EST_DIF.abierta
-                              return (
-                                <span title={e.ayuda} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: e.bg, color: e.fg, letterSpacing: '.04em' }}>
-                                  DIFERENCIA #{rec.folio} · {e.l.toUpperCase()}
-                                </span>
-                              )
-                            })()}
-                          </div>
-                          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
-                            {m.driver_name || 'Sin conductor registrado'}{m.sc ? ` · ${m.sc}` : ''}
-                          </div>
-
-                          {esCobro ? (
-                            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>
-                              {/* El cobro se muestra el día que se imputa, no el del hecho.
-                                  Sin decir de cuándo viene, un descuento aparece en un día
-                                  donde no pasó nada. Y "ruta del" no sirve para un no show,
-                                  donde justamente no hubo ruta. */}
-                              {m.concepto || 'Cobro'}
-                              {m.fecha_hecho && (
-                                <> · {m.tipo_cobro === 'noshow' ? 'del día' : 'ruta del'}{' '}
-                                  <b style={{ color: 'var(--ink)' }}>{fechaCorta(m.fecha_hecho)}</b>
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
-                              <Dato label="NS" valor={m.ns_pct != null ? `${Number(m.ns_pct).toFixed(1)}%` : '—'} />
-                              <Dato label="Visitado" valor={m.pct_visitado != null ? `${Number(m.pct_visitado).toFixed(1)}%` : '—'} />
-                              {m.tiene_auxiliar && <Dato label="Ayudante" valor={money(m.monto_auxiliar)} />}
-                            </div>
-                          )}
-
-                          {m.estado === 'no_pagada' && (
-                            <Nota color="var(--red)" bg="var(--red-soft)" titulo="No se pagó">
-                              {m.motivo || 'sin motivo registrado'}
-                            </Nota>
-                          )}
-                          {m.estado === 'pausada' && (
-                            <Nota color="var(--amber)" bg="var(--amber-soft)" titulo="En revisión">
-                              {m.motivo || 'pendiente de resolución'}
-                            </Nota>
-                          )}
-
-                          {marcado && (
-                            <textarea value={sel[k]} onChange={e => setSel(p => ({ ...p, [k]: e.target.value }))}
-                              placeholder="¿Qué reclamas de esta línea? Sé lo más concreto posible."
-                              rows={2}
-                              style={{ width: '100%', marginTop: 10, border: '1px solid var(--orange)', borderRadius: 8, padding: '8px 10px', fontSize: 13, resize: 'vertical' }} />
-                          )}
-                        </div>
-
-                        <div style={{
-                          fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
-                          color: esCobro ? 'var(--red)' : m.estado === 'aprobada' ? 'var(--ink)' : 'var(--muted)',
-                          textDecoration: m.estado === 'no_pagada' ? 'line-through' : 'none',
-                        }}>
-                          {money(m.monto)}
-                        </div>
+                          )
+                        })()}
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      })}
+                      <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>
+                        {esCobro
+                          ? <>{m.shipment_id ? `guía ${m.shipment_id}` : ''}{m.fecha_hecho ? `${m.shipment_id ? ' · ' : ''}${m.tipo_cobro === 'noshow' ? 'del día' : 'ruta del'} ${fechaCorta(m.fecha_hecho)}` : ''}</>
+                          : <>{m.driver_name || 'sin conductor'}
+                              {m.ns_pct != null && ` · NS ${Number(m.ns_pct).toFixed(1)}%`}
+                              {m.pct_visitado != null && ` · visitado ${Number(m.pct_visitado).toFixed(1)}%`}
+                              {m.tiene_auxiliar && m.monto_auxiliar ? ` · ayudante ${money(m.monto_auxiliar)}` : ''}</>}
+                        {m.motivo && <span style={{ color: 'var(--red)' }}> · {m.motivo}</span>}
+                      </div>
+                    </td>
+                    <td style={tdC}>{monto > 0 && ln.cuenta ? monto.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : ''}</td>
+                    <td style={{ ...tdC, color: 'var(--red)' }}>
+                      {monto < 0 && ln.cuenta ? Math.abs(monto).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : ''}
+                    </td>
+                    <td style={{ ...tdC, fontWeight: 700 }}>
+                      {ln.cuenta ? ln.saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: 'rgba(26,58,107,.04)' }}>
+                <td colSpan={reclamando ? 4 : 3} style={{ ...tdC, textAlign: 'left', fontSize: 11.5, color: 'var(--muted)' }}>
+                  Subtotal de los días
+                </td>
+                <td style={tdC} />
+                <td style={{ ...tdC, fontWeight: 700, fontSize: 13 }}>
+                  {lineas.saldoDias.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
 
       {/* Lo que falta: no hay línea que marcar */}
       {reclamando && (
@@ -665,36 +677,85 @@ export default function Movimientos({ tercero, email, onBack }) {
       )}
 
       {extrasSC.length > 0 && !reclamando && (
-        <div style={{ background: '#f6f1ea', border: '1px solid #e0d3c2', borderRadius: 14, padding: '14px 16px', marginTop: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#6b4f2a' }}>Cobros y ajustes de la semana</span>
-            <b style={{ fontSize: 13.5, color: extrasSC.reduce((s, e) => s + Number(e.monto || 0), 0) < 0 ? 'var(--red)' : 'var(--green)' }}>
-              {money(extrasSC.reduce((s, e) => s + Number(e.monto || 0), 0))}
-            </b>
+        <div style={{ background: '#f6f1ea', border: '1px solid #e0d3c2', borderRadius: 14, overflow: 'auto', marginBottom: 14 }}>
+          <div style={{ padding: '12px 16px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#6b4f2a' }}>Agregados de la semana</div>
+            <div style={{ fontSize: 11.5, color: '#8a7355', marginTop: 2, lineHeight: 1.5 }}>
+              No pertenecen a un día: saldos anteriores, paquetes perdidos y reliquidaciones que el analista cargó a tu prefactura.
+            </div>
           </div>
-          <div style={{ fontSize: 11.5, color: '#8a7355', marginTop: 3, lineHeight: 1.5 }}>
-            Van en tu prefactura pero no pertenecen a un día concreto. El detalle completo está en Facturación.
-          </div>
-          <div style={{ marginTop: 8 }}>
-            {extrasSC.map((e, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0', fontSize: 12.5, color: '#6b4f2a' }}>
-                <span>
-                  {e.concepto}
-                  {e.fecha && <span style={{ color: '#a08a6c' }}> · {fechaCorta(e.fecha)}</span>}
-                  {centros.length > 1 && scSel === 'todos' && <span style={{ color: '#a08a6c' }}> · {e.service_center}</span>}
-                </span>
-                <b style={{ whiteSpace: 'nowrap', color: Number(e.monto || 0) < 0 ? 'var(--red)' : 'var(--green)' }}>
-                  {money(e.monto)}
-                </b>
-              </div>
-            ))}
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+            <tbody>
+              {lineasExtra.map(({ e, saldo }, i) => {
+                const monto = Number(e.monto || 0)
+                return (
+                  <tr key={i}>
+                    <td style={{ ...tdC, textAlign: 'left', width: 78, color: '#a08a6c', fontSize: 11.5, borderTop: '1px solid #e0d3c2' }}>
+                      {e.fecha ? fechaCorta(e.fecha) : '—'}
+                    </td>
+                    <td style={{ ...tdC, textAlign: 'left', color: '#6b4f2a', borderTop: '1px solid #e0d3c2' }}>
+                      {e.concepto}
+                      {e.service_center && <div style={{ fontSize: 10.5, color: '#a08a6c' }}>{e.service_center}</div>}
+                    </td>
+                    <td style={{ ...tdC, color: 'var(--green)', borderTop: '1px solid #e0d3c2' }}>
+                      {monto > 0 ? monto.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : ''}
+                    </td>
+                    <td style={{ ...tdC, color: 'var(--red)', borderTop: '1px solid #e0d3c2' }}>
+                      {monto < 0 ? Math.abs(monto).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : ''}
+                    </td>
+                    <td style={{ ...tdC, fontWeight: 700, color: '#6b4f2a', borderTop: '1px solid #e0d3c2' }}>
+                      {saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {dias.length > 0 && !reclamando && (
-        <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '8px 0 24px' }}>
-          Son los mismos montos de tu prefactura. El documento y tu factura están en Facturación.
+      {/* El cierre: de los totales al monto que efectivamente se transfiere. */}
+      {!reclamando && dias.length > 0 && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: '10px 16px', fontSize: 12.5, color: 'var(--muted)' }}>Abonos</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{money(totalPagos + totalAjustes)}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '10px 16px', fontSize: 12.5, color: 'var(--muted)', borderTop: '1px solid var(--line)' }}>Cargos</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, textAlign: 'right', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums', borderTop: '1px solid var(--line)' }}>{money(totalCobros)}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, borderTop: '1px solid var(--line)' }}>Neto</td>
+                <td style={{ padding: '10px 16px', fontSize: 14, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderTop: '1px solid var(--line)' }}>{money(totalNeto)}</td>
+              </tr>
+              {hayPrefactura && (
+                <tr>
+                  <td style={{ padding: '10px 16px', fontSize: 12.5, color: 'var(--muted)', borderTop: '1px solid var(--line)' }}>IVA 16%</td>
+                  <td style={{ padding: '10px 16px', fontSize: 13, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderTop: '1px solid var(--line)' }}>{money(iva)}</td>
+                </tr>
+              )}
+            </tbody>
+            {hayPrefactura && (
+              <tfoot>
+                <tr style={{ background: 'var(--navy)' }}>
+                  <td style={{ padding: '14px 16px', fontSize: 14, color: '#fff', fontWeight: 600 }}>
+                    {pagada ? 'Pagado' : 'Total a pagar'}
+                  </td>
+                  <td style={{ padding: '14px 16px', fontSize: 19, color: '#fff', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                    {money(totalBruto)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+          {!hayPrefactura && (
+            <div style={{ padding: '10px 16px', fontSize: 11.5, color: 'var(--muted)', borderTop: '1px solid var(--line)' }}>
+              La prefactura de esta semana todavía no se genera: el IVA y el total se calculan el lunes.
+            </div>
+          )}
         </div>
       )}
     </div>
