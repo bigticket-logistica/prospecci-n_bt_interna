@@ -413,13 +413,26 @@ function Home({ onPick, pagosHabilitados, observados = 0 }) {
   )
 }
 
+// Cada bloque tiene su propio contenedor: con solo un título encima las
+// tarjetas se leían como una lista continua y el agrupado no se notaba.
 function Seccion({ titulo, children }) {
   return (
-    <div style={{ marginBottom: 26 }}>
-      <div style={{ fontSize: 11.5, color: 'var(--muted)', letterSpacing: '.07em',
-        textTransform: 'uppercase', fontWeight: 600, marginBottom: 10 }}>{titulo}</div>
+    <section style={{
+      background: 'rgba(26,58,107,.035)',
+      border: '1px solid rgba(26,58,107,.08)',
+      borderRadius: 20, padding: '18px 18px 20px', marginBottom: 18,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
+      }}>
+        <span style={{ width: 4, height: 16, borderRadius: 2, background: 'var(--orange)' }} />
+        <h3 style={{
+          fontSize: 13, color: 'var(--navy)', letterSpacing: '.05em',
+          textTransform: 'uppercase', fontWeight: 700, margin: 0,
+        }}>{titulo}</h3>
+      </div>
       <div className="type-grid" style={{ marginBottom: 0 }}>{children}</div>
-    </div>
+    </section>
   )
 }
 
