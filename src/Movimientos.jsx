@@ -191,10 +191,21 @@ export default function Movimientos({ tercero, email, onBack }) {
     scSel === 'todos' ? extras : extras.filter(e => e.service_center === scSel),
   [extras, scSel])
 
-  const totalPagos = filas.filter(f => f.tipo === 'pago' && f.estado === 'aprobada').reduce((s, f) => s + Number(f.monto || 0), 0)
-  const totalCobros = filas.filter(f => f.tipo === 'cobro').reduce((s, f) => s + Number(f.monto || 0), 0)
+  // Todos los totales respetan el centro elegido. Antes los cobros no lo hacían
+  // y el número no cambiaba al filtrar, que es peor que no tener el filtro.
+  const filasSC = useMemo(() =>
+    scSel === 'todos' ? filas : filas.filter(f => f.sc === scSel), [filas, scSel])
+
+  const totalPagos = filasSC.filter(f => f.tipo === 'pago' && f.estado === 'aprobada')
+    .reduce((s, f) => s + Number(f.monto || 0), 0)
+  const totalCobros = filasSC.filter(f => f.tipo === 'cobro').reduce((s, f) => s + Number(f.monto || 0), 0)
     + extrasSC.reduce((s, e) => s + Math.min(Number(e.monto || 0), 0), 0)
   const totalAjustes = extrasSC.reduce((s, e) => s + Math.max(Number(e.monto || 0), 0), 0)
+  // El IVA se calcula sobre lo que se paga por viajes, no sobre los cobros:
+  // un descuento no genera impuesto.
+  const iva = Math.round((totalPagos + totalAjustes) * 0.16 * 100) / 100
+  const totalNeto = totalPagos + totalAjustes + totalCobros
+  const totalBruto = Math.round((totalNeto + iva) * 100) / 100
 
   const nSel = Object.keys(sel).length + faltantes.length
 
@@ -313,9 +324,12 @@ export default function Movimientos({ tercero, email, onBack }) {
             <button onClick={() => setLunes(sumaDias(lunes, 7))} style={navBtn}>›</button>
           </div>
           <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-            <Tot label="Por pagar" valor={money(totalPagos)} />
-            <Tot label="Cobros" valor={money(totalCobros)} tenue />
-            <Tot label="Neto" valor={money(totalPagos + totalCobros)} grande />
+            <Tot label="Viajes" valor={money(totalPagos)} />
+            {totalAjustes !== 0 && <Tot label="Ajustes" valor={money(totalAjustes)} />}
+            <Tot label="Cobros" valor={money(totalCobros)} rojo />
+            <Tot label="Neto" valor={money(totalNeto)} />
+            <Tot label="IVA 16%" valor={money(iva)} />
+            <Tot label="Total" valor={money(totalBruto)} grande />
           </div>
 
           {centros.length > 1 && (
@@ -646,11 +660,15 @@ export default function Movimientos({ tercero, email, onBack }) {
   )
 }
 
-function Tot({ label, valor, grande, tenue }) {
+function Tot({ label, valor, grande, tenue, rojo }) {
   return (
-    <div style={{ textAlign: 'right' }}>
-      <div style={{ color: '#b8c6de', fontSize: 11, letterSpacing: '.08em' }}>{label.toUpperCase()}</div>
-      <div style={{ color: tenue ? '#e4b9a0' : '#fff', fontSize: grande ? 25 : 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
+    <div style={{ textAlign: 'right', minWidth: grande ? 118 : 88 }}>
+      <div style={{ color: '#8fa6c9', fontSize: 10, letterSpacing: '.06em' }}>{label.toUpperCase()}</div>
+      <div style={{
+        color: rojo ? '#e8a87c' : tenue ? '#e4b9a0' : '#fff',
+        fontSize: grande ? 22 : 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+        marginTop: 1,
+      }}>{valor}</div>
     </div>
   )
 }
