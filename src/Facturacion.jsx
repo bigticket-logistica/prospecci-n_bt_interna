@@ -210,6 +210,8 @@ export default function Facturacion({ tercero, email, onBack }) {
     return [...m.entries()].map(([semana, prefs]) => ({
       semana, prefs,
       inicio: prefs[0]?.semana_inicio, fin: prefs[0]?.semana_fin,
+      neto: prefs.reduce((t, p) => t + Number(p.total_neto || 0), 0),
+      iva: prefs.reduce((t, p) => t + Number(p.iva_16 || 0), 0),
       liquido: prefs.reduce((t, p) => t + Number(p.liquido_pago || 0), 0),
       conFactura: prefs.filter(p => p.facturas.length > 0).length,
     }))
@@ -261,12 +263,20 @@ export default function Facturacion({ tercero, email, onBack }) {
         </div>
       ) : semanas.map(s => (
         <div key={s.semana} style={{ marginBottom: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+          {/* Mismo desglose que la cabecera de Movimientos: son los mismos
+              montos y tienen que leerse igual en las dos pantallas. */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Semana {s.semana}</span>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
               {fechaCorta(s.inicio)} – {fechaCorta(s.fin)}
             </span>
-            <span style={{ marginLeft: 'auto', fontSize: 17, fontWeight: 700 }}>{money(s.liquido)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end',
+            background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12,
+            padding: '10px 16px', marginBottom: 8 }}>
+            <Mini k="Neto" v={money(s.neto)} />
+            <Mini k="IVA 16%" v={money(s.iva)} />
+            <Mini k="Total" v={money(s.liquido)} fuerte />
           </div>
 
           {s.prefs.map(p => {
@@ -433,6 +443,15 @@ export default function Facturacion({ tercero, email, onBack }) {
 
 // Un bloque por tipo de línea. Rojo si resta, verde si suma: hay ajustes que
 // devuelven plata y se leerían como descuento si todo fuera rojo.
+function Mini({ k, v, fuerte }) {
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '.06em' }}>{k.toUpperCase()}</div>
+      <div style={{ fontSize: fuerte ? 18 : 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums', marginTop: 1 }}>{v}</div>
+    </div>
+  )
+}
+
 function Bloque({ titulo, lineas, nota }) {
   if (!lineas || lineas.length === 0) return null
   const total = lineas.reduce((t, d) => t + Number(d.monto || 0), 0)

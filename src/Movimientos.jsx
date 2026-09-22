@@ -82,6 +82,7 @@ export default function Movimientos({ tercero, email, onBack }) {
   const [lunes, setLunes] = useState(() => lunesDe(new Date()))
   const [scSel, setScSel] = useState('todos')
   const [extras, setExtras] = useState([])
+  const [prefs, setPrefs] = useState([])   // la prefactura de la semana, para el IVA y el total
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
@@ -120,6 +121,15 @@ export default function Movimientos({ tercero, email, onBack }) {
       .eq('tercero_id', tercero.tercero_id)
       .eq('semana', sem)
     setExtras(ex || [])
+
+    // El IVA y el total salen de la prefactura, no de un cálculo propio: son la
+    // misma plata que Facturación y tienen que dar el mismo número.
+    const { data: pf } = await supabase
+      .from('vw_portal_prefactura')
+      .select('service_center, total_neto, iva_16, total_bruto, liquido_pago')
+      .eq('tercero_id', tercero.tercero_id)
+      .eq('semana', sem)
+    setPrefs(pf || [])
 
     setCargando(false)
   }, [tercero, lunes, domingo])
@@ -201,9 +211,15 @@ export default function Movimientos({ tercero, email, onBack }) {
   const totalCobros = filasSC.filter(f => f.tipo === 'cobro').reduce((s, f) => s + Number(f.monto || 0), 0)
     + extrasSC.reduce((s, e) => s + Math.min(Number(e.monto || 0), 0), 0)
   const totalAjustes = extrasSC.reduce((s, e) => s + Math.max(Number(e.monto || 0), 0), 0)
-  // Acá no se calcula IVA: lo hace la prefactura y se ve en Facturación. Dos
-  // cálculos para lo mismo daban dos números distintos en el mismo portal.
   const totalNeto = totalPagos + totalAjustes + totalCobros
+
+  // IVA y total de la prefactura del centro elegido. Si todavía no se generó,
+  // se muestra solo hasta el neto en vez de inventar un impuesto.
+  const prefSC = useMemo(() =>
+    scSel === 'todos' ? prefs : prefs.filter(p => p.service_center === scSel), [prefs, scSel])
+  const iva = prefSC.reduce((s, p) => s + Number(p.iva_16 || 0), 0)
+  const totalBruto = prefSC.reduce((s, p) => s + Number(p.total_bruto || 0), 0)
+  const hayPrefactura = prefSC.length > 0
 
   const nSel = Object.keys(sel).length + faltantes.length
 
@@ -324,8 +340,12 @@ export default function Movimientos({ tercero, email, onBack }) {
           <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
             <Tot label="Viajes" valor={money(totalPagos)} />
             {totalAjustes !== 0 && <Tot label="Ajustes" valor={money(totalAjustes)} />}
-            <Tot label="Cobros" valor={money(totalCobros)} rojo />
-            <Tot label="Neto" valor={money(totalNeto)} grande />
+            {totalCobros !== 0 && <Tot label="Cobros" valor={money(totalCobros)} rojo />}
+            <Tot label="Neto" valor={money(totalNeto)} />
+            {hayPrefactura && <Tot label="IVA 16%" valor={money(iva)} />}
+            {hayPrefactura
+              ? <Tot label="Total" valor={money(totalBruto)} grande />
+              : <Tot label="Sin prefactura" valor="—" tenue />}
           </div>
 
           {centros.length > 1 && (
@@ -649,7 +669,7 @@ export default function Movimientos({ tercero, email, onBack }) {
 
       {dias.length > 0 && !reclamando && (
         <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '8px 0 24px' }}>
-          Estos montos son antes de IVA. El total con impuestos está en Facturación.
+          Son los mismos montos de tu prefactura. El documento y tu factura están en Facturación.
         </div>
       )}
     </div>
