@@ -299,6 +299,11 @@ export default function Facturacion({ tercero, email, onBack }) {
                   <div>
                     <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--navy)' }}>
                       {p.service_center}
+                      {p.pagado_at && (
+                        <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--green-soft)', color: 'var(--green)' }}>
+                          PAGADA
+                        </span>
+                      )}
                       {p.facturas.length > 0 && (
                         <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--green-soft)', color: 'var(--green)' }}>
                           FACTURADA
@@ -309,6 +314,7 @@ export default function Facturacion({ tercero, email, onBack }) {
                       {p.n_viajes} viaje{p.n_viajes === 1 ? '' : 's'}
                       {Number(p.total_cobros) !== 0 && ` · ${money(p.total_cobros)} en descuentos`}
                       {p.enviado_at && ` · enviada el ${fechaCorta(p.enviado_at)}`}
+                      {p.pagado_at && ` · pagada el ${fechaCorta(p.pagado_at)}`}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

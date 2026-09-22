@@ -44,12 +44,20 @@ const rango = (a, b) => `${a.toLocaleDateString('es-MX', { day: 'numeric', month
 // "Pagada" era falso: la ruta se aprueba el día siguiente, entra en la
 // prefactura del lunes y se paga el viernes. Hasta entonces es "Por pagar".
 // El verde queda reservado para cuando exista el registro del pago efectivo.
+// "Por cobrar" se leía como si el tercero fuera a cobrar, cuando es plata que
+// se le descuenta. Los estados pasan a pagado o descontado cuando el analista
+// marca la prefactura de esa semana como pagada.
 const ESTADOS = {
-  aprobada:  { label: 'Por pagar',   bg: 'var(--amber-soft)',  fg: 'var(--amber)' },
-  no_pagada: { label: 'No se paga',  bg: 'var(--red-soft)',    fg: 'var(--red)' },
-  pausada:   { label: 'En revisión', bg: '#e8eefb',            fg: 'var(--navy)' },
-  // Igual que el pago: todavía no se descontó, se descuenta en la prefactura.
-  cobrado:   { label: 'Por cobrar',  bg: '#fdeaea',            fg: '#c0392b' },
+  aprobada:  { label: 'Por pagar',     bg: 'var(--amber-soft)', fg: 'var(--amber)' },
+  no_pagada: { label: 'No se paga',    bg: 'var(--red-soft)',   fg: 'var(--red)' },
+  pausada:   { label: 'En revisión',   bg: '#e8eefb',           fg: 'var(--navy)' },
+  cobrado:   { label: 'Por descontar', bg: '#fdeaea',           fg: '#c0392b' },
+}
+const ESTADOS_PAGADOS = {
+  aprobada:  { label: 'Pagado',      bg: 'var(--green-soft)', fg: 'var(--green)' },
+  no_pagada: { label: 'No se paga',  bg: 'var(--red-soft)',   fg: 'var(--red)' },
+  pausada:   { label: 'En revisión', bg: '#e8eefb',           fg: 'var(--navy)' },
+  cobrado:   { label: 'Descontado',  bg: 'var(--green-soft)', fg: 'var(--green)' },
 }
 
 // Numeración del Brain: ISO + 1. Tiene que coincidir con la de la prefactura
@@ -126,7 +134,7 @@ export default function Movimientos({ tercero, email, onBack }) {
     // misma plata que Facturación y tienen que dar el mismo número.
     const { data: pf } = await supabase
       .from('vw_portal_prefactura')
-      .select('service_center, total_neto, iva_16, total_bruto, liquido_pago')
+      .select('service_center, total_neto, iva_16, total_bruto, liquido_pago, pagado_at, pago_referencia')
       .eq('tercero_id', tercero.tercero_id)
       .eq('semana', sem)
     setPrefs(pf || [])
@@ -220,6 +228,10 @@ export default function Movimientos({ tercero, email, onBack }) {
   const iva = prefSC.reduce((s, p) => s + Number(p.iva_16 || 0), 0)
   const totalBruto = prefSC.reduce((s, p) => s + Number(p.total_bruto || 0), 0)
   const hayPrefactura = prefSC.length > 0
+  // La semana está pagada cuando todas sus prefacturas lo están: el pago es uno
+  // por centro, así que con varios hay que esperar a que salgan todos.
+  const pagada = hayPrefactura && prefSC.every(p => p.pagado_at)
+  const pagadoAt = pagada ? prefSC.map(p => p.pagado_at).sort()[0] : null
 
   const nSel = Object.keys(sel).length + faltantes.length
 
@@ -344,7 +356,7 @@ export default function Movimientos({ tercero, email, onBack }) {
             <Tot label="Neto" valor={money(totalNeto)} />
             {hayPrefactura && <Tot label="IVA 16%" valor={money(iva)} />}
             {hayPrefactura
-              ? <Tot label="Total" valor={money(totalBruto)} grande />
+              ? <Tot label={pagada ? 'Pagado' : 'Total'} valor={money(totalBruto)} grande />
               : <Tot label="Sin prefactura" valor="—" tenue />}
           </div>
 
@@ -505,7 +517,8 @@ export default function Movimientos({ tercero, email, onBack }) {
                 {d.movs.map(m => {
                   const k = claveDe(m)
                   const marcado = k in sel
-                  const est = ESTADOS[m.estado] || ESTADOS.aprobada
+                  const tabla = pagada ? ESTADOS_PAGADOS : ESTADOS
+                  const est = tabla[m.estado] || tabla.aprobada
                   const esCobro = m.tipo === 'cobro'
                   return (
                     <div key={k} style={{ borderBottom: '1px solid #f1f4f8', background: marcado ? 'var(--orange-soft)' : 'transparent' }}>
@@ -639,6 +652,18 @@ export default function Movimientos({ tercero, email, onBack }) {
           anteriores, paquetes perdidos cargados a mano, reliquidaciones. Van al
           final y no dentro de un día, porque meterlos en uno sería inventarles
           una fecha que no tienen. */}
+      {/* Cuándo se pagó. Sin esto el tercero tiene que preguntar, que es la
+          mitad de las llamadas que recibe el analista. */}
+      {pagada && !reclamando && (
+        <div style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 12,
+          padding: '11px 16px', marginTop: 12, fontSize: 13, fontWeight: 600 }}>
+          Esta semana ya se pagó{pagadoAt ? ` el ${fechaCorta(pagadoAt)}` : ''}.
+          {prefSC[0]?.pago_referencia && (
+            <span style={{ fontWeight: 400 }}> Referencia: {prefSC[0].pago_referencia}.</span>
+          )}
+        </div>
+      )}
+
       {extrasSC.length > 0 && !reclamando && (
         <div style={{ background: '#f6f1ea', border: '1px solid #e0d3c2', borderRadius: 14, padding: '14px 16px', marginTop: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
