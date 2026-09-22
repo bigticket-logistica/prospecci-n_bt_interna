@@ -201,11 +201,9 @@ export default function Movimientos({ tercero, email, onBack }) {
   const totalCobros = filasSC.filter(f => f.tipo === 'cobro').reduce((s, f) => s + Number(f.monto || 0), 0)
     + extrasSC.reduce((s, e) => s + Math.min(Number(e.monto || 0), 0), 0)
   const totalAjustes = extrasSC.reduce((s, e) => s + Math.max(Number(e.monto || 0), 0), 0)
-  // El IVA se calcula sobre lo que se paga por viajes, no sobre los cobros:
-  // un descuento no genera impuesto.
-  const iva = Math.round((totalPagos + totalAjustes) * 0.16 * 100) / 100
+  // Acá no se calcula IVA: lo hace la prefactura y se ve en Facturación. Dos
+  // cálculos para lo mismo daban dos números distintos en el mismo portal.
   const totalNeto = totalPagos + totalAjustes + totalCobros
-  const totalBruto = Math.round((totalNeto + iva) * 100) / 100
 
   const nSel = Object.keys(sel).length + faltantes.length
 
@@ -327,9 +325,7 @@ export default function Movimientos({ tercero, email, onBack }) {
             <Tot label="Viajes" valor={money(totalPagos)} />
             {totalAjustes !== 0 && <Tot label="Ajustes" valor={money(totalAjustes)} />}
             <Tot label="Cobros" valor={money(totalCobros)} rojo />
-            <Tot label="Neto" valor={money(totalNeto)} />
-            <Tot label="IVA 16%" valor={money(iva)} />
-            <Tot label="Total" valor={money(totalBruto)} grande />
+            <Tot label="Neto" valor={money(totalNeto)} grande />
           </div>
 
           {centros.length > 1 && (
@@ -653,7 +649,7 @@ export default function Movimientos({ tercero, email, onBack }) {
 
       {dias.length > 0 && !reclamando && (
         <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '8px 0 24px' }}>
-          Estos montos son los que irán en tu prefactura del lunes y se pagan el viernes.
+          Estos montos son antes de IVA. El total con impuestos está en Facturación.
         </div>
       )}
     </div>
