@@ -3,6 +3,7 @@ import { supabase, BUCKET } from './supabaseClient'
 import Movimientos from './Movimientos'
 import Facturacion from './Facturacion'
 import Postula from './Postula'
+import Biggy from './Biggy'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -156,6 +157,9 @@ export default function App() {
       {view === 'facturacion' && <Facturacion tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
+
+      {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
+      <Biggy tercero={tercero} />
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
