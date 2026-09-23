@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import Movimientos from './Movimientos'
 import Facturacion from './Facturacion'
+import Postula from './Postula'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -154,6 +155,7 @@ export default function App() {
       {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'facturacion' && <Facturacion tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
+      {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
@@ -374,6 +376,17 @@ function Home({ onPick, pagosHabilitados, observados = 0 }) {
         <button className="type-card" onClick={() => onPick('baja')}>
           <div className="ic">🚫</div><h3>Dar de baja</h3>
           <p>Vehículos, personal certificado o la empresa completa.</p></button>
+      </Seccion>
+
+      <Seccion titulo="Crecer con nosotros">
+        {/* Enlace al portal de postulación con canal propio: así saben cuáles
+            leads vienen de un tercero que ya opera, que son los que más
+            convierten. No prellena sus datos porque ese formulario todavía no
+            los lee de la URL. */}
+        <button className="type-card" onClick={() => onPick('postula')}>
+          <div className="ic">🚀</div><h3>Postula a más operación</h3>
+          <p>¿Quieres sumar rutas o entrar a otro centro? Mira las operaciones abiertas y postula
+            con acceso preferente por ser transportista certificado.</p></button>
       </Seccion>
 
       <Seccion titulo="Dar de alta">
