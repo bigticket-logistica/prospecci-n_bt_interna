@@ -378,17 +378,6 @@ function Home({ onPick, pagosHabilitados, observados = 0 }) {
           <p>Vehículos, personal certificado o la empresa completa.</p></button>
       </Seccion>
 
-      <Seccion titulo="Crecer con nosotros">
-        {/* Enlace al portal de postulación con canal propio: así saben cuáles
-            leads vienen de un tercero que ya opera, que son los que más
-            convierten. No prellena sus datos porque ese formulario todavía no
-            los lee de la URL. */}
-        <button className="type-card" onClick={() => onPick('postula')}>
-          <div className="ic">🚀</div><h3>Postula a más operación</h3>
-          <p>¿Quieres sumar rutas o entrar a otro centro? Mira las operaciones abiertas y postula
-            con acceso preferente por ser transportista certificado.</p></button>
-      </Seccion>
-
       <Seccion titulo="Dar de alta">
         <button className="type-card" onClick={() => onPick('certificar')}>
           <div className="ic">🪪</div><h3>Certificar</h3>
@@ -416,11 +405,31 @@ function Home({ onPick, pagosHabilitados, observados = 0 }) {
           <p>Contratos, seguros y anexos que BigTicket guarda de tu empresa.</p></button>
       </Seccion>
 
-      <button className="type-card" onClick={() => onPick('consultas')}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: 20 }}>
-        <div className="ic" style={{ marginBottom: 0, flexShrink: 0 }}>💬</div>
-        <div><h3 style={{ marginBottom: 2 }}>Consultas</h3>
-          <p>Escríbenos cualquier duda y te respondemos por aquí.</p></div>
+      {/* Cierra la página, no compite con las tarjetas: es una invitación, no
+          un trámite más. En azul corporativo para que se lea distinto. */}
+      <button onClick={() => onPick('postula')}
+        style={{
+          width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg,var(--navy) 0%,#2d5490 100%)',
+          borderRadius: 18, padding: '22px 24px', marginTop: 4,
+          display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
+        }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <span style={{
+            display: 'inline-block', background: 'var(--orange)', color: '#fff',
+            fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 12, letterSpacing: '.05em',
+          }}>ACCESO PREFERENTE</span>
+          <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginTop: 9 }}>
+            Suma operación con nosotros
+          </div>
+          <div style={{ color: '#b8c6de', fontSize: 12.5, marginTop: 4, lineHeight: 1.55, maxWidth: 480 }}>
+            Mira las operaciones abiertas y postula sin volver a subir los documentos de tu empresa.
+          </div>
+        </div>
+        <span style={{
+          background: 'var(--orange)', color: '#fff', fontSize: 13, fontWeight: 700,
+          padding: '11px 22px', borderRadius: 12, whiteSpace: 'nowrap',
+        }}>Ver operaciones →</span>
       </button>
     </>
   )
