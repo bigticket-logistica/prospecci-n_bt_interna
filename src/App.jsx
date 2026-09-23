@@ -409,6 +409,15 @@ function Home({ onPick, pagosHabilitados, observados = 0 }) {
           <p>Contratos, seguros y anexos que BigTicket guarda de tu empresa.</p></button>
       </Seccion>
 
+      {/* Consultas sigue: Biggy responde al instante lo que sabe, pero cuando
+          hace falta una persona el tercero necesita dónde escribir. */}
+      <button className="type-card" onClick={() => onPick('consultas')}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: 20, marginBottom: 18 }}>
+        <div className="ic" style={{ marginBottom: 0, flexShrink: 0 }}>💬</div>
+        <div><h3 style={{ marginBottom: 2 }}>Consultas</h3>
+          <p>¿Necesitas hablar con alguien del equipo? Escríbenos y te respondemos por aquí.</p></div>
+      </button>
+
       {/* Cierra la página, no compite con las tarjetas: es una invitación, no
           un trámite más. En azul corporativo para que se lea distinto. */}
       <button onClick={() => onPick('postula')}
