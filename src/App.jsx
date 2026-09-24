@@ -4,6 +4,7 @@ import Movimientos from './Movimientos'
 import Facturacion from './Facturacion'
 import Postula from './Postula'
 import Biggy from './Biggy'
+import Resumen from './Resumen'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -149,7 +150,7 @@ export default function App() {
           <span style={{ background: '#F47B20', color: '#fff', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Completar ahora →</span>
         </div>
       )}
-      {view === 'home' && <Home onPick={setView} pagosHabilitados={tercero.pagosHabilitados} />}
+      {view === 'home' && <Home onPick={setView} tercero={tercero} pagosHabilitados={tercero.pagosHabilitados} />}
       {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
@@ -355,11 +356,15 @@ function Shell({ tercero, email, children, onNavegar }) {
 // Agrupadas por con qué frecuencia entra a cada cosa, no por tipo de trámite.
 // Lo del dinero arriba porque es lo que mira todos los días; certificar abajo
 // porque es algo que hace cuando suma un conductor o una unidad.
-function Home({ onPick, pagosHabilitados, observados = 0 }) {
+function Home({ onPick, pagosHabilitados, observados = 0, tercero }) {
   return (
     <>
       <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
         <div className="lede">Tus pagos, tu operación y tus trámites, en un solo lugar.</div></div></div>
+
+      {/* Lo primero que ve: cuánto ganó ayer y cómo va la semana. Antes tenía
+          que entrar a Movimientos y elegir una semana para saberlo. */}
+      {pagosHabilitados && <Resumen tercero={tercero} onVerMovimientos={() => onPick('movimientos')} />}
 
       {/* Sin contrato firmado no ve nada de plata: el bloque entero desaparece. */}
       {pagosHabilitados && (
