@@ -261,6 +261,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [dia, setDia] = useState(null)
   const [periodos, setPeriodos] = useState([])
   const [vista, setVista] = useState('semana')
+  const [idx, setIdx] = useState(0)          // 0 = el período más reciente
   const [avisos, setAvisos] = useState([])
 
   const cargar = useCallback(async () => {
@@ -307,8 +308,16 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     ...avisos,
   ], [perfilOk, avisos])
 
-  const actual = useMemo(() => periodos.filter(p => p.tipo === vista)
-    .sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)))[0] || null, [periodos, vista])
+  // Más reciente primero. Las semanas se ordenan como número: como texto, la 9
+  // quedaría después de la 39.
+  const lista = useMemo(() => periodos.filter(p => p.tipo === vista)
+    .sort((a, b) => vista === 'semana'
+      ? String(b.desde).localeCompare(String(a.desde))
+      : String(b.periodo).localeCompare(String(a.periodo))), [periodos, vista])
+  useEffect(() => { setIdx(0) }, [vista])
+  const actual = lista[idx] || null
+  const hayAnterior = idx < lista.length - 1
+  const haySiguiente = idx > 0
 
   return (
     <>
@@ -354,14 +363,26 @@ export function Inicio({ tercero, perfilOk, onPick }) {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 16px' }}>
               <div>
                 <h3 className="bt-card-t">{vista === 'semana' ? 'Movimiento semanal' : 'Movimiento mensual'}</h3>
-                <p className="bt-card-f" style={{ margin: 0, display: 'flex', gap: 10 }}>
-                  {actual ? (
-                    <>
-                      <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{vista === 'semana' ? `Semana ${actual.periodo}` : mesLargo(actual.periodo)}</span>
-                      <span style={{ whiteSpace: 'nowrap' }}>{rango(actual.desde, actual.hasta)}</span>
-                    </>
-                  ) : <span>Todavía no hay datos de este período</span>}
-                </p>
+                <div className="bt-periodo">
+                  <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}
+                    disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                  </button>
+                  <p className="bt-card-f" style={{ margin: 0, display: 'flex', gap: 10 }}>
+                    {actual ? (
+                      <>
+                        <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{vista === 'semana' ? `Semana ${actual.periodo}` : mesLargo(actual.periodo)}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>{rango(actual.desde, actual.hasta)}</span>
+                      </>
+                    ) : <span>Todavía no hay datos de este período</span>}
+                  </p>
+                  <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
+                    disabled={!haySiguiente} onClick={() => setIdx(i => i - 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                  </button>
+                </div>
               </div>
               <div className="bt-toggle">
                 {[['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => (

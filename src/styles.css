@@ -307,6 +307,14 @@ tr:last-child td { border-bottom: none; }
   font-weight: 600; font-size: 12px; cursor: pointer; background: transparent; color: #8B8B8B;
 }
 .bt-toggle button.on { background: var(--navy); color: #fff; }
+.bt-periodo { display: flex; align-items: center; gap: 8px; }
+.bt-flecha {
+  width: 26px; height: 26px; border-radius: 8px; border: 1px solid #C9CDD2; background: #fff;
+  color: var(--navy); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; padding: 0;
+}
+.bt-flecha:hover:not(:disabled) { background: #F4F3F3; }
+.bt-flecha:disabled { opacity: .4; cursor: default; }
 .bt-cifras { display: flex; align-items: flex-end; gap: 28px; margin-bottom: 22px; }
 .bt-monto {
   font-family: var(--font-display); font-weight: 700; font-size: 36px; color: var(--navy);
