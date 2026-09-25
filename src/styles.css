@@ -25,8 +25,8 @@
   --font-display: "Poppins", var(--font);
 
   /* El de marketing es el naranja con azul; el blanco solo sobre fondos de color. */
-  --logo: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_orange_black%20(1).png");
-  --logo-blanco: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png");
+  --logo: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bigticket-logo.jpg");
+  --logo-blanco: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bigticket-logo.jpg");
 }
 
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }

@@ -291,7 +291,7 @@ function Shell({ tercero, email, children, onNavegar, vista }) {
     <div className="app-shell">
       <header className="app-header">
         <div className="marca">
-          <img src="https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png"
+          <img src="https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bigticket-logo.jpg"
             alt="Bigticket" style={{ height: 22, width: 'auto', display: 'block' }} />
           <span style={{ width: 1, height: 20, background: 'rgba(255,255,255,.22)' }} />
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
