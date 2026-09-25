@@ -267,8 +267,13 @@ function Shell({ tercero, email, children, onNavegar }) {
     <>
       <div className="topbar">
         <div className="mark" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/bt_logo_naranjo.png" alt="Bigticket" style={{ height: 24, width: 'auto', display: 'block' }} />
-          <b style={{ opacity: .9 }}>· Certificación</b>
+          <img src="https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png"
+            alt="Bigticket" style={{ height: 22, width: 'auto', display: 'block' }} />
+          <span style={{ width: 1, height: 20, background: 'rgba(255,255,255,.22)' }} />
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
+            letterSpacing: '.08em', textTransform: 'uppercase', color: '#F4F3F3', whiteSpace: 'nowrap' }}>
+            Portal Transportista
+          </span>
         </div>
         <div className="who" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Campana con desplegable de pendientes */}
@@ -362,9 +367,10 @@ function Home({ onPick, pagosHabilitados, observados = 0, tercero }) {
       <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
         <div className="lede">Tus pagos, tu operación y tus trámites, en un solo lugar.</div></div></div>
 
-      {/* Resumen desactivado: agrupa las líneas de prefactura por la fecha del
-          hecho en vez de por la semana en que se cobran, así que los totales no
-          coinciden con Movimientos. Se vuelve a activar cuando esté corregido. */}
+      {/* Lo primero que ve: cuánto ganó ayer y cómo va la semana. Las líneas de
+          prefactura se cuentan en la semana en que se cobran, no en la fecha del
+          hecho, para que el total coincida con Movimientos. */}
+      {pagosHabilitados && <Resumen tercero={tercero} onVerMovimientos={() => onPick('movimientos')} />}
 
       {/* Sin contrato firmado no ve nada de plata: el bloque entero desaparece. */}
       {pagosHabilitados && (

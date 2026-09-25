@@ -1,20 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Open+Sans:wght@400;600;700&display=swap');
+
+/* Paleta del manual de marca de Bigticket. Los nombres de variable se
+   mantienen para que las pantallas ya escritas adopten la identidad sin
+   tocar cada componente. */
 :root {
-  --navy: #1a3a6b;
-  --navy-deep: #12294d;
-  --navy-line: #24457a;
-  --orange: #F47B20;
-  --orange-hover: #e06d15;
-  --orange-soft: #FDEEE0;
-  --ink: #1b2430;
-  --muted: #69737f;
-  --line: #e4e8ee;
-  --page: #f4f7fb;
+  --navy: #002E5D;
+  --navy-deep: #001F3F;
+  --navy-line: #14456F;
+  --orange: #FF6600;
+  --orange-hover: #E05500;
+  --orange-soft: #FFF0E5;
+  --ink: #000000;
+  --muted: #545454;
+  --line: #E0E0E0;
+  --line-soft: #EBEBEB;
+  --page: #F4F3F3;
   --card: #ffffff;
-  --green: #1f7a52;  --green-soft: #e7f3ec;
-  --amber: #a86e14;  --amber-soft: #fbf0da;
-  --red: #a83a3a;    --red-soft: #f7e9e9;
-  --font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --green: #1A7A3C;  --green-soft: #E8F4EC;
+  --amber: #C47A00;  --amber-soft: #FFF4E0;
+  --red: #C0392B;    --red-soft: #FBEAE8;
+
+  /* Poppins solo para títulos y cifras; Open Sans para todo lo demás. */
+  --font: "Open Sans", system-ui, -apple-system, sans-serif;
+  --font-display: "Poppins", var(--font);
+
+  --logo-blanco: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png");
+  --logo-color: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_orange_black%20(1).png");
 }
+
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--page); color: var(--ink); -webkit-font-smoothing: antialiased; line-height: 1.5; }
@@ -116,3 +130,76 @@ tr:last-child td { border-bottom: none; }
 .back-link:hover { text-decoration: underline; }
 
 .loading { padding: 60px; text-align: center; color: var(--muted); }
+
+/* ── Armazón: cabecera fija + menú lateral ────────────────────────────────
+   Reemplaza la grilla de tarjetas del inicio. El tercero entra a ver su
+   plata todos los días: con menú lateral llega en un clic en vez de dos. */
+.app-shell { min-height: 100vh; background: var(--page); }
+
+.app-header {
+  background: var(--navy); height: 64px; display: flex; align-items: center;
+  justify-content: space-between; padding: 0 28px; gap: 20px;
+  position: sticky; top: 0; z-index: 30;
+}
+.app-header .marca { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.app-header .marca img { height: 22px; display: block; }
+.app-header .marca .sep { width: 1px; height: 20px; background: rgba(255,255,255,.22); }
+.app-header .marca .rotulo {
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+  letter-spacing: .08em; text-transform: uppercase; color: #F4F3F3; white-space: nowrap;
+}
+.app-header .empresa {
+  display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 999px; padding: 7px 16px;
+  font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: #fff;
+}
+
+.app-body { display: flex; align-items: flex-start; }
+
+.app-side {
+  width: 268px; flex-shrink: 0; position: sticky; top: 64px;
+  height: calc(100vh - 64px); overflow-y: auto; background: #fff;
+  border-right: 1px solid var(--line); padding: 20px 14px 40px;
+}
+.app-side .grupo {
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+  padding: 16px 14px 7px;
+}
+.app-side .item {
+  width: 100%; border: none; background: transparent; border-radius: 10px;
+  padding: 11px 14px; display: flex; align-items: center; gap: 10px;
+  font-size: 14.5px; color: var(--ink); text-align: left; margin-bottom: 2px;
+}
+.app-side .item:hover { background: var(--page); }
+.app-side .item .barra { width: 3px; height: 18px; border-radius: 2px; background: transparent; flex-shrink: 0; }
+.app-side .item.activo { background: var(--page); font-weight: 600; color: var(--navy); }
+.app-side .item.activo .barra { background: var(--orange); }
+.app-side .item .chip {
+  margin-left: auto; background: var(--red); color: #fff; font-family: var(--font-display);
+  font-weight: 700; font-size: 10px; min-width: 17px; height: 17px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; padding: 0 5px;
+}
+
+.app-main { flex: 1; min-width: 0; padding: 26px 30px 60px; }
+
+/* En teléfono el menú pasa a una barra inferior: un panel de 268px deja la
+   pantalla sin espacio para el contenido. */
+@media (max-width: 860px) {
+  .app-header { padding: 0 16px; }
+  .app-header .marca .rotulo { display: none; }
+  .app-body { display: block; }
+  .app-side {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto; width: 100%;
+    height: auto; display: flex; gap: 2px; overflow-x: auto; padding: 6px 8px;
+    border-right: none; border-top: 1px solid var(--line); z-index: 20;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-side .grupo { display: none; }
+  .app-side .item {
+    flex-direction: column; gap: 3px; font-size: 10.5px; padding: 7px 10px;
+    white-space: nowrap; width: auto; margin: 0; text-align: center;
+  }
+  .app-side .item .barra { width: 18px; height: 3px; }
+  .app-main { padding: 18px 16px 90px; }
+}
