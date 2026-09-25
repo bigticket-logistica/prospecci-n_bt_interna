@@ -292,13 +292,20 @@ export default function Movimientos({ tercero, email, onBack }) {
           fecha: m.tipo === 'cobro' ? (m.fecha_hecho || m.fecha) : m.fecha,
           id_ruta: m.tipo === 'pago' ? m.ref : null,
           cobro_id: m.tipo === 'cobro' ? m.cobro_id : null,
+          // El id del cobro solo no dice de qué tabla es (PNR, no show o
+          // merma): se guarda el origen y el concepto tal como lo vio el tercero.
+          cobro_origen: m.tipo === 'cobro' ? (m.tipo_cobro || null) : null,
+          concepto: m.tipo === 'cobro'
+            ? [m.concepto || 'Cobro', m.shipment_id ? `guía ${m.shipment_id}` : null, m.motivo].filter(Boolean).join(' · ')
+            : null,
           placa: m.placa, monto_ref: Math.abs(Number(m.monto || 0)),
           comentario: comentario.trim(),
         }
       })
       const lineasFalt = faltantes.map(f => ({
         tipo: 'faltante', fecha: f.fecha || null, id_ruta: f.id_ruta?.trim() || null,
-        cobro_id: null, placa: f.placa.trim(), monto_ref: null, comentario: f.comentario.trim(),
+        cobro_id: null, cobro_origen: null, concepto: null,
+        placa: f.placa.trim(), monto_ref: null, comentario: f.comentario.trim(),
       }))
       const lineas = [...lineasSel, ...lineasFalt]
       const scs = [...new Set(Object.keys(sel).map(k => porClave[k]?.sc).filter(Boolean))]
