@@ -142,7 +142,7 @@ export default function App() {
 
   const email = session.user.email
   return (
-    <Shell tercero={tercero} email={email} onNavegar={setView}>
+    <Shell tercero={tercero} email={email} onNavegar={setView} vista={view}>
       {view === 'home' && perfilOk === false && (
         <div onClick={() => setView('perfil')} style={{ cursor: 'pointer', background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '13px 16px', marginBottom: 16, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
@@ -221,7 +221,7 @@ function PantallaCentro({ titulo, texto, accion }) {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────
-function Shell({ tercero, email, children, onNavegar }) {
+function Shell({ tercero, email, children, onNavegar, vista }) {
   // 🔔 Campana con desplegable: el badge suma mensajes sin leer +
   // solicitudes vivas; al abrirla se ve el DETALLE y cada ítem lleva a su
   // sección (mensajes → Consultas, firmas → Firma, datos → Perfil…).
@@ -263,10 +263,34 @@ function Shell({ tercero, email, children, onNavegar }) {
   }
   const irA = (v) => { setAbierta(false); onNavegar && onNavegar(v) }
 
+  // Los grupos siguen el orden de uso: la plata primero, los trámites después.
+  const MENU = [
+    { grupo: 'Tu dinero', solo: 'pagos', items: [
+      { v: 'movimientos', l: 'Movimientos' }, { v: 'facturacion', l: 'Facturación' } ] },
+    { grupo: 'Tu operación', items: [
+      { v: 'flota', l: 'Vehículos y personal' }, { v: 'baja', l: 'Dar de baja' } ] },
+    { grupo: 'Trámites', items: [
+      { v: 'certificar', l: 'Certificar' },
+      { v: 'estado', l: 'Estado de certificación' },
+      { v: 'firma', l: 'Firma de contrato' } ] },
+    { grupo: 'Tu empresa', items: [
+      { v: 'perfil', l: 'Perfil de empresa' }, { v: 'docs', l: 'Documentos' },
+      { v: 'consultas', l: 'Consultas' } ] },
+  ]
+  // En teléfono solo caben unas pocas: las de uso diario.
+  const MOVIL = ['movimientos', 'facturacion', 'flota', 'estado', 'perfil']
+  const grupos = MENU.filter(g => g.solo !== 'pagos' || tercero?.pagosHabilitados)
+  const Item = ({ i, corto }) => (
+    <button className={`item${vista === i.v ? ' activo' : ''}`} onClick={() => irA(i.v)}>
+      <span className="barra" />
+      <span style={{ whiteSpace: 'nowrap' }}>{corto ? i.l.split(' ')[0] : i.l}</span>
+    </button>
+  )
+
   return (
-    <>
-      <div className="topbar">
-        <div className="mark" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="marca">
           <img src="https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png"
             alt="Bigticket" style={{ height: 22, width: 'auto', display: 'block' }} />
           <span style={{ width: 1, height: 20, background: 'rgba(255,255,255,.22)' }} />
@@ -275,7 +299,7 @@ function Shell({ tercero, email, children, onNavegar }) {
             Portal Transportista
           </span>
         </div>
-        <div className="who" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Campana con desplegable de pendientes */}
           <div style={{ position: 'relative' }}>
             <button onClick={abrirCampana}
@@ -348,12 +372,27 @@ function Shell({ tercero, email, children, onNavegar }) {
               </>
             )}
           </div>
-          <span><span className="name">{tercero.nombre}</span> · {email}</span>
+          <span className="empresa" title={email}>{tercero.nombre}</span>
           <button className="logout" onClick={() => supabase.auth.signOut()}>Salir</button>
         </div>
+      </header>
+
+      <div className="app-body">
+        <aside className="app-side">
+          {grupos.map(g => (
+            <div key={g.grupo} className="solo-escritorio">
+              <div className="grupo">{g.grupo}</div>
+              {g.items.map(i => <Item key={i.v} i={i} />)}
+            </div>
+          ))}
+          <div className="solo-movil">
+            {grupos.flatMap(g => g.items).filter(i => MOVIL.includes(i.v))
+              .map(i => <Item key={i.v} i={i} corto />)}
+          </div>
+        </aside>
+        <main className="app-main">{children}</main>
       </div>
-      <div className="container">{children}</div>
-    </>
+    </div>
   )
 }
 

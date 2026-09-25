@@ -24,8 +24,9 @@
   --font: "Open Sans", system-ui, -apple-system, sans-serif;
   --font-display: "Poppins", var(--font);
 
+  /* El de marketing es el naranja con azul; el blanco solo sobre fondos de color. */
+  --logo: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_orange_black%20(1).png");
   --logo-blanco: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_white%20(3).png");
-  --logo-color: url("https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bt_orange_black%20(1).png");
 }
 
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }
@@ -202,4 +203,12 @@ tr:last-child td { border-bottom: none; }
   }
   .app-side .item .barra { width: 18px; height: 3px; }
   .app-main { padding: 18px 16px 90px; }
+}
+
+/* Qué se ve en cada tamaño: en escritorio los grupos con título, en teléfono
+   solo los accesos de uso diario. */
+.solo-movil { display: none !important; }
+@media (max-width: 860px) {
+  .solo-escritorio { display: none !important; }
+  .solo-movil { display: contents !important; }
 }
