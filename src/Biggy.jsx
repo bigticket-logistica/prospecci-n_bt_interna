@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
 const API = '/api/biggy-chat'
-const CARA = 'https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/assets/Don_B1.jpeg'
+const CARA = '/biggy.jpg'   // el mismo retrato que usa la maqueta de marketing
 
 // Cuatro áreas con contextos distintos. Un tercero que pregunta por una
 // devolución y otro que pregunta por su pago necesitan respuestas de mundos
@@ -85,16 +85,9 @@ export default function Biggy({ tercero }) {
     <>
       {/* El botón sigue el scroll: position fixed, siempre a la vista. */}
       {!abierto && (
-        <button onClick={() => setAbierto(true)} aria-label="Abrir chat con Biggy"
-          style={{
-            position: 'fixed', right: 18, bottom: 18, zIndex: 900,
-            display: 'flex', alignItems: 'center', gap: 10,
-            background: 'var(--navy)', color: '#fff', border: 'none',
-            borderRadius: 999, padding: '10px 18px 10px 10px', cursor: 'pointer',
-            boxShadow: '0 6px 24px rgba(26,58,107,.32)',
-          }}>
-          <Cara size={40} />
-          <span style={{ fontSize: 13.5, fontWeight: 700 }}>¿Dudas? Pregúntale a Biggy</span>
+        <button onClick={() => setAbierto(true)} aria-label="Abrir chat con Biggy" className="bt-biggy">
+          <img src={CARA} alt="" />
+          <span>¿Te puedo ayudar?</span>
         </button>
       )}
 

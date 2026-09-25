@@ -4,7 +4,7 @@ import Movimientos from './Movimientos'
 import Facturacion from './Facturacion'
 import Postula from './Postula'
 import Biggy from './Biggy'
-import Resumen from './Resumen'
+import { Shell, Inicio, EnConstruccion } from './Armazon'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -143,24 +143,19 @@ export default function App() {
   const email = session.user.email
   return (
     <Shell tercero={tercero} email={email} onNavegar={setView} vista={view}>
-      {view === 'home' && perfilOk === false && (
-        <div onClick={() => setView('perfil')} style={{ cursor: 'pointer', background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '13px 16px', marginBottom: 16, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
-          <span style={{ flex: 1, minWidth: 220 }}>Tu <b>Perfil de Empresa</b> está incompleto. Sin los datos de la cuenta de pago (banco, CLABE y su print de pantalla), <b>no se realizarán pagos a tu empresa</b>.</span>
-          <span style={{ background: '#F47B20', color: '#fff', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Completar ahora →</span>
-        </div>
-      )}
-      {view === 'home' && <Home onPick={setView} tercero={tercero} pagosHabilitados={tercero.pagosHabilitados} />}
+      {view === 'home' && <Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} />}
       {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
-      {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
-      {view === 'facturacion' && <Facturacion tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
+          maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
+      {(view === 'movimientos' || view === 'descuentos') &&
+        <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
+        <Facturacion tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
-
-      {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
-      <Biggy tercero={tercero} />
+      {(view === 'desempeno' || view === 'reclamos') && <EnConstruccion vista={view} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
@@ -169,6 +164,9 @@ export default function App() {
         <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
       {view === 'vehiculo' &&
         <FormVehiculo tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
+
+      {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
+      <Biggy tercero={tercero} />
     </Shell>
   )
 }
@@ -217,307 +215,6 @@ function PantallaCentro({ titulo, texto, accion }) {
         {accion && <div style={{ marginTop: 14 }}>{accion}</div>}
       </div>
     </div>
-  )
-}
-
-// ── Shell ────────────────────────────────────────────────────────────
-function Shell({ tercero, email, children, onNavegar, vista }) {
-  // 🔔 Campana con desplegable: el badge suma mensajes sin leer +
-  // solicitudes vivas; al abrirla se ve el DETALLE y cada ítem lleva a su
-  // sección (mensajes → Consultas, firmas → Firma, datos → Perfil…).
-  const [campana, setCampana] = useState(null)
-  const [abierta, setAbierta] = useState(false)
-  const [detalle, setDetalle] = useState(null)   // solicitudes vivas
-  useEffect(() => {
-    if (!tercero?.tercero_id) return
-    const leer = async () => {
-      const { data } = await supabase.from('vw_campana_tercero')
-        .select('mensajes_sin_leer, solicitudes_pendientes, total')
-        .eq('tercero_id', tercero.tercero_id).maybeSingle()
-      setCampana(data || null)
-    }
-    leer()
-    const t = setInterval(() => { if (!document.hidden) leer() }, 60000)
-    return () => clearInterval(t)
-  }, [tercero])
-
-  // El detalle se carga al abrir (no en cada refresco del badge)
-  const abrirCampana = async () => {
-    const ya = abierta
-    setAbierta(!ya)
-    if (ya) return
-    const { data } = await supabase.from('solicitudes_tercero')
-      .select('id, tipo, titulo, estado, solicitado_at')
-      .eq('tercero_id', tercero.tercero_id)
-      .in('estado', ['pendiente', 'avisado', 'escalado'])
-      .order('solicitado_at', { ascending: true })
-    setDetalle(data || [])
-  }
-  // Mapa: tipo de pendiente → sección del portal + ícono
-  const DESTINO = {
-    firma_contrato:      { v: 'firma',     ic: '✍️' },
-    firma_anexo:         { v: 'firma',     ic: '📎' },
-    actualizacion_datos: { v: 'perfil',    ic: '🏢' },
-    documento_pendiente: { v: 'docs',      ic: '📄' },
-    otro:                { v: 'consultas', ic: '🔔' },
-  }
-  const irA = (v) => { setAbierta(false); onNavegar && onNavegar(v) }
-
-  // Los grupos siguen el orden de uso: la plata primero, los trámites después.
-  const MENU = [
-    { grupo: 'Tu dinero', solo: 'pagos', items: [
-      { v: 'movimientos', l: 'Movimientos' }, { v: 'facturacion', l: 'Facturación' } ] },
-    { grupo: 'Tu operación', items: [
-      { v: 'flota', l: 'Vehículos y personal' }, { v: 'baja', l: 'Dar de baja' } ] },
-    { grupo: 'Trámites', items: [
-      { v: 'certificar', l: 'Certificar' },
-      { v: 'estado', l: 'Estado de certificación' },
-      { v: 'firma', l: 'Firma de contrato' } ] },
-    { grupo: 'Tu empresa', items: [
-      { v: 'perfil', l: 'Perfil de empresa' }, { v: 'docs', l: 'Documentos' },
-      { v: 'consultas', l: 'Consultas' } ] },
-  ]
-  // En teléfono solo caben unas pocas: las de uso diario.
-  const MOVIL = ['movimientos', 'facturacion', 'flota', 'estado', 'perfil']
-  const grupos = MENU.filter(g => g.solo !== 'pagos' || tercero?.pagosHabilitados)
-  const Item = ({ i, corto }) => (
-    <button className={`item${vista === i.v ? ' activo' : ''}`} onClick={() => irA(i.v)}>
-      <span className="barra" />
-      <span style={{ whiteSpace: 'nowrap' }}>{corto ? i.l.split(' ')[0] : i.l}</span>
-    </button>
-  )
-
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="marca">
-          <img src="https://psvdtgjvognbmxfvqbaa.supabase.co/storage/v1/object/public/logos/bigticket-logo.jpg"
-            alt="Bigticket" style={{ height: 22, width: 'auto', display: 'block' }} />
-          <span style={{ width: 1, height: 20, background: 'rgba(255,255,255,.22)' }} />
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
-            letterSpacing: '.08em', textTransform: 'uppercase', color: '#F4F3F3', whiteSpace: 'nowrap' }}>
-            Portal Transportista
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Campana con desplegable de pendientes */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={abrirCampana}
-              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}>
-              🔔
-              {campana && campana.total > 0 && (
-                <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 17, height: 17, padding: '0 4px',
-                  borderRadius: 999, background: '#F47B20', color: '#fff', fontSize: 10, fontWeight: 800,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
-                  border: '1.5px solid #fff' }}>
-                  {campana.total > 99 ? '99+' : campana.total}
-                </span>
-              )}
-            </button>
-            {abierta && (
-              <>
-                {/* clic fuera = cerrar */}
-                <div onClick={() => setAbierta(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                <div style={{ position: 'absolute', right: -8, top: 32, zIndex: 41, width: 320, maxWidth: '86vw',
-                  background: '#fff', border: '1px solid #e4e7ec', borderRadius: 14,
-                  boxShadow: '0 10px 32px rgba(26,58,107,.16)', overflow: 'hidden' }}>
-                  <div style={{ padding: '11px 15px', borderBottom: '1px solid #f0f1f3', fontSize: 12.5, fontWeight: 800, color: '#1a3a6b' }}>
-                    🔔 Tus pendientes
-                  </div>
-                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-                    {/* Mensajes sin leer */}
-                    {campana && campana.mensajes_sin_leer > 0 && (
-                      <button onClick={() => irA('consultas')} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                        padding: '11px 15px', border: 'none', borderBottom: '1px solid #f6f7f9', background: '#fff', cursor: 'pointer', textAlign: 'left' }}>
-                        <span style={{ fontSize: 17 }}>💬</span>
-                        <span style={{ flex: 1 }}>
-                          <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>
-                            {campana.mensajes_sin_leer} mensaje(s) de BigTicket sin leer</span>
-                          <span style={{ fontSize: 11.5, color: '#8a94a6' }}>Leer y responder en Consultas</span>
-                        </span>
-                        <span style={{ color: '#c3cad6' }}>›</span>
-                      </button>
-                    )}
-                    {/* Solicitudes vivas */}
-                    {detalle === null ? (
-                      <div style={{ padding: '14px 15px', fontSize: 12.5, color: '#8a94a6' }}>Cargando…</div>
-                    ) : detalle.map(d => {
-                      const dst = DESTINO[d.tipo] || DESTINO.otro
-                      const urgente = d.estado === 'escalado'
-                      return (
-                        <button key={d.id} onClick={() => irA(dst.v)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                          padding: '11px 15px', border: 'none', borderBottom: '1px solid #f6f7f9',
-                          background: urgente ? '#fff7f5' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
-                          <span style={{ fontSize: 17 }}>{dst.ic}</span>
-                          <span style={{ flex: 1 }}>
-                            <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{d.titulo}</span>
-                            <span style={{ fontSize: 11.5, color: urgente ? '#c0392b' : '#8a94a6', fontWeight: urgente ? 700 : 400 }}>
-                              {urgente ? '⚠️ Urgente — afecta el pago de tus servicios' : d.estado === 'avisado' ? 'Recordatorio enviado — pendiente de tu parte' : 'Pendiente de tu parte'}
-                            </span>
-                          </span>
-                          <span style={{ color: '#c3cad6' }}>›</span>
-                        </button>
-                      )
-                    })}
-                    {/* Nada pendiente */}
-                    {campana && campana.total === 0 && detalle !== null && detalle.length === 0 && (
-                      <div style={{ padding: '22px 15px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 26, marginBottom: 6 }}>✅</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>Estás al día</div>
-                        <div style={{ fontSize: 11.5, color: '#8a94a6' }}>No tienes mensajes ni pendientes.</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-          <span className="empresa" title={email}>{tercero.nombre}</span>
-          <button className="logout" onClick={() => supabase.auth.signOut()}>Salir</button>
-        </div>
-      </header>
-
-      <div className="app-body">
-        <aside className="app-side">
-          {grupos.map(g => (
-            <div key={g.grupo} className="solo-escritorio">
-              <div className="grupo">{g.grupo}</div>
-              {g.items.map(i => <Item key={i.v} i={i} />)}
-            </div>
-          ))}
-          <div className="solo-movil">
-            {grupos.flatMap(g => g.items).filter(i => MOVIL.includes(i.v))
-              .map(i => <Item key={i.v} i={i} corto />)}
-          </div>
-        </aside>
-        <main className="app-main">{children}</main>
-      </div>
-    </div>
-  )
-}
-
-// ── Home ─────────────────────────────────────────────────────────────
-// Agrupadas por con qué frecuencia entra a cada cosa, no por tipo de trámite.
-// Lo del dinero arriba porque es lo que mira todos los días; certificar abajo
-// porque es algo que hace cuando suma un conductor o una unidad.
-function Home({ onPick, pagosHabilitados, observados = 0, tercero }) {
-  return (
-    <>
-      <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
-        <div className="lede">Tus pagos, tu operación y tus trámites, en un solo lugar.</div></div></div>
-
-      {/* Lo primero que ve: cuánto ganó ayer y cómo va la semana. Las líneas de
-          prefactura se cuentan en la semana en que se cobran, no en la fecha del
-          hecho, para que el total coincida con Movimientos. */}
-      {pagosHabilitados && <Resumen tercero={tercero} onVerMovimientos={() => onPick('movimientos')} />}
-
-      {/* Sin contrato firmado no ve nada de plata: el bloque entero desaparece. */}
-      {pagosHabilitados && (
-        <Seccion titulo="Tu dinero">
-          <button className="type-card" onClick={() => onPick('movimientos')}>
-            <div className="ic">💵</div><h3>Movimientos del día</h3>
-            <p>Tus pagos y descuentos día por día, con el detalle de cada ruta. Desde acá levantas diferencias.</p></button>
-          <button className="type-card" onClick={() => onPick('facturacion')}>
-            <div className="ic">🧾</div><h3>Facturación</h3>
-            <p>Tus prefacturas semanales y las facturas que subes contra cada una.</p></button>
-        </Seccion>
-      )}
-
-      <Seccion titulo="Tu operación">
-        <button className="type-card" onClick={() => onPick('flota')}>
-          <div className="ic">🚛</div><h3>Vehículos y personal</h3>
-          <p>Tu flota y tu gente activa en la operación, con sus documentos.</p></button>
-        <button className="type-card" onClick={() => onPick('baja')}>
-          <div className="ic">🚫</div><h3>Dar de baja</h3>
-          <p>Vehículos, personal certificado o la empresa completa.</p></button>
-      </Seccion>
-
-      <Seccion titulo="Dar de alta">
-        <button className="type-card" onClick={() => onPick('certificar')}>
-          <div className="ic">🪪</div><h3>Certificar</h3>
-          <p>Un conductor, un ayudante o un vehículo nuevo.</p></button>
-        <button className="type-card estado" onClick={() => onPick('estado')}>
-          <div className="ic">📋</div><h3>Estado de certificación</h3>
-          <p>Avance de cada trámite y qué documentos faltan.
-            {observados > 0 && (
-              <b style={{ color: 'var(--orange)', display: 'block', marginTop: 4 }}>
-                {observados} documento{observados === 1 ? '' : 's'} observado{observados === 1 ? '' : 's'}
-              </b>
-            )}
-          </p></button>
-        <button className="type-card" onClick={() => onPick('firma')}>
-          <div className="ic">✍️</div><h3>Firma de contrato</h3>
-          <p>Firma digitalmente los contratos de tu personal certificado.</p></button>
-      </Seccion>
-
-      <Seccion titulo="Tu empresa">
-        <button className="type-card" onClick={() => onPick('perfil')}>
-          <div className="ic">🏢</div><h3>Perfil de empresa</h3>
-          <p>Tus datos y la cuenta donde recibes los pagos.</p></button>
-        <button className="type-card" onClick={() => onPick('docs')}>
-          <div className="ic">🗂</div><h3>Documentos</h3>
-          <p>Contratos, seguros y anexos que BigTicket guarda de tu empresa.</p></button>
-      </Seccion>
-
-      {/* Consultas sigue: Biggy responde al instante lo que sabe, pero cuando
-          hace falta una persona el tercero necesita dónde escribir. */}
-      <button className="type-card" onClick={() => onPick('consultas')}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: 20, marginBottom: 18 }}>
-        <div className="ic" style={{ marginBottom: 0, flexShrink: 0 }}>💬</div>
-        <div><h3 style={{ marginBottom: 2 }}>Consultas</h3>
-          <p>¿Necesitas hablar con alguien del equipo? Escríbenos y te respondemos por aquí.</p></div>
-      </button>
-
-      {/* Cierra la página, no compite con las tarjetas: es una invitación, no
-          un trámite más. En azul corporativo para que se lea distinto. */}
-      <button onClick={() => onPick('postula')}
-        style={{
-          width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
-          background: 'linear-gradient(135deg,var(--navy) 0%,#2d5490 100%)',
-          borderRadius: 18, padding: '22px 24px', marginTop: 4,
-          display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
-        }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <span style={{
-            display: 'inline-block', background: 'var(--orange)', color: '#fff',
-            fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 12, letterSpacing: '.05em',
-          }}>ACCESO PREFERENTE</span>
-          <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginTop: 9 }}>
-            Suma operación con nosotros
-          </div>
-          <div style={{ color: '#b8c6de', fontSize: 12.5, marginTop: 4, lineHeight: 1.55, maxWidth: 480 }}>
-            Mira las operaciones abiertas y postula sin volver a subir los documentos de tu empresa.
-          </div>
-        </div>
-        <span style={{
-          background: 'var(--orange)', color: '#fff', fontSize: 13, fontWeight: 700,
-          padding: '11px 22px', borderRadius: 12, whiteSpace: 'nowrap',
-        }}>Ver operaciones →</span>
-      </button>
-    </>
-  )
-}
-
-// Cada bloque tiene su propio contenedor: con solo un título encima las
-// tarjetas se leían como una lista continua y el agrupado no se notaba.
-function Seccion({ titulo, children }) {
-  return (
-    <section style={{
-      background: 'rgba(26,58,107,.035)',
-      border: '1px solid rgba(26,58,107,.08)',
-      borderRadius: 20, padding: '18px 18px 20px', marginBottom: 18,
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
-      }}>
-        <span style={{ width: 4, height: 16, borderRadius: 2, background: 'var(--orange)' }} />
-        <h3 style={{
-          fontSize: 13, color: 'var(--navy)', letterSpacing: '.05em',
-          textTransform: 'uppercase', fontWeight: 700, margin: 0,
-        }}>{titulo}</h3>
-      </div>
-      <div className="type-grid" style={{ marginBottom: 0 }}>{children}</div>
-    </section>
   )
 }
 
