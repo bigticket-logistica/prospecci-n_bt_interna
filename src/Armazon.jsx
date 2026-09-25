@@ -251,6 +251,28 @@ const corta = (iso) => { const d = new Date(iso + 'T12:00:00'); return `${d.getD
 const rango = (a, b) => a ? `${corta(a)} – ${corta(b || a)}` : ''
 const mesLargo = (p) => { const [y, m] = String(p).split('-'); const t = MESES[Number(m) - 1]; return `${t.charAt(0).toUpperCase()}${t.slice(1)} ${y}` }
 
+// Hito cero del portal: nada anterior se muestra.
+const HITO = '2026-09-14'
+const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+// La semana del Brain es la ISO + 1: la 39 va del lunes 14 al domingo 20 de
+// septiembre de 2026. El rango sale del número de semana, no de las fechas que
+// trae la vista, que son el primer y el último día con movimientos.
+function limitesSemana(semana, referencia) {
+  const anio = referencia ? Number(String(referencia).slice(0, 4)) : new Date().getFullYear()
+  const cuatroEnero = new Date(anio, 0, 4)
+  const lunesSemana1 = new Date(anio, 0, 4 - ((cuatroEnero.getDay() + 6) % 7))
+  const lunes = new Date(lunesSemana1)
+  lunes.setDate(lunes.getDate() + (Number(semana) - 2) * 7)
+  const domingo = new Date(lunes)
+  domingo.setDate(domingo.getDate() + 6)
+  return { desde: isoDe(lunes), hasta: isoDe(domingo) }
+}
+function limitesMes(periodo) {
+  const [y, m] = String(periodo).split('-').map(Number)
+  return { desde: isoDe(new Date(y, m - 1, 1)), hasta: isoDe(new Date(y, m, 0)) }
+}
+
 // Las vistas de resumen no tienen todavía rutas, devoluciones ni NS a
 // domicilio con esos nombres; se toman si existen y si no se muestra "—".
 const rutasDe = (r) => r?.rutas ?? r?.jornadas ?? null
@@ -308,12 +330,16 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     ...avisos,
   ], [perfilOk, avisos])
 
-  // Más reciente primero. Las semanas se ordenan como número: como texto, la 9
-  // quedaría después de la 39.
-  const lista = useMemo(() => periodos.filter(p => p.tipo === vista)
-    .sort((a, b) => vista === 'semana'
-      ? String(b.desde).localeCompare(String(a.desde))
-      : String(b.periodo).localeCompare(String(a.periodo))), [periodos, vista])
+  // Solo desde el hito cero (semana 39), más reciente primero. Las semanas se
+  // ordenan por número: el `desde` de la vista es el primer día con algo
+  // publicado, no el lunes, y ordenar por él desordenaba la lista.
+  const lista = useMemo(() => periodos
+    .filter(p => p.tipo === vista)
+    .map(p => vista === 'semana'
+      ? { ...p, ...limitesSemana(p.periodo, p.desde) }
+      : { ...p, ...limitesMes(p.periodo) })
+    .filter(p => p.hasta >= HITO)
+    .sort((a, b) => b.desde.localeCompare(a.desde)), [periodos, vista])
   useEffect(() => { setIdx(0) }, [vista])
   const actual = lista[idx] || null
   const hayAnterior = idx < lista.length - 1
