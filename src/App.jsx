@@ -362,9 +362,9 @@ function Home({ onPick, pagosHabilitados, observados = 0, tercero }) {
       <div className="page-head"><div><h2>¿Qué quieres hacer?</h2>
         <div className="lede">Tus pagos, tu operación y tus trámites, en un solo lugar.</div></div></div>
 
-      {/* Lo primero que ve: cuánto ganó ayer y cómo va la semana. Antes tenía
-          que entrar a Movimientos y elegir una semana para saberlo. */}
-      {pagosHabilitados && <Resumen tercero={tercero} onVerMovimientos={() => onPick('movimientos')} />}
+      {/* Resumen desactivado: agrupa las líneas de prefactura por la fecha del
+          hecho en vez de por la semana en que se cobran, así que los totales no
+          coinciden con Movimientos. Se vuelve a activar cuando esté corregido. */}
 
       {/* Sin contrato firmado no ve nada de plata: el bloque entero desaparece. */}
       {pagosHabilitados && (
