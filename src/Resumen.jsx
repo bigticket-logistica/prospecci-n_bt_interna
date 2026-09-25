@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })
+const money = (n) => (Number(n || 0) < 0 ? '−$' : '$') + Math.abs(Number(n || 0)).toLocaleString('es-MX', { maximumFractionDigits: 0 })
 const num = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
@@ -81,11 +81,20 @@ export default function Resumen({ tercero, onVerMovimientos }) {
           Jornada del {fechaLarga(dia.fecha)}
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginTop: 6 }}>
-          <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--navy)', letterSpacing: '-.02em' }}>
+          <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.02em',
+            color: Number(dia.ganancia) < 0 ? 'var(--red)' : 'var(--navy)' }}>
             {money(dia.ganancia)}
           </span>
           <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>MXN</span>
         </div>
+
+        {/* Si ese día hubo descuentos, se muestran: el número grande es el neto
+            y sin el desglose parecería que ganó menos de lo que trabajó. */}
+        {Number(dia.cargos || 0) !== 0 && (
+          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>
+            {money(dia.viajes)} en viajes · <span style={{ color: 'var(--red)' }}>{money(dia.cargos)} en descuentos</span>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 14 }}>
           <Dato v={num(dia.entregas)} k="Entregas" />
@@ -147,9 +156,15 @@ export default function Resumen({ tercero, onVerMovimientos }) {
                     style={{ ...flecha, opacity: idx === 0 ? .25 : 1 }}>›</button>
                 )}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--navy)', marginTop: 6, letterSpacing: '-.02em' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 6, letterSpacing: '-.02em',
+                color: Number(actual.ganancia) < 0 ? 'var(--red)' : 'var(--navy)' }}>
                 {money(actual.ganancia)}
               </div>
+              {Number(actual.cargos || 0) !== 0 && (
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>
+                  {money(actual.viajes)} en viajes · <span style={{ color: 'var(--red)' }}>{money(actual.cargos)} en descuentos</span>
+                </div>
+              )}
               <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
                 {num(actual.jornadas)} jornada{Number(actual.jornadas) === 1 ? '' : 's'} · {num(actual.unidades)} unidad{Number(actual.unidades) === 1 ? '' : 'es'}
               </div>
