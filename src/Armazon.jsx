@@ -5,11 +5,12 @@
 // Las medidas, colores y tipografías salen tal cual del HTML de la maqueta.
 // Cuando algo se aparta de ella es porque la maqueta no lo cubre:
 //   · el desplegable de la campana y el de la empresa (la maqueta solo dibuja
-//     los botones; acá hace falta ver los pendientes y poder cerrar sesión)
+//     los botones; aquí hace falta ver los pendientes y poder cerrar sesión)
 //   · el menú en teléfono, que la maqueta no diseñó
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { cargarNotificaciones, marcarLeida, cuentaCampana } from './notificaciones'
 
 const LOGO = '/logo-bigticket-blanco.png'
 
@@ -56,11 +57,6 @@ const GRUPO_DE = {
   perfil: 'empresa', docs: 'empresa', consultas: 'empresa',
 }
 
-// Adónde lleva cada tipo de pendiente de la campana.
-const DESTINO = {
-  firma_contrato: 'firma', firma_anexo: 'firma',
-  actualizacion_datos: 'perfil', documento_pendiente: 'docs', otro: 'consultas',
-}
 
 const Chevron = ({ size = 13, color = 'currentColor', w = 2.5, style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={w}
@@ -72,31 +68,32 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
   const [abierto, setAbierto] = useState(null)       // grupo desplegado en el menú
   const [panel, setPanel] = useState(null)           // 'campana' | 'empresa' | null
   const [menuMovil, setMenuMovil] = useState(false)
-  const [campana, setCampana] = useState(null)
-  const [pendientes, setPendientes] = useState(null)
+  const [avisos, setAvisos] = useState(null)       // notificaciones del portal
+  const [sinLeer, setSinLeer] = useState(0)          // mensajes de Consultas
 
   useEffect(() => {
     if (!tercero?.tercero_id) return
     const leer = async () => {
-      const { data } = await supabase.from('vw_campana_tercero')
-        .select('mensajes_sin_leer, solicitudes_pendientes, total')
-        .eq('tercero_id', tercero.tercero_id).maybeSingle()
-      setCampana(data || null)
+      const [lista, c] = await Promise.all([
+        cargarNotificaciones(tercero.tercero_id),
+        supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', tercero.tercero_id).maybeSingle(),
+      ])
+      setAvisos(lista)
+      setSinLeer(c.data?.mensajes_sin_leer || 0)
     }
     leer()
     const t = setInterval(() => { if (!document.hidden) leer() }, 60000)
     return () => clearInterval(t)
   }, [tercero])
 
-  const abrirCampana = async () => {
-    if (panel === 'campana') { setPanel(null); return }
-    setPanel('campana')
-    const { data } = await supabase.from('solicitudes_tercero')
-      .select('id, tipo, titulo, estado, solicitado_at')
-      .eq('tercero_id', tercero.tercero_id)
-      .in('estado', ['pendiente', 'avisado', 'escalado'])
-      .order('solicitado_at', { ascending: true })
-    setPendientes(data || [])
+  const abrirCampana = () => setPanel(panel === 'campana' ? null : 'campana')
+
+  const abrirAviso = (n) => {
+    if (!n.leida_at) {
+      marcarLeida(n.id)
+      setAvisos(prev => (prev || []).map(x => x.id === n.id ? { ...x, leida_at: new Date().toISOString() } : x))
+    }
+    ir(n.destino)
   }
 
   // Igual que la maqueta: navegar cierra cualquier grupo abierto.
@@ -108,7 +105,7 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
 
   const activo = GRUPO_DE[vista] || 'inicio'
   const grupos = MENU.filter(g => !g.pagos || tercero?.pagosHabilitados)
-  const total = campana?.total || 0
+  const total = cuentaCampana(avisos || []) + (sinLeer > 0 ? 1 : 0)
 
   return (
     <div className="bt-shell">
@@ -134,26 +131,27 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
             </button>
             {panel === 'campana' && (
               <Desplegable onCerrar={() => setPanel(null)} ancho={330}>
-                <div className="bt-desp-titulo">Tus pendientes</div>
-                {campana?.mensajes_sin_leer > 0 && (
-                  <button className="bt-desp-item" onClick={() => ir('consultas')}>
-                    <span className="t">{campana.mensajes_sin_leer} {campana.mensajes_sin_leer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer</span>
-                    <span className="d">Léelos y respóndelos en Consultas</span>
-                  </button>
-                )}
-                {pendientes === null
-                  ? <div className="bt-desp-vacio">Cargando…</div>
-                  : pendientes.map(p => (
-                    <button key={p.id} className={`bt-desp-item${p.estado === 'escalado' ? ' urgente' : ''}`}
-                      onClick={() => ir(DESTINO[p.tipo] || 'consultas')}>
-                      <span className="t">{p.titulo}</span>
-                      <span className="d">{p.estado === 'escalado' ? 'Urgente: afecta el pago de tus servicios'
-                        : p.estado === 'avisado' ? 'Te enviamos un recordatorio' : 'Pendiente de tu parte'}</span>
+                <div className="bt-desp-titulo">Notificaciones</div>
+                <div className="bt-desp-lista">
+                  {sinLeer > 0 && (
+                    <button className="bt-desp-item" onClick={() => ir('consultas')}>
+                      <span className="t">{sinLeer} {sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer</span>
+                      <span className="d">Léelos y respóndelos en Consultas</span>
                     </button>
-                  ))}
-                {pendientes !== null && pendientes.length === 0 && !(campana?.mensajes_sin_leer > 0) && (
-                  <div className="bt-desp-vacio">Estás al día. No tienes mensajes ni pendientes.</div>
-                )}
+                  )}
+                  {avisos === null
+                    ? <div className="bt-desp-vacio">Cargando…</div>
+                    : avisos.map(n => (
+                      <button key={n.id} className={`bt-desp-item e-${n.pastilla.estilo}${n.leida_at && n.clase !== 'pendiente' ? ' leida' : ''}`}
+                        onClick={() => abrirAviso(n)}>
+                        <span className="t">{n.titulo}</span>
+                        <span className="d">{n.pastilla.etiqueta}{n.detalle ? ` · ${n.detalle}` : ''}</span>
+                      </button>
+                    ))}
+                  {avisos !== null && avisos.length === 0 && sinLeer === 0 && (
+                    <div className="bt-desp-vacio">Estás al día. No tienes pendientes ni novedades.</div>
+                  )}
+                </div>
               </Desplegable>
             )}
           </div>
@@ -285,37 +283,23 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [vista, setVista] = useState('semana')
   const [idx, setIdx] = useState(0)          // 0 = el período más reciente
   const [avisos, setAvisos] = useState([])
+  const [sinLeer, setSinLeer] = useState(0)
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     const id = tercero.tercero_id
-    const [d, p, s, c] = await Promise.all([
+    const [d, p, lista, c] = await Promise.all([
       supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
         .order('fecha', { ascending: false }).limit(1),
       supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id),
-      supabase.from('solicitudes_tercero').select('id, tipo, titulo, estado, solicitado_at')
-        .eq('tercero_id', id).in('estado', ['pendiente', 'avisado', 'escalado'])
-        .order('solicitado_at', { ascending: true }),
+      cargarNotificaciones(id),
       supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(),
     ])
     setDia((d.data || [])[0] || null)
     setPeriodos(p.data || [])
-    const lista = (s.data || []).map(x => ({
-      id: x.id,
-      titulo: x.titulo,
-      detalle: x.estado === 'escalado' ? 'Afecta el pago de tus servicios'
-        : x.estado === 'avisado' ? 'Te enviamos un recordatorio' : 'Pendiente de tu parte',
-      urgente: x.estado === 'escalado',
-      etiqueta: x.estado === 'escalado' ? 'Urgente' : 'Pendiente',
-      v: DESTINO[x.tipo] || 'consultas',
-    }))
-    const sinLeer = c.data?.mensajes_sin_leer || 0
-    if (sinLeer > 0) lista.push({
-      id: 'mensajes', v: 'consultas', urgente: false, etiqueta: 'Nuevo',
-      titulo: `${sinLeer} ${sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer`,
-      detalle: 'Léelos y respóndelos en Consultas',
-    })
-    setAvisos(lista)
+    // En el Inicio van las pendientes y las novedades que todavía no abre.
+    setAvisos(lista.filter(n => n.clase === 'pendiente' || !n.leida_at))
+    setSinLeer(c.data?.mensajes_sin_leer || 0)
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -323,12 +307,22 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   // Sin la cuenta de pago no se le paga: va primero y en rojo.
   const notificaciones = useMemo(() => [
     ...(perfilOk === false ? [{
-      id: 'perfil', v: 'perfil', urgente: true, etiqueta: 'Urgente',
+      id: 'perfil', destino: 'perfil', pastilla: { estilo: 'rojo', etiqueta: 'Urgente' },
       titulo: 'Tu perfil de empresa está incompleto',
       detalle: 'Sin la cuenta de pago (banco, CLABE y su comprobante) no se realizan pagos a tu empresa',
     }] : []),
     ...avisos,
-  ], [perfilOk, avisos])
+    ...(sinLeer > 0 ? [{
+      id: 'mensajes', destino: 'consultas', pastilla: { estilo: 'azul', etiqueta: 'Nuevo' },
+      titulo: `${sinLeer} ${sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer`,
+      detalle: 'Léelos y respóndelos en Consultas',
+    }] : []),
+  ], [perfilOk, avisos, sinLeer])
+
+  const abrir = (n) => {
+    if (typeof n.id === 'number' && !n.leida_at) marcarLeida(n.id)
+    onPick(n.destino)
+  }
 
   // Solo desde el hito cero (semana 39), más reciente primero. Las semanas se
   // ordenan por número: el `desde` de la vista es el primer día con algo
@@ -354,12 +348,12 @@ export function Inicio({ tercero, perfilOk, onPick }) {
           <span className="bt-eyebrow">Notificaciones</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {notificaciones.map(n => (
-              <button key={n.id} className={`bt-aviso${n.urgente ? ' urgente' : ''}`} onClick={() => onPick(n.v)}>
+              <button key={n.id} className={`bt-aviso e-${n.pastilla.estilo}`} onClick={() => abrir(n)}>
                 <div style={{ minWidth: 0 }}>
                   <h3>{n.titulo}</h3>
                   <p>{n.detalle}</p>
                 </div>
-                <span className="bt-pill">{n.etiqueta}</span>
+                <span className="bt-pill">{n.pastilla.etiqueta}</span>
               </button>
             ))}
           </div>

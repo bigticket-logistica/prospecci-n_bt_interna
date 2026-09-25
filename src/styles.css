@@ -190,8 +190,14 @@ tr:last-child td { border-bottom: none; }
 .bt-desp-item:hover { background: #F4F3F3; }
 .bt-desp-item .t { display: block; font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--navy); }
 .bt-desp-item .d { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
-.bt-desp-item.urgente { border-left: 3px solid #C43D2F; }
-.bt-desp-item.urgente .d { color: #C43D2F; }
+.bt-desp-lista { max-height: min(420px, 60vh); overflow-y: auto; }
+.bt-desp-item.e-rojo { border-left: 3px solid #C43D2F; }
+.bt-desp-item.e-rojo .d { color: #C43D2F; }
+.bt-desp-item.e-naranja { border-left: 3px solid var(--orange); }
+.bt-desp-item.e-azul { border-left: 3px solid var(--navy); }
+.bt-desp-item.e-verde { border-left: 3px solid var(--green); }
+.bt-desp-item.leida { border-left-color: transparent; }
+.bt-desp-item.leida .t { font-weight: 600; color: var(--muted); }
 .bt-desp-vacio { padding: 16px; font-size: 13px; color: var(--muted); }
 
 /* Cuerpo + menú lateral */
@@ -265,14 +271,20 @@ tr:last-child td { border-bottom: none; }
   border-left: 4px solid var(--orange); border-radius: 12px; padding: 14px 18px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
-.bt-aviso.urgente { border-left-color: #C43D2F; }
+/* Colores de alerta: rojo y naranja son los de la maqueta; azul y verde, los
+   del manual de marca para novedades y resultados a favor. */
+.bt-aviso.e-rojo { border-left-color: #C43D2F; }
+.bt-aviso.e-azul { border-left-color: var(--navy); }
+.bt-aviso.e-verde { border-left-color: var(--green); }
 .bt-aviso h3 { font-family: var(--font-display); font-weight: 700; font-size: 14.5px; color: var(--navy); margin: 0 0 4px; letter-spacing: 0; }
 .bt-aviso p { font-size: 13px; color: var(--muted); margin: 0; }
 .bt-pill {
   font-family: var(--font-display); font-weight: 700; font-size: 12px; color: var(--orange);
   background: #FDE7D7; padding: 6px 14px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
 }
-.bt-aviso.urgente .bt-pill { color: #C43D2F; background: #FBE3E0; }
+.bt-aviso.e-rojo .bt-pill { color: #C43D2F; background: #FBE3E0; }
+.bt-aviso.e-azul .bt-pill { color: var(--navy); background: #E1E8F0; }
+.bt-aviso.e-verde .bt-pill { color: var(--green); background: #E2F1E7; }
 
 .bt-tarjetas {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
