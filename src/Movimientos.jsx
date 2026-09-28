@@ -75,6 +75,13 @@ const tdC = { padding: '9px 12px', fontSize: 12, textAlign: 'right', fontVariant
 
 const claveDe = (m) => `${m.tipo}|${m.fecha}|${m.ref}`
 
+// Los cobros por PNR no se reclaman: MELI ya rechazó el respaldo y el cargo
+// pasó a facturación, así que no tiene reverso. Se marcan como inapelables en
+// vez de dejar que el tercero levante una diferencia que nace rechazada.
+const esInapelable = (m) => m.tipo === 'cobro'
+  && (String(m.tipo_cobro || '').toLowerCase().includes('pnr')
+    || /^pnr\b/i.test(String(m.concepto || '')))
+
 // El portal arranca el 14 de septiembre de 2026: antes de esa fecha no hay
 // publicaciones, así que retroceder solo mostraría semanas vacías.
 const INICIO_PORTAL = '2026-09-14'
@@ -174,6 +181,28 @@ export default function Movimientos({ tercero, email, onBack }) {
     return m
   }, [misDif])
 
+  // Un reclamo se muestra en la semana de lo que reclama. En las semanas
+  // siguientes ya no tiene contexto: el tercero veía el rechazo de una línea
+  // que no aparece en pantalla.
+  const difSemana = useMemo(() => {
+    const vistas = new Set()
+    for (const f of filas) {
+      if (f.tipo === 'cobro' && f.cobro_id != null) vistas.add(`cobro|${f.cobro_id}`)
+      else if (f.tipo === 'pago') vistas.add(`pago|${f.fecha}|${f.ref}`)
+    }
+    const desde = iso(lunes), hasta = iso(domingo)
+    const enSemana = (f) => f && String(f) >= desde && String(f) <= hasta
+    return misDif.filter(d => {
+      const ls = d.diferencias_lineas || []
+      // Por la línea reclamada, cuando ese movimiento está en el listado.
+      if (ls.some(l => (l.cobro_id != null && vistas.has(`cobro|${l.cobro_id}`))
+        || (l.id_ruta && vistas.has(`pago|${l.fecha}|${l.id_ruta}`)))) return true
+      // Una ruta que falta no tiene movimiento: manda su propia fecha.
+      if (ls.some(l => !l.cobro_id && !l.id_ruta && enSemana(l.fecha))) return true
+      return ls.length === 0 && enSemana(String(d.creada_at).slice(0, 10))
+    })
+  }, [misDif, filas, lunes, domingo])
+
   const retirar = async (d) => {
     if (!confirm(`¿Retirar la diferencia #${d.folio}?\n\nDeja de estar en revisión y no se vuelve a abrir.`)) return
     const { error } = await supabase.from('diferencias').update({ estado: 'retirada' }).eq('id', d.id)
@@ -265,8 +294,10 @@ export default function Movimientos({ tercero, email, onBack }) {
   const pagadoAt = pagada ? prefSC.map(p => p.pagado_at).sort()[0] : null
 
   const nSel = Object.keys(sel).length + faltantes.length
+  const hayInapelables = useMemo(() => filas.some(esInapelable), [filas])
 
   const toggleSel = (m) => {
+    if (esInapelable(m)) return
     const k = claveDe(m)
     setSel(p => {
       const n = { ...p }
@@ -285,7 +316,7 @@ export default function Movimientos({ tercero, email, onBack }) {
     try {
       const porClave = {}
       for (const f of filas) porClave[claveDe(f)] = f
-      const lineasSel = Object.entries(sel).map(([k, comentario]) => {
+      const lineasSel = Object.entries(sel).filter(([k]) => !esInapelable(porClave[k] || {})).map(([k, comentario]) => {
         const m = porClave[k]
         return {
           tipo: m.tipo === 'cobro' ? 'cobro' : 'ruta',
@@ -442,6 +473,7 @@ export default function Movimientos({ tercero, email, onBack }) {
           <>
             <span style={{ fontSize: 12.5, color: 'var(--ink)' }}>
               <b>{nSel}</b> línea(s) marcada(s). Escribe qué reclamas en cada una.
+              {hayInapelables && <span style={{ color: 'var(--muted)' }}> Los cobros por PNR no se pueden marcar: MELI rechaza sus respaldos y ya pasaron a facturación.</span>}
             </span>
             <span style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setReclamando(false); setSel({}); setFaltantes([]); setFotos([]) }}
@@ -458,12 +490,12 @@ export default function Movimientos({ tercero, email, onBack }) {
       </div>
 
       {/* Mis diferencias: en qué va cada reclamo */}
-      {misDif.length > 0 && !reclamando && (
+      {difSemana.length > 0 && !reclamando && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 14, overflow: 'hidden' }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--line)', fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>
             Mis diferencias
           </div>
-          {misDif.map(d => {
+          {difSemana.map(d => {
             const e = EST_DIF[d.estado] || EST_DIF.abierta
             const abierta = difAbierta === d.id
             const puedeRetirar = d.estado === 'abierta'
@@ -562,14 +594,18 @@ export default function Movimientos({ tercero, email, onBack }) {
                 const tabla = pagada ? ESTADOS_PAGADOS : ESTADOS
                 const est = tabla[m.estado] || tabla.aprobada
                 const esCobro = m.tipo === 'cobro'
+                const inapelable = esInapelable(m)
                 const monto = Number(m.monto || 0)
                 const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
                 return (
                   <tr key={k} style={{ background: marcado ? 'var(--orange-soft)' : 'transparent' }}>
                     {reclamando && (
                       <td style={{ ...tdC, width: 34 }}>
-                        <input type="checkbox" checked={marcado} onChange={() => toggleSel(m)}
-                          style={{ width: 16, height: 16, accentColor: 'var(--orange)' }} />
+                        <input type="checkbox" checked={marcado} disabled={inapelable}
+                          onChange={() => toggleSel(m)}
+                          title={inapelable ? 'Los cobros por PNR no admiten reclamo' : ''}
+                          style={{ width: 16, height: 16, accentColor: 'var(--orange)',
+                            cursor: inapelable ? 'not-allowed' : 'pointer', opacity: inapelable ? 0.3 : 1 }} />
                       </td>
                     )}
                     <td style={{ ...tdC, textAlign: 'left', color: 'var(--muted)', fontSize: 11.5 }}>
@@ -585,6 +621,12 @@ export default function Movimientos({ tercero, email, onBack }) {
                         {m.estado !== 'aprobada' && (
                           <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: est.bg, color: est.fg }}>
                             {est.label.toUpperCase()}
+                          </span>
+                        )}
+                        {inapelable && (
+                          <span title="MELI rechaza los respaldos de un PNR facturado, así que este cobro no se puede reclamar"
+                            style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: '#EFEFEF', color: 'var(--muted)' }}>
+                            INAPELABLE
                           </span>
                         )}
                         {rec && (() => {
