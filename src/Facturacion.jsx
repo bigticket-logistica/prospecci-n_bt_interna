@@ -307,7 +307,9 @@ export default function Facturacion({ tercero, email, onBack }) {
                           PAGADA
                         </span>
                       )}
-                      {p.facturas.length > 0 && (
+                      {/* Pagada ya implica facturada: las dos juntas solo
+                          ocupan espacio y hacen dudar de cuál manda. */}
+                      {!p.pagado_at && p.facturas.length > 0 && (
                         <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--green-soft)', color: 'var(--green)' }}>
                           FACTURADA
                         </span>
