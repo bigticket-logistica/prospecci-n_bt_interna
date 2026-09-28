@@ -19,7 +19,32 @@ const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFract
 const fecha = (s) => s ? new Date(s).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
 const fechaCorta = (s) => s ? new Date(s + (String(s).length <= 10 ? 'T12:00:00' : '')).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—'
 
-export default function Facturacion({ tercero, email, onBack }) {
+// Las tres entradas del menú son la misma pantalla en tres momentos del ciclo:
+// pendiente de factura, factura en validación y ya pagada. Mostrarlas todas
+// en las tres hacía que el menú prometiera un filtro que no existía.
+const VISTAS = {
+  facturacion: {
+    titulo: 'Por facturar',
+    ayuda: 'Las prefacturas que todavía esperan tu factura. Súbela y queda conciliada.',
+    filtra: (p) => !p.pagado_at && p.facturas.length === 0,
+    vacio: ['Estás al día', 'No tienes prefacturas pendientes de factura. La de cada semana se arma el lunes con los días que ya viste en Movimientos.'],
+  },
+  facturado: {
+    titulo: 'Facturado',
+    ayuda: 'Las facturas que ya subiste y están en validación. Cuando se pague, pasan a Pagado.',
+    filtra: (p) => !p.pagado_at && p.facturas.length > 0,
+    vacio: ['No hay facturas en validación', 'Aquí aparecen las facturas que subiste mientras esperan el pago.'],
+  },
+  pagado: {
+    titulo: 'Pagado',
+    ayuda: 'Las prefacturas que ya se te pagaron, con su fecha y referencia de depósito.',
+    filtra: (p) => !!p.pagado_at,
+    vacio: ['Todavía no hay pagos', 'Aquí aparecen las semanas que ya se te pagaron, con la referencia del depósito.'],
+  },
+}
+
+export default function Facturacion({ tercero, email, onBack, vista = 'facturacion' }) {
+  const V = VISTAS[vista] || VISTAS.facturacion
   const [filas, setFilas] = useState(null)
   const [abierta, setAbierta] = useState(null)
   const [scSel, setScSel] = useState('todos')
@@ -197,15 +222,16 @@ export default function Facturacion({ tercero, email, onBack }) {
   // una factura distinta, así que quien opera en varios necesita poder mirarlos
   // de a uno sin que se le mezclen los números.
   const centros = useMemo(() => {
-    const cs = new Set((filas || []).map(p => p.service_center).filter(Boolean))
+    const cs = new Set((filas || []).filter(V.filtra).map(p => p.service_center).filter(Boolean))
     return [...cs].sort()
-  }, [filas])
+  }, [filas, V])
 
   // Agrupadas por semana: una empresa puede tener una prefactura por centro,
   // y lo que le importa es cuánto cobra esa semana en total.
   const semanas = useMemo(() => {
     const m = new Map()
     for (const p of (filas || [])) {
+      if (!V.filtra(p)) continue
       if (scSel !== 'todos' && p.service_center !== scSel) continue
       if (!m.has(p.semana)) m.set(p.semana, [])
       m.get(p.semana).push(p)
@@ -218,18 +244,15 @@ export default function Facturacion({ tercero, email, onBack }) {
       liquido: prefs.reduce((t, p) => t + Number(p.liquido_pago || 0), 0),
       conFactura: prefs.filter(p => p.facturas.length > 0).length,
     }))
-  }, [filas, scSel])
+  }, [filas, scSel, V])
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <button className="back-link" onClick={onBack}>← Volver</button>
 
       <div style={{ background: 'var(--navy)', color: '#fff', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Facturación</div>
-        <div style={{ fontSize: 12.5, color: '#b8c6de', marginTop: 3, lineHeight: 1.5 }}>
-          Tus prefacturas semanales y las facturas que subes contra cada una.
-          Lo que ves acá es el mismo detalle que revisaste día por día en Movimientos.
-        </div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{V.titulo}</div>
+        <div style={{ fontSize: 12.5, color: '#b8c6de', marginTop: 3, lineHeight: 1.5 }}>{V.ayuda}</div>
       </div>
 
       {centros.length > 1 && (
@@ -258,10 +281,9 @@ export default function Facturacion({ tercero, email, onBack }) {
         <div style={{ color: 'var(--muted)', fontSize: 14, padding: 24, textAlign: 'center' }}>Cargando…</div>
       ) : semanas.length === 0 ? (
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 32, textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Todavía no hay prefacturas</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{V.vacio[0]}</div>
           <div style={{ fontSize: 13.5, color: 'var(--muted)', maxWidth: 460, margin: '0 auto', lineHeight: 1.5 }}>
-            La prefactura de cada semana se arma el lunes con los días que ya viste en Movimientos.
-            Apenas se envía, aparece acá para que la revises y subas tu factura.
+            {V.vacio[1]}
           </div>
         </div>
       ) : semanas.map(s => (
