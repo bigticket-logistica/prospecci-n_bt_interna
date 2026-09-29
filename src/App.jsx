@@ -5,6 +5,7 @@ import Facturacion from './Facturacion'
 import Postula from './Postula'
 import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
+import Landing from './Landing'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -132,7 +133,7 @@ export default function App() {
   }
   useEffect(() => { if (tercero?.tercero_id) revisarPerfil() }, [tercero])
 
-  if (!session) return <Login />
+  if (!session) return <Landing />
   if (tercero === undefined) return <PantallaCentro titulo="Cargando…" texto="Buscando tu empresa." />
   if (tercero === null) return (
     <PantallaCentro titulo="Cuenta sin empresa asociada"
