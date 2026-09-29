@@ -120,11 +120,6 @@ export default function App() {
     return () => { cancel = true }
   }, [session])
 
-  if (modoRecovery) return <DefinirPassword onListo={() => {
-    setModoRecovery(false)
-    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname)
-  }} />
-
   const [perfilOk, setPerfilOk] = useState(null)   // null = sin revisar aún
   const revisarPerfil = async () => {
     if (!tercero?.tercero_id) return
@@ -132,6 +127,20 @@ export default function App() {
     setPerfilOk(perfilCompleto(data))
   }
   useEffect(() => { if (tercero?.tercero_id) revisarPerfil() }, [tercero])
+
+  // La landing guarda a dónde quería llegar el tercero antes de entrar: quien
+  // pulsó "Más información" en el peak aterriza en Postula, no en el inicio.
+  useEffect(() => {
+    if (!tercero?.tercero_id) return
+    let destino = null
+    try { destino = sessionStorage.getItem('bt_destino'); sessionStorage.removeItem('bt_destino') } catch { /* sin sessionStorage */ }
+    if (destino) setView(destino)
+  }, [tercero])
+
+  if (modoRecovery) return <DefinirPassword onListo={() => {
+    setModoRecovery(false)
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname)
+  }} />
 
   if (!session) return <Landing />
   if (tercero === undefined) return <PantallaCentro titulo="Cargando…" texto="Buscando tu empresa." />

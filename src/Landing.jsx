@@ -32,16 +32,19 @@ const SLIDES = [
     titulo: 'Súmate al peak season.',
     texto: 'Suma tus unidades, certifícalas y opera cuando más se necesita.',
     cta: 'Más información',
+    destino: 'postula',
   },
 ]
 
+// Cada atajo entra al portal y aterriza en su pantalla, en vez de dejar al
+// tercero en el inicio buscando dónde estaba lo que vino a hacer.
 const NECESIDADES = [
-  { label: 'Rutas', d: 'M3 17V7h11v10M14 10h4l3 3v4h-7M6.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z' },
-  { label: 'Documentos', d: 'M14 3H6v18h12V7l-4-4zM14 3v4h4M9 12h6M9 16h6' },
-  { label: 'Facturación', d: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6' },
-  { label: 'Pagos', d: 'M3 6h18v12H3zM3 10h18M7 15h3' },
-  { label: 'Mi flota', d: 'M4 11l2-5h12l2 5M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01' },
-  { label: 'Soporte', d: 'M4 13a8 8 0 0116 0M4 13v4h3v-5H4M20 13v4h-3v-5h3M17 17c0 2-2 3-5 3' },
+  { label: 'Rutas', v: 'movimientos', d: 'M3 17V7h11v10M14 10h4l3 3v4h-7M6.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z' },
+  { label: 'Documentos', v: 'docs', d: 'M14 3H6v18h12V7l-4-4zM14 3v4h4M9 12h6M9 16h6' },
+  { label: 'Facturación', v: 'facturacion', d: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6' },
+  { label: 'Pagos', v: 'pagado', d: 'M3 6h18v12H3zM3 10h18M7 15h3' },
+  { label: 'Mi flota', v: 'flota', d: 'M4 11l2-5h12l2 5M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01' },
+  { label: 'Soporte', v: 'consultas', d: 'M4 13a8 8 0 0116 0M4 13v4h3v-5H4M20 13v4h-3v-5h3M17 17c0 2-2 3-5 3' },
 ]
 
 const Flecha = ({ dir = 'der', size = 10 }) => (
@@ -55,6 +58,16 @@ export default function Landing() {
   const [slide, setSlide] = useState(0)
   const [abierto, setAbierto] = useState(false)
   const timer = useRef(null)
+
+  // Adónde llevar al tercero una vez dentro. Se guarda aquí y App lo aplica
+  // después de resolver su empresa; si no hay sessionStorage, entra al inicio.
+  const abrirAcceso = (destino) => {
+    try {
+      if (destino) sessionStorage.setItem('bt_destino', destino)
+      else sessionStorage.removeItem('bt_destino')
+    } catch { /* sin sessionStorage: entra al inicio */ }
+    setAbierto(true)
+  }
 
   const arrancar = useCallback(() => {
     clearInterval(timer.current)
@@ -79,7 +92,7 @@ export default function Landing() {
           <span className="lp-sep" />
           <span className="lp-rotulo">Portal del Transportista</span>
         </div>
-        <button className="lp-entrar" onClick={() => setAbierto(true)}>Ingresar al portal</button>
+        <button className="lp-entrar" onClick={() => abrirAcceso()}>Ingresar al portal</button>
       </header>
 
       <section className="lp-hero">
@@ -94,7 +107,7 @@ export default function Landing() {
                 <h1>{s.titulo}</h1>
                 <p>{s.texto}</p>
                 {s.cta && (
-                  <button className="lp-cta" onClick={() => setAbierto(true)}>
+                  <button className="lp-cta" onClick={() => abrirAcceso(s.destino)}>
                     {s.cta}<Flecha />
                   </button>
                 )}
@@ -120,7 +133,7 @@ export default function Landing() {
         </div>
         <div className="lp-nec-items">
           {NECESIDADES.map(n => (
-            <button key={n.label} onClick={() => setAbierto(true)}>
+            <button key={n.label} onClick={() => abrirAcceso(n.v)}>
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={ORANGE}
                 strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={n.d} />
