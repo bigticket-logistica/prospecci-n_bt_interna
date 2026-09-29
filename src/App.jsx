@@ -130,11 +130,19 @@ export default function App() {
 
   // La landing guarda a dónde quería llegar el tercero antes de entrar: quien
   // pulsó "Más información" en el peak aterriza en Postula, no en el inicio.
+  // Esto ocurre después de la sesión y de resolver su empresa, así que no
+  // adelanta ninguna pantalla: solo elige cuál abrir primero.
   useEffect(() => {
     if (!tercero?.tercero_id) return
     let destino = null
     try { destino = sessionStorage.getItem('bt_destino'); sessionStorage.removeItem('bt_destino') } catch { /* sin sessionStorage */ }
-    if (destino) setView(destino)
+    if (!destino) return
+    // Solo pantallas que su menú muestra: sin pagos habilitados, billetera y
+    // facturación no existen para este tercero.
+    const dePagos = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
+    const permitidas = ['postula', 'flota', 'consultas', 'docs', 'perfil', 'estado', 'firma', 'baja', 'certificar',
+      ...(tercero.pagosHabilitados ? dePagos : [])]
+    if (permitidas.includes(destino)) setView(destino)
   }, [tercero])
 
   if (modoRecovery) return <DefinirPassword onListo={() => {
