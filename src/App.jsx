@@ -6,6 +6,7 @@ import Postula from './Postula'
 import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing from './Landing'
+import Descuentos from './Descuentos'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -33,6 +34,12 @@ const ETAPA_PORTAL = {
 const TIPO_LABEL = { conductor:'Conductor', ayudante:'Ayudante', vehiculo:'Vehículo' }
 
 // ─── Definir nueva contraseña (llegada desde el correo de restablecimiento) ───
+// La landing marca aquí que la sesión viene de un código de recuperación, para
+// que el portal exija la clave nueva en vez de entrar directo.
+function banderaRecovery() {
+  try { return sessionStorage.getItem('bt_recovery') === '1' } catch { return false }
+}
+
 function DefinirPassword({ onListo }) {
   const [p1, setP1] = useState('')
   const [p2, setP2] = useState('')
@@ -86,16 +93,18 @@ export default function App() {
   const [view, setView] = useState('home') // home | estado | conductor | ayudante | vehiculo | firma
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
-  // Modo recuperación: el enlace del correo llega con type=recovery en el hash.
+  // Modo recuperación. Dos caminos: el código de 6 dígitos que el tercero
+  // escribe en la landing (deja la bandera antes de crear la sesión) y el
+  // enlace antiguo del correo, que llega con type=recovery en el hash.
   const [modoRecovery, setModoRecovery] = useState(
-    typeof window !== 'undefined' && /type=recovery/.test(window.location.hash || '')
+    typeof window !== 'undefined' && (/type=recovery/.test(window.location.hash || '') || banderaRecovery())
   )
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
       setSession(s)
-      if (e === 'PASSWORD_RECOVERY') setModoRecovery(true)
+      if (e === 'PASSWORD_RECOVERY' || banderaRecovery()) setModoRecovery(true)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -130,6 +139,7 @@ export default function App() {
 
   if (modoRecovery) return <DefinirPassword onListo={() => {
     setModoRecovery(false)
+    try { sessionStorage.removeItem('bt_recovery') } catch { /* sin sessionStorage */ }
     if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname)
   }} />
 
@@ -150,8 +160,8 @@ export default function App() {
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
           maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
-      {(view === 'movimientos' || view === 'descuentos') &&
-        <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'descuentos' && <Descuentos tercero={tercero} onBack={() => setView('home')} />}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
