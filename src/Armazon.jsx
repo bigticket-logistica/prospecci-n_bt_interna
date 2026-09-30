@@ -289,21 +289,24 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     const id = tercero.tercero_id
+    // Cada fuente va aparte y con su propio resguardo: una vista que falle no
+    // puede dejar el inicio en blanco, como pasó al sumar la de PNR.
+    const ok = async (fn, sino) => { try { return await fn() } catch { return sino } }
     const [d, p, lista, c, pnr] = await Promise.all([
-      supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
-        .order('fecha', { ascending: false }).limit(1),
-      supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id),
-      cargarNotificaciones(id),
-      supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(),
+      ok(() => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
+        .order('fecha', { ascending: false }).limit(1), { data: [] }),
+      ok(() => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
+      ok(() => cargarNotificaciones(id), []),
+      ok(() => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
       // Los PNR que todavía se pueden ganar: es plata en riesgo, no un cargo.
-      supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'),
+      ok(() => supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'), { data: [] }),
     ])
-    setDia((d.data || [])[0] || null)
-    setPeriodos(p.data || [])
+    setDia(((d && d.data) || [])[0] || null)
+    setPeriodos((p && p.data) || [])
     // En el Inicio van las pendientes y las novedades que todavía no abre.
-    setAvisos(lista.filter(n => n.clase === 'pendiente' || !n.leida_at))
-    setSinLeer(c.data?.mensajes_sin_leer || 0)
-    const enCurso = pnr.data || []
+    setAvisos((lista || []).filter(n => n.clase === 'pendiente' || !n.leida_at))
+    setSinLeer(c?.data?.mensajes_sin_leer || 0)
+    const enCurso = (pnr && pnr.data) || []
     setRiesgo(enCurso.length
       ? { n: enCurso.length,
           monto: enCurso.reduce((t, x) => t + Number(x.monto || 0), 0),
