@@ -106,11 +106,6 @@ export default function Descuentos({ tercero, onBack }) {
           No show se suman como bloques nuevos, cada uno con su explicación. */}
       <div className="dx-origen">
         <h2>Paquetes no recibidos (PNR)</h2>
-        <p>
-          Los paquetes que Mercado Libre reclama porque el comprador dice que no los recibió. Un
-          caso solo se convierte en descuento cuando MELI lo resuelve en contra: mientras está en
-          curso, todavía se puede ganar respondiendo con la evidencia de entrega.
-        </p>
       </div>
 
       <div className="dx-tabs">
