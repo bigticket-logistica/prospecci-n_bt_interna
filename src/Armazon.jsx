@@ -361,10 +361,12 @@ export function Inicio({ tercero, perfilOk, onPick }) {
       )}
 
       {tercero.pagosHabilitados && (
+        <>
+        <span className="bt-eyebrow">Movimientos</span>
         <div className="bt-tarjetas">
           <div className="bt-card bt-card-click" onClick={() => onPick('movimientos')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px' }}>
-              <h3 className="bt-card-t" style={{ margin: 0 }}>Movimiento diario</h3>
+              <h3 className="bt-card-t" style={{ margin: 0 }}>Diario</h3>
               <span className="bt-info">
                 <span className="bt-info-i">i</span>
                 <span className="bt-info-tip">Información actualizada al cierre del día anterior</span>
@@ -375,14 +377,14 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               [entero(dia?.entregas), 'Entregas'],
               [entero(devolucionesDe(dia)), 'Devoluciones'],
               [pct(dia?.ns, 1), 'Nivel servicio'],
-              [pct(nsDomicilioDe(dia), 1), 'NS domicilio'],
+              [pct(nsDomicilioDe(dia), 1), 'Visitado'],
             ]} />
           </div>
 
           <div className="bt-card">
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 16px' }}>
               <div>
-                <h3 className="bt-card-t">{vista === 'semana' ? 'Movimiento semanal' : 'Movimiento mensual'}</h3>
+                <h3 className="bt-card-t">{vista === 'semana' ? 'Semanal' : 'Mensual'}</h3>
                 <div className="bt-periodo">
                   <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}
                     disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
@@ -406,7 +408,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               </div>
               <div className="bt-toggle">
                 {[['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => (
-                  <button key={k} className={vista === k ? 'on' : ''} onClick={() => setVista(k)}>{l}</button>
+                  <button key={k} className={`bt-per${vista === k ? ' on' : ''}`} onClick={() => setVista(k)}>{l}</button>
                 ))}
               </div>
             </div>
@@ -414,10 +416,11 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               [entero(actual?.entregas), 'Entregas'],
               [entero(devolucionesDe(actual)), 'Devoluciones'],
               [pct(actual?.ns, 0), 'Nivel servicio'],
-              [pct(nsDomicilioDe(actual), 0), 'NS domicilio'],
+              [pct(nsDomicilioDe(actual), 0), 'Visitado'],
             ]} />
           </div>
         </div>
+        </>
       )}
 
       <div className="bt-cta">
@@ -435,17 +438,19 @@ function Cifras({ monto, rutas, datos }) {
   return (
     <>
       <div className="bt-cifras">
-        <div className="bt-monto">{pesos(monto)}</div>
+        <div className="bt-monto"><span className="bt-flota">{pesos(monto)}</span></div>
         <div className="bt-rutas">
-          <span className="n">{entero(rutas)}</span><span className="l">Rutas</span>
+          <span className="n"><span className="bt-flota">{entero(rutas)}</span></span>
+          <span className="l">Rutas</span>
         </div>
       </div>
-      <div style={{ overflow: 'hidden' }}>
-        <div className="bt-datos">
-          {datos.map(([v, l]) => (
-            <div key={l}><div className="v">{v}</div><div className="l">{l}</div></div>
-          ))}
-        </div>
+      <div className="bt-datos">
+        {datos.map(([v, l]) => (
+          <div key={l}>
+            <div className="v"><span className="bt-flota">{v}</span></div>
+            <div className="l">{l}</div>
+          </div>
+        ))}
       </div>
     </>
   )
