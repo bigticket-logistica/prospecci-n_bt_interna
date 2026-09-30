@@ -284,22 +284,31 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [idx, setIdx] = useState(0)          // 0 = el período más reciente
   const [avisos, setAvisos] = useState([])
   const [sinLeer, setSinLeer] = useState(0)
+  const [riesgo, setRiesgo] = useState(null)   // PNR en curso: casos y monto
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     const id = tercero.tercero_id
-    const [d, p, lista, c] = await Promise.all([
+    const [d, p, lista, c, pnr] = await Promise.all([
       supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
         .order('fecha', { ascending: false }).limit(1),
       supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id),
       cargarNotificaciones(id),
       supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(),
+      // Los PNR que todavía se pueden ganar: es plata en riesgo, no un cargo.
+      supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'),
     ])
     setDia((d.data || [])[0] || null)
     setPeriodos(p.data || [])
     // En el Inicio van las pendientes y las novedades que todavía no abre.
     setAvisos(lista.filter(n => n.clase === 'pendiente' || !n.leida_at))
     setSinLeer(c.data?.mensajes_sin_leer || 0)
+    const enCurso = pnr.data || []
+    setRiesgo(enCurso.length
+      ? { n: enCurso.length,
+          monto: enCurso.reduce((t, x) => t + Number(x.monto || 0), 0),
+          urgente: enCurso.some(x => x.le_toca_a === 'tercero') }
+      : null)
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -311,13 +320,25 @@ export function Inicio({ tercero, perfilOk, onPick }) {
       titulo: 'Tu perfil de empresa está incompleto',
       detalle: 'Sin la cuenta de pago (banco, CLABE y su comprobante) no se realizan pagos a tu empresa',
     }] : []),
+    // Una sola línea por los reclamos abiertos, con la plata en juego: dos
+    // docenas de tarjetas sueltas no le dicen al tercero cuánto arriesga.
+    ...(riesgo ? [{
+      id: 'reclamos', destino: 'descuentos',
+      pastilla: riesgo.urgente ? { estilo: 'rojo', etiqueta: 'Urgente' } : { estilo: 'naranja', etiqueta: 'Importante' },
+      titulo: `Tienes ${riesgo.n} ${riesgo.n === 1 ? 'reclamo' : 'reclamos'}`,
+      monto: pesos(riesgo.monto),
+      cola: 'en riesgo de cobro',
+      detalle: riesgo.urgente
+        ? 'Hay casos esperando tu respuesta. Responde antes de que venza el plazo.'
+        : 'MELI los está revisando. Te avisamos cuando los resuelva.',
+    }] : []),
     ...avisos,
     ...(sinLeer > 0 ? [{
       id: 'mensajes', destino: 'consultas', pastilla: { estilo: 'azul', etiqueta: 'Nuevo' },
       titulo: `${sinLeer} ${sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer`,
       detalle: 'Léelos y respóndelos en Consultas',
     }] : []),
-  ], [perfilOk, avisos, sinLeer])
+  ], [perfilOk, avisos, sinLeer, riesgo])
 
   const abrir = (n) => {
     if (typeof n.id === 'number' && !n.leida_at) marcarLeida(n.id)
@@ -350,7 +371,10 @@ export function Inicio({ tercero, perfilOk, onPick }) {
             {notificaciones.map(n => (
               <button key={n.id} className={`bt-aviso e-${n.pastilla.estilo}`} onClick={() => abrir(n)}>
                 <div style={{ minWidth: 0 }}>
-                  <h3>{n.titulo}</h3>
+                  <h3>
+                    {n.titulo}
+                    {n.monto && <>{' · '}<span className="bt-aviso-monto">{n.monto}</span>{' '}{n.cola}</>}
+                  </h3>
                   <p>{n.detalle}</p>
                 </div>
                 <span className="bt-pill">{n.pastilla.etiqueta}</span>

@@ -651,3 +651,6 @@ tr:last-child td { border-bottom: none; }
   .bt-datos > div:nth-child(3) { border-left: none; }
   .bt-pill { width: auto; }
 }
+/* El monto va destacado dentro del título, como en la maqueta: es el número
+   que hace que el tercero se mueva. */
+.bt-aviso-monto { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--navy); }
