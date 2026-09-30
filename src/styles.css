@@ -605,3 +605,6 @@ tr:last-child td { border-bottom: none; }
 .dx-origen { border-top: 1px solid var(--line); padding-top: 18px; }
 .dx-origen h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 700; font-size: 19px; color: var(--navy); letter-spacing: 0; }
 .dx-origen p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 720px; line-height: 1.5; }
+.dx-pill.verde { color: var(--green); background: #E2F1E7; }
+.dx-btn { margin-top: 10px; border: none; background: var(--orange); color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 13px; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+.dx-btn:hover { background: #E65C00; }

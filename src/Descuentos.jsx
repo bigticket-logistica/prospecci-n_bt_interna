@@ -52,11 +52,13 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 const dia = (v) => { if (!v) return '—'; const d = new Date(String(v).length <= 10 ? v + 'T12:00:00' : v); return `${d.getDate()} ${MESES[d.getMonth()]}` }
 const diaHora = (v) => { if (!v) return '—'; const d = new Date(v); return `${d.getDate()} ${MESES[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
-export default function Descuentos({ tercero, onBack }) {
+export default function Descuentos({ tercero, onBack, onIr }) {
   const [casos, setCasos] = useState(null)
   const [abierto, setAbierto] = useState(null)
   const [avisos, setAvisos] = useState({})
   const [grupo, setGrupo] = useState('en_curso')
+  const [otros, setOtros] = useState(null)      // mermas, robos y No show
+  const [abiertoOtro, setAbiertoOtro] = useState(null)
   const [error, setError] = useState('')
 
   const cargar = useCallback(async () => {
@@ -65,6 +67,9 @@ export default function Descuentos({ tercero, onBack }) {
       .select('*').order('fecha_caso', { ascending: false }).limit(500)
     if (error) { setError('No se pudieron cargar tus descuentos. Vuelve a intentarlo en un momento.'); setCasos([]); return }
     setCasos(data || [])
+    const { data: o } = await supabase.from('vw_portal_mis_descuentos')
+      .select('*').order('fecha', { ascending: false }).limit(500)
+    setOtros(o || [])
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -230,7 +235,110 @@ export default function Descuentos({ tercero, onBack }) {
           })}
         </div>
       )}
+
+      <Otros titulo="Paquetes perdidos y robos" origen="merma" filas={otros}
+        abierto={abiertoOtro} setAbierto={setAbiertoOtro} onIr={onIr}
+        vacio="No tienes paquetes perdidos ni robos cobrados en este período." />
+
+      <Otros titulo="No show" origen="noshow" filas={otros}
+        abierto={abiertoOtro} setAbierto={setAbiertoOtro} onIr={onIr}
+        vacio="No tienes No show cobrados en este período." />
     </div>
+  )
+}
+
+// Mermas, robos y No show. No tienen estados intermedios: nacen ya cobrados,
+// así que van como lista simple, sin las pestañas de los PNR. A diferencia de
+// los PNR, estos sí se pueden reclamar.
+function Otros({ titulo, origen, filas, abierto, setAbierto, onIr, vacio }) {
+  const lista = (filas || []).filter(f => f.origen === origen)
+  const total = lista.reduce((t, f) => t + Number(f.monto || 0), 0)
+  const clave = (f) => `${f.origen}:${f.id}`
+  return (
+    <>
+      <div className="dx-origen">
+        <h2>{titulo}</h2>
+      </div>
+
+      {filas === null ? (
+        <div className="bt-vacio"><h3>Cargando…</h3></div>
+      ) : lista.length === 0 ? (
+        <div className="bt-vacio"><h3>Sin descuentos</h3><p>{vacio}</p></div>
+      ) : (
+        <>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+            {lista.length} {lista.length === 1 ? 'descuento' : 'descuentos'} · {pesos(total)} en total
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {lista.map(f => {
+              const open = abierto === clave(f)
+              return (
+                <div key={clave(f)} className="dx-card"
+                  style={{ borderLeftColor: f.devuelto ? 'var(--green)' : 'var(--red)' }}>
+                  <button className="dx-head" onClick={() => setAbierto(open ? null : clave(f))}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="dx-titulo">
+                        {origen === 'noshow' ? 'No show' : (f.motivo || 'Paquete perdido')}
+                        {f.devuelto && <span className="dx-pill verde">Devuelto</span>}
+                        {f.semana && <span className="dx-pill gris">Semana {f.semana}</span>}
+                      </div>
+                      <div className="dx-sub">
+                        {f.guia ? `Guía ${f.guia} · ` : ''}{f.sc || '—'}
+                        {f.placa ? ` · ${f.placa}` : ''} · {dia(f.fecha)}
+                      </div>
+                    </div>
+                    <div className="dx-monto" style={{ color: f.devuelto ? 'var(--green)' : 'var(--ink)' }}>
+                      {pesos(f.monto)}
+                    </div>
+                    <span className="dx-chev">{open ? '▲' : '▼'}</span>
+                  </button>
+
+                  {open && (
+                    <div className="dx-detalle">
+                      <div className="dx-datos">
+                        <Dato k={origen === 'noshow' ? 'Día' : 'Fecha del hecho'} v={dia(f.fecha)} />
+                        <Dato k="Guía" v={f.guia} />
+                        <Dato k="Ruta" v={f.id_ruta} />
+                        <Dato k="Placa" v={f.placa} />
+                        <Dato k="Conductor" v={f.conductor} />
+                        <Dato k="Centro" v={f.sc} />
+                        <Dato k="Motivo" v={f.motivo} />
+                        <Dato k="Justificación" v={f.justificacion} />
+                        <Dato k="Monto" v={pesos(f.monto)} />
+                        <Dato k="Cobrado en" v={f.semana ? `semana ${f.semana}` : null} />
+                        <Dato k="Fecha de cobro" v={f.fecha_cobro ? dia(f.fecha_cobro) : null} />
+                        <Dato k="Cargado por" v={f.asignado_por} />
+                      </div>
+
+                      {f.devuelto ? (
+                        <p className="dx-nota">
+                          Este cobro se te devolvió. Búscalo en Movimientos, en la semana en que
+                          aparece el abono.
+                        </p>
+                      ) : (
+                        <div className="dx-hacer">
+                          <div className="dx-hacer-t">¿No estás de acuerdo con este descuento?</div>
+                          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5 }}>
+                            A diferencia de los PNR, este cobro sí se puede reclamar. Ve a Movimientos,
+                            marca la línea de este descuento y cuéntanos qué pasó. Tienes dos semanas
+                            desde que apareció en tu portal.
+                          </p>
+                          {onIr && (
+                            <button className="dx-btn" onClick={() => onIr('movimientos')}>
+                              Ir a Movimientos
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

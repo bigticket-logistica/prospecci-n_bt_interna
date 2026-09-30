@@ -161,7 +161,7 @@ export default function App() {
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
           maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
       {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
-      {view === 'descuentos' && <Descuentos tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'descuentos' && <Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} />}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
