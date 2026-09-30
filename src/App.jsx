@@ -137,6 +137,20 @@ export default function App() {
   }
   useEffect(() => { if (tercero?.tercero_id) revisarPerfil() }, [tercero])
 
+  // La landing deja acá la pantalla a la que quería llegar el tercero. Se lee
+  // una sola vez, después de resolver su empresa, y se borra: entrar por el
+  // botón principal siempre abre el inicio.
+  useEffect(() => {
+    if (!tercero?.tercero_id) return
+    let destino = null
+    try { destino = sessionStorage.getItem('bt_destino'); sessionStorage.removeItem('bt_destino') } catch { /* sin sessionStorage */ }
+    if (!destino) return
+    const dePagos = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
+    const permitidas = ['postula', 'flota', 'consultas', 'docs', 'perfil', 'estado', 'firma', 'baja', 'certificar',
+      ...(tercero.pagosHabilitados ? dePagos : [])]
+    if (permitidas.includes(destino)) setView(destino)
+  }, [tercero])
+
   if (modoRecovery) return <DefinirPassword onListo={() => {
     setModoRecovery(false)
     try { sessionStorage.removeItem('bt_recovery') } catch { /* sin sessionStorage */ }

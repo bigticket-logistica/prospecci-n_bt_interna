@@ -608,3 +608,7 @@ tr:last-child td { border-bottom: none; }
 .dx-pill.verde { color: var(--green); background: #E2F1E7; }
 .dx-btn { margin-top: 10px; border: none; background: var(--orange); color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 13px; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
 .dx-btn:hover { background: #E65C00; }
+.lp-link { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 4px 0;
+  font-family: var(--font); font-size: 16px; color: var(--navy); cursor: pointer; }
+.lp-link:hover:not(:disabled) { color: var(--orange); }
+.lp-link:disabled { color: var(--muted); cursor: default; }

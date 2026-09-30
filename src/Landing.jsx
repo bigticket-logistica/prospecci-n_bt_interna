@@ -37,15 +37,15 @@ const SLIDES = [
   },
 ]
 
-// Por ahora los seis vuelven a la página inicial; falta definir a dónde
-// deriva cada uno.
+// Cada atajo entra al portal y aterriza en su pantalla: el tercero llega a lo
+// que vino a hacer en vez de buscarlo en el menú.
 const NECESIDADES = [
-  { label: 'Rutas', d: 'M3 17V7h11v10M14 10h4l3 3v4h-7M6.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z' },
-  { label: 'Documentos', d: 'M14 3H6v18h12V7l-4-4zM14 3v4h4M9 12h6M9 16h6' },
-  { label: 'Facturación', d: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6' },
-  { label: 'Pagos', d: 'M3 6h18v12H3zM3 10h18M7 15h3' },
-  { label: 'Mi flota', d: 'M4 11l2-5h12l2 5M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01' },
-  { label: 'Soporte', d: 'M4 13a8 8 0 0116 0M4 13v4h3v-5H4M20 13v4h-3v-5h3M17 17c0 2-2 3-5 3' },
+  { label: 'Rutas', v: 'movimientos', d: 'M3 17V7h11v10M14 10h4l3 3v4h-7M6.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z' },
+  { label: 'Documentos', v: 'docs', d: 'M14 3H6v18h12V7l-4-4zM14 3v4h4M9 12h6M9 16h6' },
+  { label: 'Facturación', v: 'facturacion', d: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6' },
+  { label: 'Pagos', v: 'pagado', d: 'M3 6h18v12H3zM3 10h18M7 15h3' },
+  { label: 'Mi flota', v: 'flota', d: 'M4 11l2-5h12l2 5M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01' },
+  { label: 'Soporte', v: 'consultas', d: 'M4 13a8 8 0 0116 0M4 13v4h3v-5H4M20 13v4h-3v-5h3M17 17c0 2-2 3-5 3' },
 ]
 
 const Flecha = ({ dir = 'der', size = 10 }) => (
@@ -59,6 +59,17 @@ export default function Landing() {
   const [slide, setSlide] = useState(0)
   const [abierto, setAbierto] = useState(false)
   const timer = useRef(null)
+
+  // Adónde llevar al tercero una vez dentro. "Ingresar al portal" siempre entra
+  // al inicio; los atajos llevan a su pantalla. Se borra al usarlo, así que una
+  // sesión nueva nunca hereda el destino de la anterior.
+  const abrirAcceso = (destino) => {
+    try {
+      if (destino) sessionStorage.setItem('bt_destino', destino)
+      else sessionStorage.removeItem('bt_destino')
+    } catch { /* sin sessionStorage: entra al inicio */ }
+    setAbierto(true)
+  }
 
 
   const arrancar = useCallback(() => {
@@ -84,7 +95,7 @@ export default function Landing() {
           <span className="lp-sep" />
           <span className="lp-rotulo">Portal del Transportista</span>
         </div>
-        <button className="lp-entrar" onClick={() => setAbierto(true)}>Ingresar al portal</button>
+        <button className="lp-entrar" onClick={() => abrirAcceso()}>Ingresar al portal</button>
       </header>
 
       <section className="lp-hero">
@@ -125,13 +136,13 @@ export default function Landing() {
         </div>
         <div className="lp-nec-items">
           {NECESIDADES.map(n => (
-            <a key={n.label} href="/">
+            <button key={n.label} onClick={() => abrirAcceso(n.v)}>
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={ORANGE}
                 strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={n.d} />
               </svg>
               <span>{n.label}</span>
-            </a>
+            </button>
           ))}
         </div>
       </section>
@@ -148,8 +159,10 @@ export default function Landing() {
 
 // ── Panel de acceso ────────────────────────────────────────────────────────
 function PanelAcceso({ onCerrar }) {
+  const [paso, setPaso] = useState('acceso')   // 'acceso' | 'codigo'
   const [correo, setCorreo] = useState('')
   const [clave, setClave] = useState('')
+  const [codigo, setCodigo] = useState('')
   const [err, setErr] = useState('')
   const [aviso, setAviso] = useState('')
   const [busy, setBusy] = useState(false)
@@ -173,15 +186,44 @@ function PanelAcceso({ onCerrar }) {
     setBusy(false)
   }
 
-  const recuperar = async (e) => {
-    e.preventDefault()
-    if (!correo.trim()) { setErr('Escribe tu correo y vuelve a pulsar aquí.'); return }
-    setErr(''); setBusy(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(correo.trim().toLowerCase(),
-      { redirectTo: window.location.origin })
+  // Pide el código. Supabase responde igual exista o no la cuenta, así que el
+  // formulario no sirve para averiguar qué correos están registrados.
+  const pedirCodigo = async (e) => {
+    e?.preventDefault()
+    const c = correo.trim().toLowerCase()
+    if (!c) {
+      setErr('Escribe arriba el correo de tu empresa y vuelve a pulsar aquí.')
+      primero.current?.focus()
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)) {
+      setErr('Ese correo no parece válido. Revísalo y vuelve a intentarlo.')
+      primero.current?.focus()
+      return
+    }
+    setErr(''); setAviso(''); setBusy(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(c)
     setBusy(false)
     if (error) { setErr('No se pudo enviar el correo. Inténtalo de nuevo en un momento.'); return }
-    setAviso('Te enviamos un correo con el enlace para crear una clave nueva.')
+    setPaso('codigo'); setCodigo('')
+    setAviso('Te enviamos un código de 6 dígitos. Revisa tu correo y escríbelo aquí.')
+  }
+
+  // El código crea la sesión; la bandera hace que el portal pida la clave nueva
+  // antes de dejar entrar.
+  const verificar = async (e) => {
+    e?.preventDefault()
+    const t = codigo.replace(/\D/g, '')
+    if (t.length !== 6) { setErr('El código son 6 dígitos.'); return }
+    setErr(''); setBusy(true)
+    try { sessionStorage.setItem('bt_recovery', '1') } catch { /* sin sessionStorage */ }
+    const { error } = await supabase.auth.verifyOtp({ email: correo.trim().toLowerCase(), token: t, type: 'recovery' })
+    setBusy(false)
+    if (error) {
+      try { sessionStorage.removeItem('bt_recovery') } catch { /* sin sessionStorage */ }
+      setAviso('')
+      setErr('El código no es válido o ya venció. Pide uno nuevo.')
+    }
   }
 
   return (
@@ -196,33 +238,62 @@ function PanelAcceso({ onCerrar }) {
 
         <img src="/bt_logo_color.png" alt="Bigticket Logística y Transporte" className="lp-panel-logo" />
         <div className="lp-panel-regla" />
-        <p className="lp-panel-titulo">Ingresa al Portal del Transportista</p>
+        <p className="lp-panel-titulo">
+          {paso === 'acceso' ? 'Ingresa al Portal del Transportista' : 'Escribe el código que te enviamos'}
+        </p>
 
-        <form onSubmit={entrar}>
-          {err && <div className="lp-error">{err}</div>}
-          {aviso && <div className="lp-aviso">{aviso}</div>}
-          <input ref={primero} type="email" autoComplete="username" placeholder="Correo de tu empresa"
-            value={correo} onChange={e => setCorreo(e.target.value)} />
-          <input type="password" autoComplete="current-password" placeholder="Clave"
-            value={clave} onChange={e => setClave(e.target.value)} />
-          <button type="submit" disabled={!puede}
-            style={{ background: puede ? ORANGE : '#e6e5e5', color: puede ? '#fff' : GRIS }}>
-            {busy ? 'Entrando…' : 'Ingresar'}
-          </button>
-        </form>
+        {paso === 'acceso' ? (
+          <>
+            <form onSubmit={entrar}>
+              {err && <div className="lp-error">{err}</div>}
+              {aviso && <div className="lp-aviso">{aviso}</div>}
+              <input ref={primero} type="email" autoComplete="username" placeholder="Correo de tu empresa"
+                value={correo} onChange={e => setCorreo(e.target.value)} />
+              <input type="password" autoComplete="current-password" placeholder="Clave"
+                value={clave} onChange={e => setClave(e.target.value)} />
+              <button type="submit" disabled={!puede}
+                style={{ background: puede ? ORANGE : '#e6e5e5', color: puede ? '#fff' : GRIS }}>
+                {busy ? 'Entrando…' : 'Ingresar'}
+              </button>
+            </form>
 
-        <div className="lp-recuperar">
-          <span>¿Olvidaste tu clave?</span>
-          <a href="#" onClick={recuperar}>
-            <svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke={ORANGE} strokeWidth="1.5" aria-hidden="true">
-              <rect x="2" y="8" width="12" height="9" rx="2" /><path d="M5 8V5a3 3 0 016 0v3" />
-            </svg>
-            Recupérala aquí
-            <svg width="7" height="11" viewBox="0 0 7 11" fill="none" aria-hidden="true">
-              <path d="M1.5 1.5l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </a>
-        </div>
+            <div className="lp-recuperar">
+              <span>¿Olvidaste tu clave?</span>
+              <button type="button" className="lp-link" onClick={pedirCodigo} disabled={busy}>
+                <svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke={ORANGE} strokeWidth="1.5" aria-hidden="true">
+                  <rect x="2" y="8" width="12" height="9" rx="2" /><path d="M5 8V5a3 3 0 016 0v3" />
+                </svg>
+                {busy ? 'Enviando el código…' : 'Recupérala aquí'}
+                <svg width="7" height="11" viewBox="0 0 7 11" fill="none" aria-hidden="true">
+                  <path d="M1.5 1.5l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <form onSubmit={verificar}>
+              {err && <div className="lp-error">{err}</div>}
+              {aviso && <div className="lp-aviso">{aviso}</div>}
+              <input ref={primero} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                placeholder="000000" className="lp-codigo"
+                value={codigo} onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <button type="submit" disabled={busy || codigo.length !== 6}
+                style={{ background: !busy && codigo.length === 6 ? ORANGE : '#e6e5e5', color: !busy && codigo.length === 6 ? '#fff' : GRIS }}>
+                {busy ? 'Verificando…' : 'Continuar'}
+              </button>
+            </form>
+
+            <div className="lp-recuperar">
+              <span>El código llega a {correo.trim().toLowerCase()} y dura 1 hora.</span>
+              <button type="button" className="lp-link" onClick={pedirCodigo} disabled={busy}>Enviar otro código</button>
+              <button type="button" className="lp-link"
+                onClick={() => { setPaso('acceso'); setErr(''); setAviso('') }}>
+                Volver a ingresar con mi clave
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="lp-ayuda">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={NAVY} strokeWidth="1.4" aria-hidden="true">
