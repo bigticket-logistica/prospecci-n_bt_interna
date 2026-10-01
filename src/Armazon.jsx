@@ -82,25 +82,29 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
   const [sinLeer, setSinLeer] = useState(0)
   // Contadores del menú. Van acá y no en el inicio porque el menú está siempre
   // a la vista; los que llegan por prop mandan sobre los que calcula el Shell.
+  const [enCampana, setEnCampana] = useState(0)
   const [propios, setPropios] = useState({})
   const contadores = { ...propios, ...fijos }          // mensajes de Consultas
 
   useEffect(() => {
     if (!tercero?.tercero_id) return
     const leer = async () => {
-      const [lista, m, p] = await Promise.all([
+      const [lista, m, c, p] = await Promise.all([
         cargarNotificaciones(tercero.tercero_id),
-        // El contador cuenta lo mismo que muestra la bandeja: las
-        // notificaciones sin leer. Antes leía vw_campana_tercero, que cuenta
-        // los mensajes de Consultas, y marcaba cero con la bandeja llena.
+        // Notificaciones sin leer: es lo que muestra la bandeja y lo que cuenta
+        // el número de "Mis mensajes" en el menú.
         supabase.from('notificaciones_tercero').select('id', { count: 'exact', head: true })
           .eq('tercero_id', tercero.tercero_id).is('leida_at', null),
+        // Mensajes y solicitudes de Consultas, que son otra cosa.
+        supabase.from('vw_campana_tercero').select('total').eq('tercero_id', tercero.tercero_id).maybeSingle(),
         // Los reclamos abiertos alimentan el número del menú: el tercero lo ve
         // esté en la pantalla que esté, no solo al entrar al inicio.
         supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
       ])
       setAvisos(lista)
+      // El menú cuenta solo lo de la bandeja; la campana, todo lo nuevo.
       setSinLeer(m.count || 0)
+      setEnCampana((m.count || 0) + (c.data?.total || 0))
       setPropios({ reclamos: (p.data || []).length })
     }
     leer()
@@ -132,7 +136,9 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
 
   const activo = GRUPO_DE[vista] || 'inicio'
   const grupos = MENU.filter(g => !g.pagos || tercero?.pagosHabilitados)
-  const total = cuentaCampana(avisos || []) + (sinLeer > 0 ? 1 : 0)
+  // La campana suma todo lo nuevo: notificaciones sin leer más los mensajes y
+  // solicitudes de Consultas.
+  const total = enCampana
 
   return (
     <div className="bt-shell">
@@ -497,7 +503,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                 </span>
               </header>
               {urgente ? (
-                <button className="nt-kpi" onClick={() => ir('reclamos')}>
+                <button className="nt-kpi" onClick={() => onPick('reclamos')}>
                   <span className="nt-num">{urgente.n}</span>
                   <span className="nt-label">{urgente.label}</span>
                   <span className="nt-cta">Revisar <Chev /></span>
@@ -517,7 +523,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               {importante ? (
                 <div className="nt-kpi-row">
                   {importante.map(k => (
-                    <button key={k.v} className="nt-kpi" onClick={() => ir(k.v)}>
+                    <button key={k.v} className="nt-kpi" onClick={() => onPick(k.v)}>
                       <span className="nt-num">{k.n}</span>
                       <span className="nt-label">{k.label}</span>
                       <Chev />
