@@ -704,38 +704,46 @@ tr:last-child td { border-bottom: none; }
 .ms-todo:disabled { color: var(--muted); cursor: default; }
 
 .ms-item {
-  display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid var(--line);
-  border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,46,93,.05);
-  transition: box-shadow .2s ease, transform .2s ease;
+  display: flex; align-items: center; gap: 14px; border: 1px solid var(--line);
+  border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,46,93,.05);
+  transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
 }
-.ms-item:hover { box-shadow: 0 12px 28px rgba(0,46,93,.16); transform: translateY(-2px); }
-/* Un mensaje leído baja de peso pero no desaparece: el historial sirve. */
-.ms-item.leido { background: #FBFBFA; }
-.ms-item.leido .ms-titulo { font-weight: 600; color: var(--muted); }
-.ms-punto { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--orange); }
-.ms-punto.e-rojo { background: var(--red); }
-.ms-punto.e-azul { background: var(--navy); }
-.ms-punto.e-verde { background: var(--green); }
-.ms-item.leido .ms-punto { background: var(--line); }
+.ms-item:hover { box-shadow: 0 12px 28px rgba(0,46,93,.16); transform: translateY(-2px); border-color: #B8C4D3; }
+
+/* Sin leer: fondo apenas distinto, punto naranja y todo en negrita. Al pulsar
+   el botón se marca leído y se nota de inmediato, sin recargar la página. */
+.ms-item.sin-leer { background: #FAFAFB; }
+.ms-item.sin-leer .ms-punto { background: var(--orange); }
+.ms-item.sin-leer .ms-texto { font-weight: 700; }
+.ms-item.sin-leer .ms-fecha { font-weight: 700; color: var(--navy); }
+.ms-item.leido { background: #fff; }
+.ms-item.leido .ms-punto { background: transparent; }
+.ms-item.leido .ms-texto { font-weight: 500; }
+.ms-item.leido .ms-fecha { font-weight: 400; color: var(--muted); }
+
+.ms-punto { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .ms-cat-t {
-  font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--orange); margin-bottom: 3px;
+  font-family: var(--font-display); font-weight: 700; font-size: 11.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
 }
-.ms-item.leido .ms-cat-t { color: var(--muted); }
-.ms-titulo { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--navy); line-height: 1.3; }
-.ms-detalle { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
-.ms-fecha { font-size: 12.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+/* La fecha va en la misma línea del texto, a la derecha, en columna fija: así
+   todas quedan alineadas aunque los mensajes tengan distinto largo. */
+.ms-fila { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.ms-texto { font-family: var(--font-display); font-size: 14.5px; color: var(--navy); line-height: 1.35; }
+.ms-detalle { font-family: var(--font); font-weight: 400; font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.ms-fecha { width: 210px; flex-shrink: 0; text-align: right; font-size: 12.5px; white-space: nowrap; }
 .ms-ver {
-  border: 1px solid var(--navy); background: #fff; color: var(--navy); border-radius: 10px;
-  padding: 10px 18px; font-family: var(--font-display); font-weight: 700; font-size: 13px;
-  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  width: 156px; height: 36px; flex-shrink: 0; border: 1px solid var(--navy); background: #fff;
+  color: var(--navy); border-radius: 8px; font-family: var(--font-display); font-weight: 700;
+  font-size: 12.5px; cursor: pointer;
 }
 .ms-ver:hover { background: var(--navy); color: #fff; }
 
 @media (max-width: 860px) {
   .ms-item { flex-wrap: wrap; }
-  .ms-fecha { order: 3; width: 100%; }
-  .ms-ver { order: 4; width: 100%; }
+  .ms-fila { flex-direction: column; gap: 4px; }
+  .ms-fecha { width: auto; text-align: left; }
+  .ms-ver { width: 100%; }
   .ms-todo { margin-left: 0; }
 }
 

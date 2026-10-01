@@ -128,14 +128,18 @@ export default function Mensajes({ tercero, onIr }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {visibles.map(n => (
-            <div key={n.id} className={`ms-item${n.leida_at ? ' leido' : ''}`}>
-              <span className={`ms-punto e-${n.pastilla.estilo}`} aria-hidden="true" />
+            <div key={n.id} className={`ms-item ${n.leida_at ? 'leido' : 'sin-leer'}`}>
+              <span className="ms-punto" aria-hidden="true" />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="ms-cat-t">{n.categoria || 'Mis mensajes'}</div>
-                <div className="ms-titulo">{n.titulo}</div>
-                {n.detalle && <div className="ms-detalle">{n.detalle}</div>}
+                <div className="ms-fila">
+                  <div className="ms-texto">
+                    {n.titulo}
+                    {n.detalle && <div className="ms-detalle">{n.detalle}</div>}
+                  </div>
+                  <span className="ms-fecha">{cuando(n.evento_at)}</span>
+                </div>
               </div>
-              <div className="ms-fecha">{cuando(n.evento_at)}</div>
               <button className="ms-ver" onClick={() => abrir(n)}>
                 {BOTON[n.destino] || 'Ver'}
               </button>
