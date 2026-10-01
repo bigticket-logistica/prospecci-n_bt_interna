@@ -7,6 +7,7 @@ import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing from './Landing'
 import Descuentos from './Descuentos'
+import { Red, Bloque } from './Red'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -167,17 +168,20 @@ export default function App() {
 
   const email = session.user.email
   return (
+    <Red>
     <Shell tercero={tercero} email={email} onNavegar={setView} vista={view}>
-      {view === 'home' && <Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} />}
+      {/* Cada pantalla va en su propia red: si una falla, muestra el error en
+          vez de dejar el portal en blanco, y el resto sigue funcionando. */}
+      {view === 'home' && <Bloque nombre="el inicio"><Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} /></Bloque>}
       {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
           maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
-      {view === 'movimientos' && <Movimientos tercero={tercero} email={email} onBack={() => setView('home')} />}
-      {view === 'descuentos' && <Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} />}
+      {view === 'movimientos' && <Bloque nombre="Movimientos"><Movimientos tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
+      {view === 'descuentos' && <Bloque nombre="Descuentos"><Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
-        <Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} />}
+        <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
@@ -193,6 +197,7 @@ export default function App() {
       {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
       <Biggy tercero={tercero} />
     </Shell>
+    </Red>
   )
 }
 
