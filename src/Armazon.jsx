@@ -101,11 +101,15 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
         // esté en la pantalla que esté, no solo al entrar al inicio.
         supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
       ])
+      // Los reclamos ya vistos no vuelven a contar: el número avisa de lo
+      // nuevo. El caso sigue abierto y se ve igual al entrar a la pantalla.
+      let vistos = []
+      try { vistos = JSON.parse(localStorage.getItem('bt_reclamos_vistos') || '[]') } catch { /* sin storage */ }
       setAvisos(lista)
       // El menú cuenta solo lo de la bandeja; la campana, todo lo nuevo.
       setSinLeer(m.count || 0)
       setEnCampana((m.count || 0) + (c.data?.total || 0))
-      setPropios({ reclamos: (p.data || []).length })
+      setPropios({ reclamos: (p.data || []).filter(x => !vistos.includes(x.case_id)).length })
     }
     leer()
     const t = setInterval(() => { if (!document.hidden) leer() }, 60000)

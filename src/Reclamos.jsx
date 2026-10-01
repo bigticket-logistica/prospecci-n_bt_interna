@@ -67,6 +67,12 @@ export default function Reclamos({ tercero, onIr }) {
   const abrir = async (c) => {
     const id = c.case_id
     setAbierto(abierto === id ? null : id)
+    // Queda marcado como visto para que el número del menú deje de contarlo.
+    // Se guarda en el navegador: es una señal de lectura, no un dato del caso.
+    try {
+      const v = JSON.parse(localStorage.getItem('bt_reclamos_vistos') || '[]')
+      if (!v.includes(id)) localStorage.setItem('bt_reclamos_vistos', JSON.stringify([...v, id].slice(-300)))
+    } catch { /* sin storage: el número sigue contándolo */ }
     if (abierto === id || avisos[id]) return
     const { data } = await supabase.from('vw_portal_pnr_avisos')
       .select('tipo, destino, creado_en, horas_restantes, estado_entrega')
@@ -220,17 +226,27 @@ export default function Reclamos({ tercero, onIr }) {
 // y una lista plana de cien guías no se lee.
 function Devoluciones({ filas, abierto, setAbierto }) {
   if (filas === null) return <div className="bt-vacio"><h3>Cargando…</h3></div>
-  if (!filas.length) {
+
+  // Solo se listan los que el tercero puede resolver. Los que MELI dejó de
+  // dejarnos consultar van aparte, en una línea: son plata incierta que no
+  // depende de él, y mezclarlos sepultaba los que sí puede devolver.
+  const pendientes = filas.filter(f => f.estado === 'pendiente' || f.estado === 'sleepover')
+  const sinAcceso = filas.filter(f => f.estado === 'sin_acceso')
+
+  if (!pendientes.length) {
     return (
-      <div className="bt-vacio">
-        <h3>No tienes paquetes pendientes</h3>
-        <p>Todo lo que salió a ruta en los últimos tres días volvió al centro o se entregó.</p>
-      </div>
+      <>
+        <div className="bt-vacio">
+          <h3>No tienes paquetes pendientes</h3>
+          <p>Todo lo que salió a ruta en los últimos tres días volvió al centro o se entregó.</p>
+        </div>
+        <SinAcceso n={sinAcceso.length} />
+      </>
     )
   }
 
   const porDia = {}
-  for (const f of filas) {
+  for (const f of pendientes) {
     if (!porDia[f.dia]) porDia[f.dia] = {}
     const k = `${f.placa || 'sin placa'}|${f.sc || ''}|${f.conductor || ''}`
     ;(porDia[f.dia][k] = porDia[f.dia][k] || []).push(f)
@@ -240,8 +256,8 @@ function Devoluciones({ filas, abierto, setAbierto }) {
   return (
     <>
       <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-        {filas.length} {filas.length === 1 ? 'paquete' : 'paquetes'} de los últimos tres días.
-        Si no vuelven al centro, MELI puede cobrarlos como paquete perdido.
+        {pendientes.length} {pendientes.length === 1 ? 'paquete' : 'paquetes'} de los últimos tres
+        días. Si no vuelven al centro, MELI puede cobrarlos como paquete perdido.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -298,7 +314,23 @@ function Devoluciones({ filas, abierto, setAbierto }) {
           )
         })}
       </div>
+
+      <SinAcceso n={sinAcceso.length} />
     </>
+  )
+}
+
+// Paquetes que MELI ya no nos deja consultar. No se listan uno por uno porque
+// no hay nada que el tercero pueda hacer con la guía: lo único útil es que
+// sepa que existen y a quién preguntarle.
+function SinAcceso({ n }) {
+  if (!n) return null
+  return (
+    <p className="dx-nota" style={{ marginTop: 4 }}>
+      Hay {n} {n === 1 ? 'paquete' : 'paquetes'} de tus rutas que MELI ya no nos deja consultar.
+      Conversa con tu supervisor para ver el estado de esos paquetes. Si alguno te genera un cobro,
+      lo vas a ver en Descuentos y vas a poder reclamarlo.
+    </p>
   )
 }
 
