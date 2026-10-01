@@ -180,7 +180,7 @@ export default function App() {
         <Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
-      {(view === 'desempeno' || view === 'reclamos') && <EnConstruccion vista={view} onBack={() => setView('home')} />}
+      {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}

@@ -29,10 +29,11 @@ const MENU = [
     { v: 'facturado', title: 'Facturado', desc: 'Facturas cargadas en validación' },
     { v: 'pagado', title: 'Pagado', desc: 'Facturas pagadas y depósitos' },
   ] },
+  // Los reclamos de paquetes viven en Descuentos, con su historial de avisos:
+  // tener además una entrada "Reclamos" dejaba el mismo caso en dos lugares.
   { key: 'operacion', label: 'Mi operación', items: [
     { v: 'flota', title: 'Mi Flota', desc: 'Vehículos y personal activos' },
     { v: 'desempeno', title: 'Desempeño', desc: 'Indicadores de nivel de servicio' },
-    { v: 'reclamos', title: 'Reclamos', desc: 'Paquetes no recibidos o con diferencia', rojo: true },
   ] },
   { key: 'certificacion', label: 'Certificación', items: [
     { v: 'certificar', title: 'Certificar vehículo y personas', desc: 'Dar de alta conductor, ayudante o vehículo' },
@@ -53,7 +54,7 @@ const GRUPO_DE = {
   consultas: 'mensajes',
   movimientos: 'billetera', descuentos: 'billetera',
   facturacion: 'facturacion', facturado: 'facturacion', pagado: 'facturacion',
-  flota: 'operacion', desempeno: 'operacion', reclamos: 'operacion',
+  flota: 'operacion', desempeno: 'operacion',
   certificar: 'certificacion', estado: 'certificacion', firma: 'certificacion', baja: 'certificacion',
   conductor: 'certificacion', ayudante: 'certificacion', vehiculo: 'certificacion',
   perfil: 'empresa', docs: 'empresa',
@@ -507,7 +508,6 @@ function Cifras({ monto, rutas, datos }) {
 // ── Pantallas que marketing puso en el menú pero todavía no existen ─────────
 const PENDIENTES = {
   desempeno: { grupo: 'Mi operación', titulo: 'Desempeño', texto: 'Aquí vas a ver el nivel de servicio, las entregas y las devoluciones de tus rutas, semana a semana.' },
-  reclamos: { grupo: 'Mi operación', titulo: 'Reclamos', texto: 'Aquí vas a responder los paquetes no recibidos o con diferencia antes de que venza el plazo. Mientras tanto, levanta la diferencia desde Movimientos.' },
 }
 
 export function EnConstruccion({ vista, onBack }) {
