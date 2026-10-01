@@ -88,15 +88,19 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
   useEffect(() => {
     if (!tercero?.tercero_id) return
     const leer = async () => {
-      const [lista, c, p] = await Promise.all([
+      const [lista, m, p] = await Promise.all([
         cargarNotificaciones(tercero.tercero_id),
-        supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', tercero.tercero_id).maybeSingle(),
+        // El contador cuenta lo mismo que muestra la bandeja: las
+        // notificaciones sin leer. Antes leía vw_campana_tercero, que cuenta
+        // los mensajes de Consultas, y marcaba cero con la bandeja llena.
+        supabase.from('notificaciones_tercero').select('id', { count: 'exact', head: true })
+          .eq('tercero_id', tercero.tercero_id).is('leida_at', null),
         // Los reclamos abiertos alimentan el número del menú: el tercero lo ve
         // esté en la pantalla que esté, no solo al entrar al inicio.
         supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
       ])
       setAvisos(lista)
-      setSinLeer(c.data?.mensajes_sin_leer || 0)
+      setSinLeer(m.count || 0)
       setPropios({ reclamos: (p.data || []).length })
     }
     leer()
