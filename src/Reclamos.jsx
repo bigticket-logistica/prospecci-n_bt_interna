@@ -29,8 +29,24 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 const dia = (v) => { if (!v) return '—'; const d = new Date(String(v).length <= 10 ? v + 'T12:00:00' : v); return `${d.getDate()} ${MESES[d.getMonth()]}` }
 const diaHora = (v) => { if (!v) return '—'; const d = new Date(v); return `${d.getDate()} ${MESES[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
+// Lo que MELI informa de cada paquete, en palabras que el tercero entienda.
+// Parte viene en portugués desde el origen; se traduce acá, no en la base.
+const MOTIVO = {
+  'No había nadie en el domicilio': 'Nadie recibió en el domicilio',
+  'Faltam dados do endereço': 'Faltaban datos de la dirección',
+  'O pacote foi recusado': 'El comprador rechazó el paquete',
+  'Palabra clave incorrecta.': 'La clave de entrega no coincidió',
+  'El comprador cambió de dirección': 'El comprador cambió de dirección',
+  'Negocio cerrado': 'El negocio estaba cerrado',
+  'Está en una zona inaccesible': 'Zona inaccesible',
+  'El paquete está dañado': 'El paquete venía dañado',
+}
+const motivoDe = (t) => MOTIVO[t] || t || 'Sin motivo informado'
+
 export default function Reclamos({ tercero, onIr }) {
   const [casos, setCasos] = useState(null)
+  const [devs, setDevs] = useState(null)
+  const [diaAbierto, setDiaAbierto] = useState(null)
   const [abierto, setAbierto] = useState(null)
   const [avisos, setAvisos] = useState({})
   const [error, setError] = useState('')
@@ -41,6 +57,9 @@ export default function Reclamos({ tercero, onIr }) {
       .select('*').eq('resultado', 'en_curso').order('fecha_caso', { ascending: false }).limit(300)
     if (error) { setError('No pudimos cargar tus reclamos. Vuelve a intentarlo en un momento.'); setCasos([]); return }
     setCasos(data || [])
+    const d = await supabase.from('vw_portal_devolucion')
+      .select('*').order('dia', { ascending: false }).limit(500)
+    setDevs(d.data || [])
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -190,14 +209,96 @@ export default function Reclamos({ tercero, onIr }) {
       <div className="dx-origen">
         <h2>Paquetes pendientes de devolver</h2>
       </div>
-      <div className="bt-vacio">
-        <h3>En construcción</h3>
-        <p>
-          Aquí vas a ver los paquetes que no se entregaron y deben volver al centro, con su plazo.
-          Mientras tanto, los devuelves como siempre en tu centro.
-        </p>
-      </div>
+
+      <Devoluciones filas={devs} abierto={diaAbierto} setAbierto={setDiaAbierto} />
     </div>
+  )
+}
+
+// Paquetes que salieron a ruta, no se entregaron y todavía no vuelven al
+// centro. Van agrupados por día y placa: una empresa grande puede tener cien,
+// y una lista plana de cien guías no se lee.
+function Devoluciones({ filas, abierto, setAbierto }) {
+  if (filas === null) return <div className="bt-vacio"><h3>Cargando…</h3></div>
+  if (!filas.length) {
+    return (
+      <div className="bt-vacio">
+        <h3>No tienes paquetes pendientes</h3>
+        <p>Todo lo que salió a ruta en los últimos tres días volvió al centro o se entregó.</p>
+      </div>
+    )
+  }
+
+  const porDia = {}
+  for (const f of filas) {
+    if (!porDia[f.dia]) porDia[f.dia] = {}
+    const k = `${f.placa || 'sin placa'}|${f.sc || ''}|${f.conductor || ''}`
+    ;(porDia[f.dia][k] = porDia[f.dia][k] || []).push(f)
+  }
+  const dias = Object.keys(porDia).sort().reverse()
+
+  return (
+    <>
+      <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+        {filas.length} {filas.length === 1 ? 'paquete' : 'paquetes'} de los últimos tres días.
+        Si no vuelven al centro, MELI puede cobrarlos como paquete perdido.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {dias.map(d => {
+          const grupos = porDia[d]
+          const n = Object.values(grupos).reduce((t, g) => t + g.length, 0)
+          const open = abierto === d
+          return (
+            <div key={d} className="dx-card" style={{ borderLeftColor: 'var(--amber)' }}>
+              <button className="dx-head" onClick={() => setAbierto(open ? null : d)}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="dx-titulo">Ruta del {dia(d)}</div>
+                  <div className="dx-sub">
+                    {n} {n === 1 ? 'paquete' : 'paquetes'} en {Object.keys(grupos).length}{' '}
+                    {Object.keys(grupos).length === 1 ? 'unidad' : 'unidades'}
+                  </div>
+                </div>
+                <span className="dx-chev">{open ? '▲' : '▼'}</span>
+              </button>
+
+              {open && (
+                <div className="dx-detalle">
+                  {Object.entries(grupos).map(([k, items]) => {
+                    const [placa, sc, conductor] = k.split('|')
+                    return (
+                      <div key={k} className="rc-unidad">
+                        <div className="rc-unidad-t">
+                          {placa} · {sc}
+                          {conductor ? <span className="rc-cond"> · {conductor}</span> : null}
+                          <span className="rc-n">{items.length}</span>
+                        </div>
+                        <ul className="rc-guias">
+                          {items.map(f => (
+                            <li key={f.id}>
+                              <span className="rc-guia">{f.guia}</span>
+                              <span className="rc-motivo">{motivoDe(f.incidente)}</span>
+                              {f.estado === 'sleepover' && (
+                                <span className="dx-pill amber">Sleepover</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
+
+                  <p className="dx-nota">
+                    Si alguno de estos paquetes ya volvió al centro, va a desaparecer de esta lista
+                    cuando MELI lo registre. Si no lo tienes, avísale al supervisor de tu centro.
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 
