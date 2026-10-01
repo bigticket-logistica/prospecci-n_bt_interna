@@ -793,3 +793,33 @@ tr:last-child td { border-bottom: none; }
 .rc-guias li { display: flex; gap: 12px; align-items: baseline; font-size: 12.5px; flex-wrap: wrap; }
 .rc-guia { font-family: var(--font-display); font-weight: 600; color: var(--ink); min-width: 110px; }
 .rc-motivo { color: var(--muted); flex: 1; min-width: 180px; }
+
+/* ── Notificaciones del inicio: dos tarjetas ────────────────────────────── */
+.nt-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); margin-bottom: 28px; }
+.nt-card {
+  background: #fff; border: 1px solid #E4E3E3; border-radius: 16px; padding: 16px 18px 18px;
+  display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,46,93,.05);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.nt-card:hover { box-shadow: 0 12px 28px rgba(0,46,93,.14); transform: translateY(-2px); }
+.nt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.nt-resumen { font-family: var(--font-display); font-weight: 700; font-size: 14.5px; color: var(--navy); white-space: nowrap; }
+.nt-tag {
+  font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: .06em;
+  color: #fff; padding: 6px 14px; border-radius: 999px;
+}
+.nt-tag.urgente { background: var(--red); }
+.nt-tag.importante { background: var(--orange); }
+
+.nt-kpi-row { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nt-kpi {
+  display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 18px;
+  box-sizing: border-box; width: 100%; background: #fff; border: 1px solid #E4E3E3;
+  border-radius: 12px; color: var(--navy); cursor: pointer; text-align: left;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.nt-kpi-row .nt-kpi { padding: 0 16px; gap: 10px; }
+.nt-kpi:hover { background: #F7F9FC; border-color: #B8C4D3; transform: translateY(-1px); }
+.nt-num { font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1; min-width: 18px; }
+.nt-label { flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 500; font-size: 15px; }
+.nt-cta { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 13px; white-space: nowrap; }

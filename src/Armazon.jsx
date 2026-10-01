@@ -66,7 +66,7 @@ const Chevron = ({ size = 13, color = 'currentColor', w = 2.5, style }) => (
 )
 
 // ── Shell ────────────────────────────────────────────────────────────────
-export function Shell({ tercero, email, vista, onNavegar, contadores = {}, children }) {
+export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}, children }) {
   const hoyMx = () => {
     const d = new Date()
     const f = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric',
@@ -79,17 +79,25 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
   const [panel, setPanel] = useState(null)           // 'campana' | 'empresa' | null
   const [menuMovil, setMenuMovil] = useState(false)
   const [avisos, setAvisos] = useState(null)       // notificaciones del portal
-  const [sinLeer, setSinLeer] = useState(0)          // mensajes de Consultas
+  const [sinLeer, setSinLeer] = useState(0)
+  // Contadores del menú. Van acá y no en el inicio porque el menú está siempre
+  // a la vista; los que llegan por prop mandan sobre los que calcula el Shell.
+  const [propios, setPropios] = useState({})
+  const contadores = { ...propios, ...fijos }          // mensajes de Consultas
 
   useEffect(() => {
     if (!tercero?.tercero_id) return
     const leer = async () => {
-      const [lista, c] = await Promise.all([
+      const [lista, c, p] = await Promise.all([
         cargarNotificaciones(tercero.tercero_id),
         supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', tercero.tercero_id).maybeSingle(),
+        // Los reclamos abiertos alimentan el número del menú: el tercero lo ve
+        // esté en la pantalla que esté, no solo al entrar al inicio.
+        supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
       ])
       setAvisos(lista)
       setSinLeer(c.data?.mensajes_sin_leer || 0)
+      setPropios({ reclamos: (p.data || []).length })
     }
     leer()
     const t = setInterval(() => { if (!document.hidden) leer() }, 60000)
@@ -375,6 +383,23 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   useEffect(() => { cargar() }, [cargar])
 
   // Sin la cuenta de pago no se le paga: va primero y en rojo.
+  // Dos tarjetas en vez de una lista de avisos: lo urgente es la plata en
+  // riesgo, y lo importante, lo que puede frenar un pago o bloquear la
+  // operación. Una tarjeta sin pendientes no se muestra.
+  const urgente = useMemo(() => riesgo && riesgo.urgente
+    ? { n: riesgo.n, label: riesgo.n === 1 ? 'Reclamo' : 'Reclamos',
+        resumen: `${pesos(riesgo.monto)} Riesgo de cobro` }
+    : null, [riesgo])
+
+  const importante = useMemo(() => {
+    const cuenta = (destinos) => avisos.filter(n => destinos.includes(n.destino)).length
+    const k = [
+      { v: 'estado', label: 'Certificación', n: cuenta(['estado', 'certificar', 'firma', 'docs']) },
+      { v: 'facturacion', label: 'Facturación', n: cuenta(['facturacion', 'facturado']) },
+    ].filter(x => x.n > 0)
+    return k.length ? k : null
+  }, [avisos])
+
   const notificaciones = useMemo(() => [
     ...(perfilOk === false ? [{
       id: 'perfil', destino: 'perfil', pastilla: { estilo: 'rojo', etiqueta: 'Urgente' },
@@ -453,24 +478,43 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </div>
       )}
 
-      {listo && notificaciones.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
+      {listo && (urgente || importante) && (
+        <>
           <span className="bt-eyebrow">Notificaciones</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {notificaciones.map(n => (
-              <button key={n.id} className={`bt-aviso e-${n.pastilla.estilo}${n.plano ? ' plano' : ''}`} onClick={() => abrir(n)}>
-                <div style={{ minWidth: 0 }}>
-                  <h3>
-                    {n.titulo}
-                    {n.monto && <>{' · '}<span className="bt-aviso-monto">{n.monto}</span>{' '}{n.cola}</>}
-                  </h3>
-                  <p>{n.detalle}</p>
+          <div className="nt-grid">
+            {urgente && (
+              <article className="nt-card">
+                <header className="nt-head">
+                  <span className="nt-tag urgente">URGENTE</span>
+                  <span className="nt-resumen">{urgente.resumen}</span>
+                </header>
+                <button className="nt-kpi" onClick={() => ir('reclamos')}>
+                  <span className="nt-num">{urgente.n}</span>
+                  <span className="nt-label">{urgente.label}</span>
+                  <span className="nt-cta">Revisar <Chev /></span>
+                </button>
+              </article>
+            )}
+
+            {importante && (
+              <article className="nt-card">
+                <header className="nt-head">
+                  <span className="nt-tag importante">IMPORTANTE</span>
+                  <span className="nt-resumen">Riesgo de bloqueo y pago</span>
+                </header>
+                <div className="nt-kpi-row">
+                  {importante.map(k => (
+                    <button key={k.v} className="nt-kpi" onClick={() => ir(k.v)}>
+                      <span className="nt-num">{k.n}</span>
+                      <span className="nt-label">{k.label}</span>
+                      <Chev />
+                    </button>
+                  ))}
                 </div>
-                <span className="bt-pill">{n.pastilla.etiqueta}</span>
-              </button>
-            ))}
+              </article>
+            )}
           </div>
-        </div>
+        </>
       )}
 
       {listo && tercero.pagosHabilitados && (
@@ -544,6 +588,15 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         <button onClick={() => onPick('postula')}>Postular mi unidad</button>
       </div>
     </>
+  )
+}
+
+function Chev() {
+  return (
+    <svg className="nt-chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   )
 }
 
