@@ -478,30 +478,39 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </div>
       )}
 
+      {/* Las dos tarjetas van siempre juntas mientras haya algo que mostrar: si
+          se ocultara la vacía, la otra se estiraría a lo ancho y la pantalla
+          cambiaría de forma según el día. */}
       {listo && (urgente || importante) && (
         <>
           <span className="bt-eyebrow">Notificaciones</span>
           <div className="nt-grid">
-            {urgente && (
-              <article className="nt-card">
-                <header className="nt-head">
-                  <span className="nt-tag urgente">URGENTE</span>
-                  <span className="nt-resumen">{urgente.resumen}</span>
-                </header>
+            <article className={`nt-card${urgente ? '' : ' vacia'}`}>
+              <header className="nt-head">
+                <span className="nt-tag urgente">URGENTE</span>
+                <span className="nt-resumen">
+                  {urgente ? urgente.resumen : 'Sin plata en riesgo'}
+                </span>
+              </header>
+              {urgente ? (
                 <button className="nt-kpi" onClick={() => ir('reclamos')}>
                   <span className="nt-num">{urgente.n}</span>
                   <span className="nt-label">{urgente.label}</span>
                   <span className="nt-cta">Revisar <Chev /></span>
                 </button>
-              </article>
-            )}
+              ) : (
+                <div className="nt-kpi sin-nada">No tienes reclamos esperando tu respuesta</div>
+              )}
+            </article>
 
-            {importante && (
-              <article className="nt-card">
-                <header className="nt-head">
-                  <span className="nt-tag importante">IMPORTANTE</span>
-                  <span className="nt-resumen">Riesgo de bloqueo y pago</span>
-                </header>
+            <article className={`nt-card${importante ? '' : ' vacia'}`}>
+              <header className="nt-head">
+                <span className="nt-tag importante">IMPORTANTE</span>
+                <span className="nt-resumen">
+                  {importante ? 'Riesgo de bloqueo y pago' : 'Sin pendientes'}
+                </span>
+              </header>
+              {importante ? (
                 <div className="nt-kpi-row">
                   {importante.map(k => (
                     <button key={k.v} className="nt-kpi" onClick={() => ir(k.v)}>
@@ -511,8 +520,10 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                     </button>
                   ))}
                 </div>
-              </article>
-            )}
+              ) : (
+                <div className="nt-kpi sin-nada">Tu certificación y tus facturas están al día</div>
+              )}
+            </article>
           </div>
         </>
       )}
