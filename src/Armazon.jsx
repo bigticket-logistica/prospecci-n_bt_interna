@@ -97,7 +97,12 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
     return () => clearInterval(t)
   }, [tercero])
 
-  const abrirCampana = () => setPanel(panel === 'campana' ? null : 'campana')
+  // En el teléfono el desplegable queda apretado: la campana lleva directo a
+  // la bandeja, como pide la maqueta.
+  const abrirCampana = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) { ir('mensajes'); return }
+    setPanel(panel === 'campana' ? null : 'campana')
+  }
 
   const abrirAviso = (n) => {
     if (!n.leida_at) {

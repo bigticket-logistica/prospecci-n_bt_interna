@@ -293,6 +293,113 @@ export default function Movimientos({ tercero, email, onBack }) {
   const pagada = hayPrefactura && prefSC.every(p => p.pagado_at)
   const pagadoAt = pagada ? prefSC.map(p => p.pagado_at).sort()[0] : null
 
+  // Detalle del resumen: qué compone los ajustes y qué los descuentos. Un
+  // total sin su desglose obliga al tercero a reconstruirlo línea por línea.
+  const lineasAjuste = useMemo(() =>
+    extrasSC.filter(e => Number(e.monto || 0) > 0)
+      .map(e => ({ concepto: `${e.concepto || 'Ajuste'}${e.service_center ? ` · ${e.service_center}` : ''}`,
+                   monto: Number(e.monto || 0) })), [extrasSC])
+
+  const lineasCobro = useMemo(() => [
+    ...filasSC.filter(f => f.tipo === 'cobro').map(f => ({
+      concepto: [f.concepto || 'Cobro', f.shipment_id ? `guía ${f.shipment_id}` : null, f.sc]
+        .filter(Boolean).join(' · '),
+      monto: Number(f.monto || 0),
+    })),
+    ...extrasSC.filter(e => Number(e.monto || 0) < 0).map(e => ({
+      concepto: `${e.concepto || 'Cargo'}${e.service_center ? ` · ${e.service_center}` : ''}`,
+      monto: Number(e.monto || 0),
+    })),
+  ], [filasSC, extrasSC])
+
+  // El PDF se arma con una ventana de impresión: sin librerías nuevas, el
+  // tercero elige "Guardar como PDF" y obtiene el mismo documento en cualquier
+  // navegador, con el logo y los totales de la semana.
+  const descargarPdf = () => {
+    const esc = (t) => String(t ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    // Se recorre la misma lista que ve el tercero en pantalla, con su saldo
+    // corrido: el PDF y la pantalla no pueden decir cosas distintas.
+    let filasHtml = ''
+    for (const l of lineas.filas) {
+      if (l._sep) {
+        const d = dias.find(x => x.fecha === l.fecha)
+        filasHtml += `<tr class="dia"><td colspan="4">${esc(fechaLarga(l.fecha))}</td>` +
+          `<td style="display:none"></td></tr>`
+        continue
+      }
+      const m = l.m, n = Number(m.monto || 0)
+      const detalle = m.tipo === 'cobro'
+        ? [m.placa, m.concepto || 'Cobro', m.sc].filter(Boolean).join(' · ')
+        : [m.placa, `Ruta ${m.ref || ''}`, m.sc, m.driver_name].filter(Boolean).join(' · ')
+      filasHtml += `<tr>
+        <td>${esc(detalle)}</td>
+        <td class="n">${n > 0 && l.cuenta ? money(n) : ''}</td>
+        <td class="n rojo">${n < 0 ? money(Math.abs(n)) : ''}</td>
+        <td class="n">${l.cuenta ? money(l.saldo) : '—'}</td></tr>`
+    }
+    for (const { e, saldo } of lineasExtra) {
+      filasHtml += `<tr>
+        <td>${esc(e.concepto || 'Ajuste')}${e.service_center ? ` · ${esc(e.service_center)}` : ''}</td>
+        <td class="n">${Number(e.monto) > 0 ? money(e.monto) : ''}</td>
+        <td class="n rojo">${Number(e.monto) < 0 ? money(Math.abs(e.monto)) : ''}</td>
+        <td class="n">${money(saldo)}</td></tr>`
+    }
+
+    const w = window.open('', '_blank')
+    if (!w) { alert('Tu navegador bloqueó la ventana. Permite las ventanas emergentes y vuelve a intentarlo.'); return }
+    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+      <title>Movimientos semana ${semanaBrain(lunes)} · ${esc(tercero.nombre)}</title>
+      <style>
+        @page { size: A4; margin: 14mm }
+        body { font-family: 'Open Sans', Arial, sans-serif; color: #1A1A1A; font-size: 11px; margin: 0 }
+        .cab { display: flex; justify-content: space-between; align-items: flex-start;
+               border-bottom: 3px solid #FF6600; padding-bottom: 10px; margin-bottom: 16px }
+        .cab img { height: 30px }
+        .cab .t { text-align: right }
+        h1 { font-size: 17px; color: #002E5D; margin: 0 0 2px }
+        .muted { color: #545454; font-size: 10.5px }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px }
+        th { background: #002E5D; color: #fff; text-align: left; padding: 7px 9px; font-size: 10px;
+             text-transform: uppercase; letter-spacing: .05em }
+        td { padding: 6px 9px; border-bottom: 1px solid #E4E3E3 }
+        td.n { text-align: right; white-space: nowrap }
+        td.rojo { color: #D92D20 }
+        tr.dia td { background: #F4F3F3; font-weight: 700; color: #002E5D }
+        tr.tot td { font-weight: 700 }
+        .res { width: 320px; margin-left: auto; margin-top: 14px }
+        .res div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #E4E3E3 }
+        .res .final { border-bottom: none; border-top: 2px solid #002E5D; font-weight: 700;
+                      font-size: 13px; color: #002E5D; margin-top: 4px; padding-top: 8px }
+        .pie { margin-top: 22px; font-size: 9.5px; color: #545454; text-align: center }
+      </style></head><body>
+      <div class="cab">
+        <img src="${window.location.origin}/bt_logo_color.png" alt="Bigticket">
+        <div class="t">
+          <h1>Movimientos · Semana ${semanaBrain(lunes)}</h1>
+          <div class="muted">${esc(rango(lunes, domingo))}</div>
+          <div class="muted">${esc(tercero.nombre)}${scSel !== 'todos' ? ` · ${esc(scSel)}` : ''}</div>
+        </div>
+      </div>
+      <table>
+        <tr><th>Ruta / detalle</th><th style="text-align:right">Abono</th>
+            <th style="text-align:right">Cargo</th><th style="text-align:right">Saldo</th></tr>
+        ${filasHtml}
+      </table>
+      <div class="res">
+        <div><span>Tus rutas</span><span>${money(totalPagos)}</span></div>
+        ${totalAjustes ? `<div><span>Ajustes a tu favor</span><span>${money(totalAjustes)}</span></div>` : ''}
+        ${totalCobros ? `<div><span>Descuentos</span><span>−${money(Math.abs(totalCobros))}</span></div>` : ''}
+        <div><span>Neto</span><span>${money(totalNeto)}</span></div>
+        ${hayPrefactura ? `<div><span>IVA 16%</span><span>${money(iva)}</span></div>` : ''}
+        <div class="final"><span>${pagada ? 'Pagado' : 'Total'}</span><span>${hayPrefactura ? money(totalBruto) : '—'}</span></div>
+      </div>
+      <p class="pie">Documento generado desde el Portal Transportista de Bigticket · ${new Date().toLocaleDateString('es-MX')}</p>
+      </body></html>`)
+    w.document.close()
+    // Se espera al logo: si se imprime antes, el PDF sale sin él.
+    w.onload = () => { w.focus(); w.print() }
+  }
+
   const nSel = Object.keys(sel).length + faltantes.length
   const hayInapelables = useMemo(() => filas.some(esInapelable), [filas])
 
@@ -400,50 +507,81 @@ export default function Movimientos({ tercero, email, onBack }) {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      <button className="back-link" onClick={onBack}>← Volver</button>
+    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <nav className="ms-ruta" style={{ marginBottom: 14 }}>
+        <a href="#" onClick={e => { e.preventDefault(); onBack() }}>Inicio</a>
+        <span>›</span><span>Mi billetera</span>
+        <span>›</span><span className="on">Movimientos</span>
+      </nav>
 
-      {/* Cabecera: semana y totales */}
-      <div style={{ background: 'var(--navy)', color: '#fff', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setLunes(sumaDias(lunes, -7))}
-              disabled={iso(lunes) <= INICIO_PORTAL}
-              title={iso(lunes) <= INICIO_PORTAL ? 'Es la primera semana disponible' : ''}
-              style={{ ...navBtn, opacity: iso(lunes) <= INICIO_PORTAL ? 0.35 : 1,
-                cursor: iso(lunes) <= INICIO_PORTAL ? 'not-allowed' : 'pointer' }}>‹</button>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>Semana {semanaBrain(lunes)}</div>
-              <div style={{ fontSize: 12.5, color: '#b8c6de' }}>{rango(lunes, domingo)}</div>
-            </div>
-            <button onClick={() => setLunes(sumaDias(lunes, 7))} style={navBtn}>›</button>
-          </div>
-          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-            <Tot label="Viajes" valor={money(totalPagos)} />
-            {totalAjustes !== 0 && <Tot label="Ajustes" valor={money(totalAjustes)} />}
-            {totalCobros !== 0 && <Tot label="Cobros" valor={money(totalCobros)} rojo />}
-            <Tot label="Neto" valor={money(totalNeto)} />
-            {hayPrefactura && <Tot label="IVA 16%" valor={money(iva)} />}
-            {hayPrefactura
-              ? <Tot label={pagada ? 'Pagado' : 'Total'} valor={money(totalBruto)} grande />
-              : <Tot label="Sin prefactura" valor="—" tenue />}
-          </div>
+      <div className="mv-cab">
+        <h1 className="bt-titulo">Movimientos</h1>
+        <button className="mv-descargar" onClick={() => descargarPdf()}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Descargar movimientos
+        </button>
+      </div>
 
-          {centros.length > 1 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-              {['todos', ...centros].map(c => (
-                <button key={c} onClick={() => setScSel(c)}
-                  style={{
-                    padding: '5px 13px', borderRadius: 14, fontSize: 12, fontWeight: 600,
-                    border: `1px solid ${scSel === c ? '#fff' : 'rgba(255,255,255,.28)'}`,
-                    background: scSel === c ? '#fff' : 'transparent',
-                    color: scSel === c ? 'var(--navy)' : 'rgba(255,255,255,.85)',
-                  }}>
-                  {c === 'todos' ? 'Todos los centros' : c}
-                </button>
-              ))}
+      <div className="mv-barra">
+        <div className="mv-semana">
+          <button onClick={() => setLunes(sumaDias(lunes, -7))}
+            disabled={iso(lunes) <= INICIO_PORTAL}
+            title={iso(lunes) <= INICIO_PORTAL ? 'Es la primera semana disponible' : ''}>‹</button>
+          <span className="mv-semana-t">
+            <b>Semana {semanaBrain(lunes)}</b> · {rango(lunes, domingo)}
+          </span>
+          <button onClick={() => setLunes(sumaDias(lunes, 7))}>›</button>
+        </div>
+
+        {centros.length > 1 && (
+          <div className="mv-centros">
+            <span>Centro:</span>
+            {['todos', ...centros].map(c => (
+              <button key={c} onClick={() => setScSel(c)} className={scSel === c ? 'on' : ''}>
+                {c === 'todos' ? 'Todos SVC' : c}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Resumen de la semana: primero lo que suma, después lo que resta, y el
+          detalle de cada parte a la vista para que el total no sea un misterio. */}
+      <div className="mv-resumen">
+        <div className="mv-fila">
+          <span>Tus rutas</span><b className="pos">+ {money(totalPagos)}</b>
+        </div>
+
+        {totalAjustes !== 0 && (
+          <>
+            <div className="mv-fila">
+              <span>Ajustes a tu favor</span><b className="pos">+ {money(totalAjustes)}</b>
             </div>
-          )}
+            {lineasAjuste.map((l, i) => (
+              <div key={i} className="mv-sub"><span>{l.concepto}</span><span>{money(l.monto)}</span></div>
+            ))}
+          </>
+        )}
+
+        {totalCobros !== 0 && (
+          <>
+            <div className="mv-fila">
+              <span>Descuentos</span><b className="neg">− {money(Math.abs(totalCobros))}</b>
+            </div>
+            {lineasCobro.map((l, i) => (
+              <div key={i} className="mv-sub"><span>{l.concepto}</span><span>{money(l.monto)}</span></div>
+            ))}
+          </>
+        )}
+
+        <div className="mv-fila fuerte"><span>Neto</span><b>{money(totalNeto)}</b></div>
+        {hayPrefactura && <div className="mv-fila"><span>IVA 16%</span><b>+ {money(iva)}</b></div>}
+        <div className="mv-fila total">
+          <span>{pagada ? 'Pagado' : 'Total'}</span>
+          <b>{hayPrefactura ? money(totalBruto) : '—'}</b>
         </div>
       </div>
 
@@ -566,6 +704,8 @@ export default function Movimientos({ tercero, email, onBack }) {
         /* Estado de cuenta: cada línea suma o resta y el saldo va corriendo,
            como una cartola bancaria. Los días quedan como separadores para no
            perder la lectura por jornada. */
+        <>
+        <h2 className="mv-detalle-t">Detalle de movimientos por día</h2>
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'auto', marginBottom: 14 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <thead>
@@ -672,6 +812,7 @@ export default function Movimientos({ tercero, email, onBack }) {
             </tfoot>
           </table>
         </div>
+        </>
       )}
 
 
