@@ -266,19 +266,16 @@ tr:last-child td { border-bottom: none; }
   display: block; font-family: var(--font-display); font-weight: 700; font-size: 20px;
   letter-spacing: .06em; text-transform: uppercase; color: #8B8B8B; margin-bottom: 12px;
 }
+/* Sin ribete de color: el estado lo dice la pastilla, y cuatro bordes de
+   colores distintos hacían ruido sin aportar información. */
 .bt-aviso {
   width: 100%; text-align: left; cursor: pointer; background: #fff; border: 1px solid #E4E3E3;
-  border-left: 4px solid var(--orange); border-radius: 12px; padding: 14px 18px;
+  border-radius: 12px; padding: 14px 18px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   box-shadow: 0 1px 3px rgba(0,46,93,.05);
   transition: box-shadow .2s ease, transform .2s ease;
 }
 .bt-aviso:hover { box-shadow: 0 12px 28px rgba(0,46,93,.16); transform: translateY(-2px); }
-/* Colores de alerta: rojo y naranja son los de la maqueta; azul y verde, los
-   del manual de marca para novedades y resultados a favor. */
-.bt-aviso.e-rojo { border-left-color: #C43D2F; }
-.bt-aviso.e-azul { border-left-color: var(--navy); }
-.bt-aviso.e-verde { border-left-color: var(--green); }
 .bt-aviso h3 { font-family: var(--font); font-weight: 500; font-size: 14.5px; color: var(--navy); margin: 0 0 4px; letter-spacing: 0; }
 .bt-aviso p { font-size: 13px; color: var(--muted); margin: 0; }
 .bt-pill {
@@ -351,17 +348,21 @@ tr:last-child td { border-bottom: none; }
 .bt-flota { display: inline-block; transform-origin: center bottom;
   transition: transform .2s ease, text-shadow .2s ease; }
 .bt-flota:hover { transform: translateY(-3px) scale(1.06); text-shadow: 0 8px 16px rgba(0,46,93,.28); }
-.bt-cifras { display: flex; align-items: flex-end; gap: 28px; padding: 10px 0 22px; border-bottom: 1px solid #E4E3E3; }
+/* Dos mitades iguales arriba y cuatro columnas abajo: así el separador del
+   monto cae exactamente sobre el del medio de los indicadores. */
+.bt-cifras { display: grid; grid-template-columns: 1fr 1fr; align-items: flex-end; padding: 10px 0 22px; }
+.bt-cifras > * { padding: 0 8px; }
 .bt-monto {
   font-family: var(--font-display); font-weight: 700; font-size: 36px; color: var(--navy);
   white-space: nowrap; line-height: 1.1;
 }
-.bt-rutas { display: flex; align-items: baseline; gap: 8px; padding-left: 28px; border-left: 1px solid #D9D9D9; }
+.bt-rutas { display: flex; align-items: baseline; gap: 8px; border-left: 1px solid #D9D9D9; }
 .bt-rutas .n { font-family: var(--font-display); font-weight: 700; font-size: 36px; color: var(--navy); line-height: 1.1; }
 .bt-rutas .l { font-size: 14px; color: var(--muted); }
 /* Cada número centrado sobre su rótulo, en columnas de igual ancho: así el
    ojo compara los cuatro indicadores sin saltos. */
-.bt-datos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 0; padding-top: 20px; }
+.bt-datos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 0;
+  padding-top: 20px; border-top: 1px solid #E4E3E3; margin: 0 8px; }
 .bt-datos > div { padding: 0 8px; border-left: 1px solid #D9D9D9; text-align: center; }
 .bt-datos > div:first-child { border-left: none; }
 .bt-datos .v { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--navy); }
@@ -778,6 +779,3 @@ tr:last-child td { border-bottom: none; }
 }
 @media print { .bt-lateral, .bt-header, .bt-franja, .bt-biggy, .mv-descargar { display: none !important; } }
 
-/* La línea resumen de descuentos va sin ribete: no es una alerta sobre un
-   caso puntual, es el total de lo ya cobrado. */
-.bt-aviso.plano { border-left: 1px solid #E4E3E3; }
