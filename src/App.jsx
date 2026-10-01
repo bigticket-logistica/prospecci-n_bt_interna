@@ -7,6 +7,7 @@ import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing from './Landing'
 import Descuentos from './Descuentos'
+import Reclamos from './Reclamos'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
 
@@ -185,6 +186,7 @@ export default function App() {
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
       {view === 'mensajes' && <Bloque nombre="Mis mensajes"><Mensajes tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}

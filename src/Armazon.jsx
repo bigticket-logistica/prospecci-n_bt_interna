@@ -29,11 +29,10 @@ const MENU = [
     { v: 'facturado', title: 'Facturado', desc: 'Facturas cargadas en validación' },
     { v: 'pagado', title: 'Pagado', desc: 'Facturas pagadas y depósitos' },
   ] },
-  // Los reclamos de paquetes viven en Descuentos, con su historial de avisos:
-  // tener además una entrada "Reclamos" dejaba el mismo caso en dos lugares.
   { key: 'operacion', label: 'Mi operación', items: [
     { v: 'flota', title: 'Mi Flota', desc: 'Vehículos y personal activos' },
     { v: 'desempeno', title: 'Desempeño', desc: 'Indicadores de nivel de servicio' },
+    { v: 'reclamos', title: 'Reclamos', desc: 'Lo que todavía está en juego', rojo: true },
   ] },
   { key: 'certificacion', label: 'Certificación', items: [
     { v: 'certificar', title: 'Certificar vehículo y personas', desc: 'Dar de alta conductor, ayudante o vehículo' },
@@ -54,7 +53,7 @@ const GRUPO_DE = {
   mensajes: 'mensajes', consultas: 'mensajes',
   movimientos: 'billetera', descuentos: 'billetera',
   facturacion: 'facturacion', facturado: 'facturacion', pagado: 'facturacion',
-  flota: 'operacion', desempeno: 'operacion',
+  flota: 'operacion', desempeno: 'operacion', reclamos: 'operacion',
   certificar: 'certificacion', estado: 'certificacion', firma: 'certificacion', baja: 'certificacion',
   conductor: 'certificacion', ayudante: 'certificacion', vehiculo: 'certificacion',
   perfil: 'empresa', docs: 'empresa',
@@ -385,7 +384,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     // Una sola línea por los reclamos abiertos, con la plata en juego: dos
     // docenas de tarjetas sueltas no le dicen al tercero cuánto arriesga.
     ...(riesgo ? [{
-      id: 'reclamos', destino: 'descuentos',
+      id: 'reclamos', destino: 'reclamos',
       pastilla: riesgo.urgente ? { estilo: 'rojo', etiqueta: 'Urgente' } : { estilo: 'naranja', etiqueta: 'Importante' },
       titulo: `Tienes ${riesgo.n} ${riesgo.n === 1 ? 'reclamo' : 'reclamos'}`,
       monto: pesos(riesgo.monto),
