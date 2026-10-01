@@ -19,6 +19,7 @@ const LOGO = '/logo-bigticket-blanco.png'
 // submenú; las que no tienen pantalla todavía abren EnConstruccion.
 const MENU = [
   { key: 'inicio', label: 'Inicio', v: 'home', items: [] },
+  { key: 'mensajes', label: 'Mis mensajes', v: 'consultas', naranja: true, items: [] },
   { key: 'billetera', label: 'Mi billetera', pagos: true, items: [
     { v: 'movimientos', title: 'Movimientos', desc: 'Detalle diario de rutas' },
     { v: 'descuentos', title: 'Descuentos', desc: 'Paquete no devuelto, multas, No Show' },
@@ -49,12 +50,13 @@ const MENU = [
 // el menú (formularios de certificación, consultas, postula) marcan a su grupo.
 const GRUPO_DE = {
   home: 'inicio',
+  consultas: 'mensajes',
   movimientos: 'billetera', descuentos: 'billetera',
   facturacion: 'facturacion', facturado: 'facturacion', pagado: 'facturacion',
   flota: 'operacion', desempeno: 'operacion', reclamos: 'operacion',
   certificar: 'certificacion', estado: 'certificacion', firma: 'certificacion', baja: 'certificacion',
   conductor: 'certificacion', ayudante: 'certificacion', vehiculo: 'certificacion',
-  perfil: 'empresa', docs: 'empresa', consultas: 'empresa',
+  perfil: 'empresa', docs: 'empresa',
 }
 
 
@@ -65,6 +67,14 @@ const Chevron = ({ size = 13, color = 'currentColor', w = 2.5, style }) => (
 
 // ── Shell ────────────────────────────────────────────────────────────────
 export function Shell({ tercero, email, vista, onNavegar, contadores = {}, children }) {
+  const hoyMx = () => {
+    const d = new Date()
+    const f = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric',
+      timeZone: 'America/Mexico_City' }).format(d).replace(/\./g, '')
+    const h = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'America/Mexico_City' }).format(d)
+    return `${f.replace(/ /g, '-')}, ${h} hrs`
+  }
   const [abierto, setAbierto] = useState(null)       // grupo desplegado en el menú
   const [panel, setPanel] = useState(null)           // 'campana' | 'empresa' | null
   const [menuMovil, setMenuMovil] = useState(false)
@@ -177,6 +187,12 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
         </div>
       </header>
 
+      {/* País y hora de México: el tercero y el analista pueden estar en husos
+          distintos, así que la hora de referencia va siempre a la vista. */}
+      <div className="bt-franja">
+        <span>México</span><span>·</span><span>{hoyMx()}</span>
+      </div>
+
       <div className="bt-cuerpo">
         {menuMovil && <div className="bt-velo" onClick={() => setMenuMovil(false)} />}
         <aside className={`bt-lateral${menuMovil ? ' abierto' : ''}`}>
@@ -185,7 +201,8 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
               const on = activo === g.key
               const open = abierto === g.key
               const conSub = g.items.length > 0
-              const nGrupo = g.items.reduce((s, i) => s + (contadores[i.v] || 0), 0)
+              const nGrupo = g.key === 'mensajes' ? sinLeer
+                : g.items.reduce((s, i) => s + (contadores[i.v] || 0), 0)
               return (
                 <div key={g.key} className="bt-grupo">
                   <button
@@ -194,7 +211,11 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
                     <span className="bt-grupo-izq">
                       <span className="bt-barra" />
                       <span className="bt-grupo-label">{g.label}</span>
-                      {nGrupo > 0 && <span className="bt-contador">{nGrupo}</span>}
+                      {nGrupo > 0 && (
+                        <span className="bt-contador" style={{ background: g.naranja ? 'var(--orange)' : '#C43D2F' }}>
+                          {nGrupo}
+                        </span>
+                      )}
                     </span>
                     {conSub && <Chevron style={{ flexShrink: 0, transition: 'transform .15s ease',
                       transform: `rotate(${open ? '180deg' : '0deg'})` }} />}

@@ -654,3 +654,14 @@ tr:last-child td { border-bottom: none; }
 /* El monto va destacado dentro del título, como en la maqueta: es el número
    que hace que el tercero se mueva. */
 .bt-aviso-monto { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--navy); }
+/* Franja de contexto bajo la cabecera */
+.bt-franja {
+  display: flex; justify-content: flex-end; gap: 8px; align-items: center;
+  padding: 8px 28px; border-bottom: 1px solid var(--line); background: #fff;
+  font-size: 12px; color: #4A5058; white-space: nowrap;
+  position: sticky; top: 64px; z-index: 19;
+}
+@media (max-width: 860px) {
+  .bt-franja { padding: 6px 16px; top: 64px; font-size: 11.5px; }
+  .bt-lateral { top: 95px; height: auto; }
+}
