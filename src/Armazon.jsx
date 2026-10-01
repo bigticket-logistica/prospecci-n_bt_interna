@@ -308,6 +308,9 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [sinLeer, setSinLeer] = useState(0)
   const [riesgo, setRiesgo] = useState(null)   // PNR en curso: casos y monto
   const [fallas, setFallas] = useState([])     // consultas que no respondieron
+  // El inicio aparece de una vez. Mostrarlo por partes hacía que la pantalla
+  // saltara: primero un aviso suelto y después, de golpe, todo lo demás.
+  const [listo, setListo] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
@@ -323,12 +326,14 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         return r
       } catch (e) { fallas.push(`${nombre}: ${e.message || e}`); return sino }
     }
-    const [d, p, lista, c] = await Promise.all([
+    const [d, p, lista, c, pnr] = await Promise.all([
       ok('resumen del día', () => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
         .order('fecha', { ascending: false }).limit(1), { data: [] }),
       ok('resumen por período', () => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
       ok('notificaciones', () => cargarNotificaciones(id), []),
       ok('mensajes', () => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
+      // Los PNR que todavía se pueden ganar: es plata en riesgo, no un cargo.
+      ok('reclamos', () => supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'), { data: [] }),
     ])
     setFallas(fallas)
     if (fallas.length) console.error('[portal] inicio:', fallas)
@@ -337,25 +342,13 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     // En el Inicio van las pendientes y las novedades que todavía no abre.
     setAvisos((lista || []).filter(n => n.clase === 'pendiente' || !n.leida_at))
     setSinLeer(c?.data?.mensajes_sin_leer || 0)
-  }, [tercero])
-
-  // Los reclamos abiertos van aparte y después: su consulta recorre los casos
-  // de posventa y es la más lenta del inicio. Si fuera parte de la carga
-  // principal, el tercero esperaría sus montos por culpa de una línea de aviso.
-  useEffect(() => {
-    if (!tercero?.tercero_id) return
-    let vivo = true
-    ;(async () => {
-      const { data, error } = await supabase.from('vw_portal_pnr')
-        .select('monto, le_toca_a').eq('resultado', 'en_curso')
-      if (!vivo || error || !data?.length) return
-      setRiesgo({
-        n: data.length,
-        monto: data.reduce((t, x) => t + Number(x.monto || 0), 0),
-        urgente: data.some(x => x.le_toca_a === 'tercero'),
-      })
-    })()
-    return () => { vivo = false }
+    const enCurso = (pnr && pnr.data) || []
+    setRiesgo(enCurso.length
+      ? { n: enCurso.length,
+          monto: enCurso.reduce((t, x) => t + Number(x.monto || 0), 0),
+          urgente: enCurso.some(x => x.le_toca_a === 'tercero') }
+      : null)
+    setListo(true)
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
@@ -421,7 +414,17 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </div>
       )}
 
-      {notificaciones.length > 0 && (
+      {!listo && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div className="bt-skel" style={{ height: 70 }} />
+          <div className="bt-tarjetas">
+            <div className="bt-skel" style={{ height: 196 }} />
+            <div className="bt-skel" style={{ height: 196 }} />
+          </div>
+        </div>
+      )}
+
+      {listo && notificaciones.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <span className="bt-eyebrow">Notificaciones</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -441,7 +444,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </div>
       )}
 
-      {tercero.pagosHabilitados && (
+      {listo && tercero.pagosHabilitados && (
         <>
         <span className="bt-eyebrow">Movimientos</span>
         <div className="bt-tarjetas">
