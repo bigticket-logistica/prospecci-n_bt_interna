@@ -312,6 +312,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [avisos, setAvisos] = useState([])
   const [sinLeer, setSinLeer] = useState(0)
   const [riesgo, setRiesgo] = useState(null)   // PNR en curso: casos y monto
+  const [descuentos, setDescuentos] = useState(null)  // cobros ya aplicados
   const [fallas, setFallas] = useState([])     // consultas que no respondieron
   // El inicio aparece de una vez. Mostrarlo por partes hacía que la pantalla
   // saltara: primero un aviso suelto y después, de golpe, todo lo demás.
@@ -331,27 +332,43 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         return r
       } catch (e) { fallas.push(`${nombre}: ${e.message || e}`); return sino }
     }
-    const [d, p, lista, c, pnr] = await Promise.all([
+    const [d, p, lista, c, pnr, otros] = await Promise.all([
       ok('resumen del día', () => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
         .order('fecha', { ascending: false }).limit(1), { data: [] }),
       ok('resumen por período', () => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
       ok('notificaciones', () => cargarNotificaciones(id), []),
       ok('mensajes', () => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
       // Los PNR que todavía se pueden ganar: es plata en riesgo, no un cargo.
-      ok('reclamos', () => supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'), { data: [] }),
+      ok('reclamos', () => supabase.from('vw_portal_pnr').select('monto, le_toca_a, resultado'), { data: [] }),
+      ok('descuentos', () => supabase.from('vw_portal_mis_descuentos').select('monto'), { data: [] }),
     ])
     setFallas(fallas)
     if (fallas.length) console.error('[portal] inicio:', fallas)
     setDia(((d && d.data) || [])[0] || null)
     setPeriodos((p && p.data) || [])
     // En el Inicio van las pendientes y las novedades que todavía no abre.
-    setAvisos((lista || []).filter(n => n.clase === 'pendiente' || !n.leida_at))
+    // Las jornadas publicadas quedan solo en Mis mensajes: el inicio ya muestra
+    // la ganancia del día en su tarjeta, así que repetirla como aviso sobra.
+    setAvisos((lista || []).filter(n =>
+      n.tipo !== 'jornada_publicada' &&
+      n.tipo !== 'nuevo_descuento' && n.tipo !== 'descuento_pnr' &&
+      (n.clase === 'pendiente' || !n.leida_at)))
     setSinLeer(c?.data?.mensajes_sin_leer || 0)
-    const enCurso = (pnr && pnr.data) || []
+    const casos = (pnr && pnr.data) || []
+    const enCurso = casos.filter(x => x.resultado === 'en_curso')
     setRiesgo(enCurso.length
       ? { n: enCurso.length,
           monto: enCurso.reduce((t, x) => t + Number(x.monto || 0), 0),
           urgente: enCurso.some(x => x.le_toca_a === 'tercero') }
+      : null)
+    // Los descuentos ya aplicados van en una sola línea: uno por cobro llenaba
+    // el inicio de avisos que el tercero no puede accionar.
+    const cobrados = [
+      ...casos.filter(x => x.resultado === 'se_cobra'),
+      ...((otros && otros.data) || []),
+    ]
+    setDescuentos(cobrados.length
+      ? { n: cobrados.length, monto: cobrados.reduce((t, x) => t + Number(x.monto || 0), 0) }
       : null)
     setListo(true)
   }, [tercero])
@@ -377,13 +394,21 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         ? 'Hay casos esperando tu respuesta. Responde antes de que venza el plazo.'
         : 'MELI los está revisando. Te avisamos cuando los resuelva.',
     }] : []),
+    ...(descuentos ? [{
+      id: 'descuentos', destino: 'descuentos', plano: true,
+      pastilla: { estilo: 'naranja', etiqueta: 'Informativo' },
+      titulo: `${descuentos.n} ${descuentos.n === 1 ? 'descuento aplicado' : 'descuentos aplicados'}`,
+      monto: pesos(Math.abs(descuentos.monto)),
+      cola: 'en total',
+      detalle: 'Revisa el detalle de cada uno en Descuentos.',
+    }] : []),
     ...avisos,
     ...(sinLeer > 0 ? [{
       id: 'mensajes', destino: 'mensajes', pastilla: { estilo: 'azul', etiqueta: 'Nuevo' },
       titulo: `${sinLeer} ${sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer`,
       detalle: 'Léelos y respóndelos en Consultas',
     }] : []),
-  ], [perfilOk, avisos, sinLeer, riesgo])
+  ], [perfilOk, avisos, sinLeer, riesgo, descuentos])
 
   const abrir = (n) => {
     if (typeof n.id === 'number' && !n.leida_at) marcarLeida(n.id)
@@ -434,7 +459,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
           <span className="bt-eyebrow">Notificaciones</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {notificaciones.map(n => (
-              <button key={n.id} className={`bt-aviso e-${n.pastilla.estilo}`} onClick={() => abrir(n)}>
+              <button key={n.id} className={`bt-aviso e-${n.pastilla.estilo}${n.plano ? ' plano' : ''}`} onClick={() => abrir(n)}>
                 <div style={{ minWidth: 0 }}>
                   <h3>
                     {n.titulo}
