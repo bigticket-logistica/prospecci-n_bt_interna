@@ -307,22 +307,33 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const [avisos, setAvisos] = useState([])
   const [sinLeer, setSinLeer] = useState(0)
   const [riesgo, setRiesgo] = useState(null)   // PNR en curso: casos y monto
+  const [fallas, setFallas] = useState([])     // consultas que no respondieron
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     const id = tercero.tercero_id
-    // Cada fuente va aparte y con su propio resguardo: una vista que falle no
-    // puede dejar el inicio en blanco, como pasó al sumar la de PNR.
-    const ok = async (fn, sino) => { try { return await fn() } catch { return sino } }
+    // Supabase no lanza excepciones: devuelve { data, error }. Por eso una
+    // vista sin permisos o con una columna mal escrita dejaba el inicio vacío
+    // sin que nadie se enterara. Acá se recoge cada error y se muestra.
+    const fallas = []
+    const ok = async (nombre, fn, sino) => {
+      try {
+        const r = await fn()
+        if (r && r.error) { fallas.push(`${nombre}: ${r.error.message || r.error}`); return sino }
+        return r
+      } catch (e) { fallas.push(`${nombre}: ${e.message || e}`); return sino }
+    }
     const [d, p, lista, c, pnr] = await Promise.all([
-      ok(() => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
+      ok('resumen del día', () => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
         .order('fecha', { ascending: false }).limit(1), { data: [] }),
-      ok(() => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
-      ok(() => cargarNotificaciones(id), []),
-      ok(() => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
+      ok('resumen por período', () => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
+      ok('notificaciones', () => cargarNotificaciones(id), []),
+      ok('mensajes', () => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
       // Los PNR que todavía se pueden ganar: es plata en riesgo, no un cargo.
-      ok(() => supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'), { data: [] }),
+      ok('reclamos', () => supabase.from('vw_portal_pnr').select('monto, le_toca_a').eq('resultado', 'en_curso'), { data: [] }),
     ])
+    setFallas(fallas)
+    if (fallas.length) console.error('[portal] inicio:', fallas)
     setDia(((d && d.data) || [])[0] || null)
     setPeriodos((p && p.data) || [])
     // En el Inicio van las pendientes y las novedades que todavía no abre.
@@ -388,6 +399,16 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   return (
     <>
       <h1 className="bt-hola">Hola, {tercero.nombre}</h1>
+
+      {fallas.length > 0 && (
+        <div className="dx-error" style={{ marginBottom: 20 }}>
+          <b>No pudimos cargar parte de tu información.</b> Puedes seguir usando el portal; esto lo
+          revisamos nosotros.
+          <ul style={{ margin: '8px 0 0', paddingLeft: 20, fontSize: 12.5 }}>
+            {fallas.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+        </div>
+      )}
 
       {notificaciones.length > 0 && (
         <div style={{ marginBottom: 24 }}>
