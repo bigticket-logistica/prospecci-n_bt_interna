@@ -348,9 +348,13 @@ tr:last-child td { border-bottom: none; }
 .bt-flota { display: inline-block; transform-origin: center bottom;
   transition: transform .2s ease, text-shadow .2s ease; }
 .bt-flota:hover { transform: translateY(-3px) scale(1.06); text-shadow: 0 8px 16px rgba(0,46,93,.28); }
-/* Dos mitades iguales arriba y cuatro columnas abajo: así el separador del
-   monto cae exactamente sobre el del medio de los indicadores. */
-.bt-cifras { display: grid; grid-template-columns: 1fr 1fr; align-items: flex-end; padding: 10px 0 22px; }
+/* Las dos filas comparten la misma grilla de cuatro columnas: el monto ocupa
+   las dos primeras y las rutas las dos últimas. Así el separador de arriba cae
+   sobre el del medio de abajo, y el número de rutas arranca exactamente donde
+   arranca el tercer indicador. */
+.bt-cifras { display: grid; grid-template-columns: repeat(4, 1fr); align-items: flex-end; padding: 10px 0 22px; }
+.bt-monto { grid-column: 1 / 3; }
+.bt-rutas { grid-column: 3 / 5; }
 .bt-cifras > * { padding: 0 8px; }
 .bt-monto {
   font-family: var(--font-display); font-weight: 700; font-size: 36px; color: var(--navy);
@@ -363,7 +367,7 @@ tr:last-child td { border-bottom: none; }
    ojo compara los cuatro indicadores sin saltos. */
 .bt-datos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 0;
   padding-top: 20px; border-top: 1px solid #E4E3E3; margin: 0 8px; }
-.bt-datos > div { padding: 0 8px; border-left: 1px solid #D9D9D9; text-align: center; }
+.bt-datos > div { padding: 0 8px; border-left: 1px solid #D9D9D9; }
 .bt-datos > div:first-child { border-left: none; }
 .bt-datos .v { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--navy); }
 .bt-datos .l { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
