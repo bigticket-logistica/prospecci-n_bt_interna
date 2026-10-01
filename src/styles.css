@@ -286,7 +286,10 @@ tr:last-child td { border-bottom: none; }
   background: #FDE7D7; padding: 6px 14px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
   width: 112px; text-align: center; text-transform: uppercase; letter-spacing: .04em;
 }
-.bt-aviso.e-rojo .bt-pill { color: #C43D2F; background: #FBE3E0; }
+/* La urgente va en rojo sólido con la tarjeta teñida: es la única que tiene
+   que saltar a la vista entre las demás. */
+.bt-aviso.e-rojo { background: #FEF3F2; border-color: #F5C8C3; }
+.bt-aviso.e-rojo .bt-pill { color: #fff; background: var(--red); }
 .bt-aviso.e-azul .bt-pill { color: var(--navy); background: #E1E8F0; }
 .bt-aviso.e-verde .bt-pill { color: var(--green); background: #E2F1E7; }
 
@@ -671,3 +674,63 @@ tr:last-child td { border-bottom: none; }
   background-size: 200% 100%; border-radius: 18px; animation: bt-brillo 1.3s ease-in-out infinite; }
 @keyframes bt-brillo { from { background-position: 200% 0 } to { background-position: -200% 0 } }
 @media (prefers-reduced-motion: reduce) { .bt-skel { animation: none } }
+
+/* ── Mis mensajes ───────────────────────────────────────────────────────── */
+.ms-ruta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.ms-ruta a { color: var(--muted); text-decoration: none; }
+.ms-ruta a:hover { color: var(--navy); }
+.ms-ruta .on { color: var(--navy); font-weight: 600; }
+
+.ms-filtros { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ms-solapas { display: flex; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.ms-solapas button {
+  border: none; background: transparent; border-radius: 8px; padding: 8px 18px; cursor: pointer;
+  font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: var(--muted);
+}
+.ms-solapas button.on { background: var(--navy); color: #fff; }
+.ms-cat {
+  border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 14px;
+  font-family: var(--font); font-size: 13.5px; color: var(--navy); cursor: pointer;
+}
+.ms-todo {
+  margin-left: auto; border: none; background: transparent; cursor: pointer;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--orange);
+}
+.ms-todo:hover:not(:disabled) { color: var(--navy); }
+.ms-todo:disabled { color: var(--muted); cursor: default; }
+
+.ms-item {
+  display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid var(--line);
+  border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,46,93,.05);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.ms-item:hover { box-shadow: 0 12px 28px rgba(0,46,93,.16); transform: translateY(-2px); }
+/* Un mensaje leído baja de peso pero no desaparece: el historial sirve. */
+.ms-item.leido { background: #FBFBFA; }
+.ms-item.leido .ms-titulo { font-weight: 600; color: var(--muted); }
+.ms-punto { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--orange); }
+.ms-punto.e-rojo { background: var(--red); }
+.ms-punto.e-azul { background: var(--navy); }
+.ms-punto.e-verde { background: var(--green); }
+.ms-item.leido .ms-punto { background: var(--line); }
+.ms-cat-t {
+  font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--orange); margin-bottom: 3px;
+}
+.ms-item.leido .ms-cat-t { color: var(--muted); }
+.ms-titulo { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--navy); line-height: 1.3; }
+.ms-detalle { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.ms-fecha { font-size: 12.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.ms-ver {
+  border: 1px solid var(--navy); background: #fff; color: var(--navy); border-radius: 10px;
+  padding: 10px 18px; font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.ms-ver:hover { background: var(--navy); color: #fff; }
+
+@media (max-width: 860px) {
+  .ms-item { flex-wrap: wrap; }
+  .ms-fecha { order: 3; width: 100%; }
+  .ms-ver { order: 4; width: 100%; }
+  .ms-todo { margin-left: 0; }
+}

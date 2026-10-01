@@ -7,6 +7,7 @@ import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing from './Landing'
 import Descuentos from './Descuentos'
+import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
@@ -185,6 +186,7 @@ export default function App() {
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
+      {view === 'mensajes' && <Bloque nombre="Mis mensajes"><Mensajes tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}

@@ -19,7 +19,7 @@ const LOGO = '/logo-bigticket-blanco.png'
 // submenú; las que no tienen pantalla todavía abren EnConstruccion.
 const MENU = [
   { key: 'inicio', label: 'Inicio', v: 'home', items: [] },
-  { key: 'mensajes', label: 'Mis mensajes', v: 'consultas', naranja: true, items: [] },
+  { key: 'mensajes', label: 'Mis mensajes', v: 'mensajes', naranja: true, items: [] },
   { key: 'billetera', label: 'Mi billetera', pagos: true, items: [
     { v: 'movimientos', title: 'Movimientos', desc: 'Detalle diario de rutas' },
     { v: 'descuentos', title: 'Descuentos', desc: 'Paquete no devuelto, multas, No Show' },
@@ -51,7 +51,7 @@ const MENU = [
 // el menú (formularios de certificación, consultas, postula) marcan a su grupo.
 const GRUPO_DE = {
   home: 'inicio',
-  consultas: 'mensajes',
+  mensajes: 'mensajes', consultas: 'mensajes',
   movimientos: 'billetera', descuentos: 'billetera',
   facturacion: 'facturacion', facturado: 'facturacion', pagado: 'facturacion',
   flota: 'operacion', desempeno: 'operacion',
@@ -145,7 +145,7 @@ export function Shell({ tercero, email, vista, onNavegar, contadores = {}, child
                 <div className="bt-desp-titulo">Notificaciones</div>
                 <div className="bt-desp-lista">
                   {sinLeer > 0 && (
-                    <button className="bt-desp-item" onClick={() => ir('consultas')}>
+                    <button className="bt-desp-item" onClick={() => ir('mensajes')}>
                       <span className="t">{sinLeer} {sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer</span>
                       <span className="d">Léelos y respóndelos en Consultas</span>
                     </button>
@@ -374,7 +374,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     }] : []),
     ...avisos,
     ...(sinLeer > 0 ? [{
-      id: 'mensajes', destino: 'consultas', pastilla: { estilo: 'azul', etiqueta: 'Nuevo' },
+      id: 'mensajes', destino: 'mensajes', pastilla: { estilo: 'azul', etiqueta: 'Nuevo' },
       titulo: `${sinLeer} ${sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer`,
       detalle: 'Léelos y respóndelos en Consultas',
     }] : []),
