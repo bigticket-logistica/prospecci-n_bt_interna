@@ -10,6 +10,7 @@ import Descuentos from './Descuentos'
 import Reclamos from './Reclamos'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
+import { iniciarNativo, registrarPush } from './nativo'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -96,7 +97,24 @@ export default function App() {
   const [view, setView] = useState('home')
   // Fecha con la que abrir una pantalla, cuando se llega desde un mensaje que
   // habla de un día concreto. Se limpia al salir para no arrastrarla.
-  const [fecha, setFecha] = useState(null) // home | estado | conductor | ayudante | vehiculo | firma
+  const [fecha, setFecha] = useState(null)
+
+  // Dentro de la aplicación: barra de estado, botón de volver y notificaciones.
+  // En el navegador no hace nada.
+  useEffect(() => {
+    iniciarNativo({
+      onVolver: () => {
+        // El botón físico lleva al inicio antes de cerrar la aplicación.
+        if (view !== 'home') { setView('home'); return true }
+        return false
+      },
+    })
+    const ir = (e) => setView(e.detail)
+    window.addEventListener('bt:ir', ir)
+    return () => window.removeEventListener('bt:ir', ir)
+  }, [view])
+
+  useEffect(() => { if (tercero?.tercero_id) registrarPush(supabase, tercero, email) }, [tercero, email]) // home | estado | conductor | ayudante | vehiculo | firma
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
   // Modo recuperación. Dos caminos: el código de 6 dígitos que el tercero
