@@ -114,7 +114,6 @@ export default function App() {
     return () => window.removeEventListener('bt:ir', ir)
   }, [view])
 
-  useEffect(() => { if (tercero?.tercero_id) registrarPush(supabase, tercero, email) }, [tercero, email]) // home | estado | conductor | ayudante | vehiculo | firma
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
   // Modo recuperación. Dos caminos: el código de 6 dígitos que el tercero
@@ -154,6 +153,14 @@ export default function App() {
   }, [session])
 
   const [perfilOk, setPerfilOk] = useState(null)   // null = sin revisar aún
+
+  // Registro de notificaciones. Va antes de los return condicionales de abajo,
+  // porque un hook detrás de un if deja de ejecutarse y React se cae. El
+  // correo se lee de la sesión acá mismo, que a esta altura ya existe.
+  useEffect(() => {
+    const mail = session?.user?.email
+    if (tercero?.tercero_id && mail) registrarPush(supabase, tercero, mail)
+  }, [tercero, session])
   const revisarPerfil = async () => {
     if (!tercero?.tercero_id) return
     const { data } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
