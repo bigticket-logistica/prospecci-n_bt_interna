@@ -112,8 +112,14 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
       setPropios({ reclamos: (p.data || []).filter(x => !vistos.includes(x.case_id)).length })
     }
     leer()
+    // Al leer un mensaje el número baja de inmediato, sin esperar a que el
+    // tercero cambie de pantalla ni al refresco del minuto.
+    window.addEventListener('bt:leido', leer)
     const t = setInterval(() => { if (!document.hidden) leer() }, 60000)
-    return () => clearInterval(t)
+    return () => {
+      window.removeEventListener('bt:leido', leer)
+      clearInterval(t)
+    }
   }, [tercero])
 
   // En el teléfono el desplegable queda apretado: la campana lleva directo a

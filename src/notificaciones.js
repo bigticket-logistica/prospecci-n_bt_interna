@@ -28,6 +28,9 @@ export async function cargarNotificaciones(terceroId) {
 export function marcarLeida(id) {
   if (typeof id !== 'number') return
   supabase.rpc('fn_portal_marcar_leida', { p_id: id }).then(() => {}, () => {})
+  // El menú y la campana bajan en el acto. Sin este aviso solo se enteraban al
+  // cambiar de pantalla, y el número quedaba ahí como si no hubiera leído nada.
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt:leido'))
 }
 
 // Una pendiente con plazo cambia de pastilla a medida que se acerca el

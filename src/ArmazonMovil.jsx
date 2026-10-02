@@ -76,7 +76,7 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
   useEffect(() => {
     if (!tercero?.tercero_id) return
     let vivo = true
-    ;(async () => {
+    const contar = async () => {
       const [m, p] = await Promise.all([
         supabase.from('notificaciones_tercero').select('id', { count: 'exact', head: true })
           .eq('tercero_id', tercero.tercero_id).is('leida_at', null),
@@ -85,8 +85,12 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
       if (!vivo) return
       setSinLeer(m.count || 0)
       setReclamos((p.data || []).length)
-    })()
-    return () => { vivo = false }
+    }
+    contar()
+    // Al leer un mensaje el número baja de inmediato, sin esperar a que el
+    // tercero cambie de pantalla.
+    window.addEventListener('bt:leido', contar)
+    return () => { vivo = false; window.removeEventListener('bt:leido', contar) }
   }, [tercero, vista])
 
   const ir = (v) => { setMas(false); onNavegar(v) }
