@@ -10,6 +10,7 @@ import Descuentos from './Descuentos'
 import Reclamos from './Reclamos'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
+import { ShellMovil, esMovil } from './ArmazonMovil'
 import { iniciarNativo, registrarPush } from './nativo'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
@@ -197,9 +198,11 @@ export default function App() {
   )
 
   const email = session.user.email
+  // En el teléfono manda el armazón móvil; en el computador, el de siempre.
+  const Armazon = esMovil() ? ShellMovil : Shell
   return (
     <Red>
-    <Shell tercero={tercero} email={email} onNavegar={setView} vista={view}>
+    <Armazon tercero={tercero} email={email} onNavegar={setView} vista={view}>
       {/* Cada pantalla va en su propia red: si una falla, muestra el error en
           vez de dejar el portal en blanco, y el resto sigue funcionando. */}
       {view === 'home' && <Bloque nombre="el inicio"><Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} /></Bloque>}
@@ -231,7 +234,7 @@ export default function App() {
 
       {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
       <Biggy tercero={tercero} />
-    </Shell>
+    </Armazon>
     </Red>
   )
 }

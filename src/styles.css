@@ -928,3 +928,113 @@ tr:last-child td { border-bottom: none; }
   .rc-avisos-th:not(:first-child) { display: none; }
 }
 .rc-reclamo { margin: 0; font-size: 13.5px; color: var(--ink); line-height: 1.55; font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   El portal en el teléfono. Cabecera azul arriba, una columna al medio y las
+   pestañas abajo, donde llega el pulgar. Solo se aplica en pantallas angostas
+   o dentro de la aplicación: el portal de escritorio no cambia.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mv-shell {
+  min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--page);
+}
+
+.mv-hd {
+  background: linear-gradient(160deg, #2B558F 0%, var(--navy) 45%, #001E3D 100%);
+  color: #fff; padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 18px;
+  position: sticky; top: 0; z-index: 30;
+}
+.mv-hd-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.mv-saludo { font-size: 12.5px; color: #9FB6D8; }
+.mv-nombre {
+  font-family: var(--font-display); font-weight: 700; font-size: 18px; line-height: 1.2;
+  letter-spacing: -.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mv-hd-acc { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.mv-bell {
+  position: relative; width: 38px; height: 38px; border-radius: 12px; border: none;
+  background: rgba(255,255,255,.12); display: grid; place-items: center; cursor: pointer;
+}
+.mv-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: 10px; background: var(--orange); color: #fff; font-family: var(--font-display);
+  font-size: 11px; font-weight: 700; display: grid; place-items: center; border: 2px solid var(--navy);
+}
+.mv-avatar {
+  width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.18);
+  display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 15px;
+}
+
+/* El espacio de abajo evita que la barra de pestañas tape el último bloque:
+   sin él, la última tarjeta queda detrás y no se alcanza a leer. */
+.mv-cuerpo { flex: 1; padding: 16px 16px 90px; overflow-x: hidden; }
+
+.mv-tabs {
+  position: sticky; bottom: 0; z-index: 30; display: flex;
+  background: rgba(255,255,255,.96); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mv-tab {
+  flex: 1; border: none; background: none; cursor: pointer; padding: 9px 2px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative;
+  color: #8B8B8B; font-family: var(--font-display); font-weight: 600; font-size: 10px;
+  transition: color .18s ease;
+}
+.mv-tab.on { color: var(--navy); }
+.mv-ico { display: grid; place-items: center; height: 22px; }
+/* Un punto en vez de un número: en 10px de ancho una cifra no se lee. */
+.mv-punto {
+  position: absolute; top: 7px; left: 50%; margin-left: 6px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--orange); border: 1.5px solid #fff;
+}
+
+.mv-velo { position: fixed; inset: 0; background: rgba(0,20,45,.45); z-index: 40; }
+.mv-hoja {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: #fff;
+  border-radius: 20px 20px 0 0; max-height: 84vh; overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 0px); animation: mv-sube .22s ease;
+}
+@keyframes mv-sube { from { transform: translateY(100%) } to { transform: none } }
+@media (prefers-reduced-motion: reduce) { .mv-hoja { animation: none } }
+.mv-hoja-asa { width: 38px; height: 4px; border-radius: 2px; background: #D9D9D9; margin: 10px auto 4px; }
+.mv-hoja-cuerpo { padding: 8px 18px 24px; }
+.mv-hoja-cuerpo h3 {
+  font-family: var(--font-display); font-weight: 700; font-size: 11.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); margin: 18px 0 6px;
+}
+.mv-item {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+  background: none; border: none; border-bottom: 1px solid var(--line); padding: 13px 0;
+}
+.mv-item span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mv-item b { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; color: var(--navy); }
+.mv-item small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.mv-n {
+  font-family: var(--font-display); font-style: normal; font-weight: 700; font-size: 11.5px;
+  color: #fff; background: var(--orange); border-radius: 999px; padding: 2px 8px;
+}
+.mv-salir {
+  width: 100%; margin-top: 22px; padding: 13px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--red);
+  font-family: var(--font-display); font-weight: 700; font-size: 14px;
+}
+.mv-correo { text-align: center; font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+/* Dentro del teléfono las pantallas van en una columna y sin el aire del
+   escritorio: cada píxel de ancho cuenta. */
+@media (max-width: 820px) {
+  .mv-cuerpo .bt-tarjetas,
+  .mv-cuerpo .nt-grid,
+  .mv-cuerpo .dx-tabs { grid-template-columns: 1fr; display: grid; }
+  .mv-cuerpo .bt-card,
+  .mv-cuerpo .nt-card { padding: 16px; }
+  .mv-cuerpo .bt-titulo { font-size: 24px; }
+  .mv-cuerpo .bt-hola { display: none; }      /* el saludo ya está en la cabecera */
+  .mv-cuerpo .ms-ruta { display: none; }      /* la ruta se reemplaza por las pestañas */
+  .mv-cuerpo .bt-volver, .mv-cuerpo .back-link { display: none; }
+}
+
+/* Biggy sube por encima de las pestañas para no quedar tapado ni taparlas. */
+@media (max-width: 820px) {
+  .bt-biggy, .biggy-boton, .bt-biggy-wrap { bottom: 86px !important; }
+}
