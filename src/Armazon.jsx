@@ -564,8 +564,8 @@ export function Inicio({ tercero, perfilOk, onPick }) {
           </div>
 
           <div className="bt-card">
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 16px' }}>
-              <div>
+            <div className="bt-card-cab">
+              <div style={{ minWidth: 0 }}>
                 <h3 className="bt-card-t">{vista === 'semana' ? 'Semanal' : 'Mensual'}</h3>
                 <div className="bt-periodo">
                   <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}

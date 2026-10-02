@@ -335,7 +335,8 @@ tr:last-child td { border-bottom: none; }
 .bt-toggle button.on { background: var(--navy); color: #fff; }
 /* No cambia de color al pasar el mouse: solo sube 1px con sombra. */
 .bt-toggle button:hover { box-shadow: 0 4px 10px rgba(0,46,93,.25); transform: translateY(-1px); }
-.bt-periodo { display: flex; align-items: center; gap: 8px; }
+.bt-card-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
+.bt-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bt-flecha {
   width: 26px; height: 26px; border-radius: 8px; border: 1px solid #C9CDD2; background: #fff;
   color: var(--navy); display: flex; align-items: center; justify-content: center;
@@ -1026,6 +1027,14 @@ tr:last-child td { border-bottom: none; }
   .mv-cuerpo .bt-tarjetas,
   .mv-cuerpo .nt-grid,
   .mv-cuerpo .dx-tabs { grid-template-columns: 1fr; display: grid; }
+  /* El aire para la hoja apilada empujaba las tarjetas fuera de la pantalla:
+     en el teléfono no hay ese efecto, así que tampoco hace falta el margen. */
+  .mv-cuerpo .bt-tarjetas { padding: 0; margin-left: 0; }
+  .mv-cuerpo .bt-card:hover { box-shadow: 0 1px 3px rgba(0,46,93,.05); transform: none; }
+  /* El título y el selector de período se apilan cuando no caben juntos. */
+  .mv-cuerpo .bt-card-cab { flex-wrap: wrap; gap: 10px; }
+  .mv-cuerpo .bt-periodo { width: 100%; }
+  .mv-cuerpo .bt-toggle { margin-left: auto; }
   .mv-cuerpo .bt-card,
   .mv-cuerpo .nt-card { padding: 16px; }
   .mv-cuerpo .bt-titulo { font-size: 24px; }
@@ -1038,3 +1047,15 @@ tr:last-child td { border-bottom: none; }
 @media (max-width: 820px) {
   .bt-biggy, .biggy-boton, .bt-biggy-wrap { bottom: 86px !important; }
 }
+/* Solapas de sección, bajo la cabecera y sobre el contenido. */
+.mv-solapas {
+  display: flex; gap: 4px; padding: 10px 16px 0; background: var(--page);
+  position: sticky; top: 0; z-index: 25; overflow-x: auto; scrollbar-width: none;
+}
+.mv-solapas::-webkit-scrollbar { display: none; }
+.mv-solapas button {
+  flex: 1; min-width: max-content; border: none; cursor: pointer; white-space: nowrap;
+  background: #E9EEF6; color: var(--muted); border-radius: 10px; padding: 9px 14px;
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+}
+.mv-solapas button.on { background: var(--navy); color: #fff; }

@@ -55,6 +55,12 @@ const MAS = [
   ] },
 ]
 
+// Lo que vive dentro de cada pestaña cuando tiene más de una pantalla.
+const SOLAPAS = {
+  billetera: [['movimientos', 'Movimientos'], ['descuentos', 'Descuentos']],
+  facturacion: [['facturacion', 'Por facturar'], ['facturado', 'Facturado'], ['pagado', 'Pagado']],
+}
+
 const SOLO_PAGOS = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
 
 export function esMovil() {
@@ -105,10 +111,23 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
               </svg>
               {sinLeer > 0 && <span className="mv-badge">{sinLeer > 99 ? '99+' : sinLeer}</span>}
             </button>
-            <span className="mv-avatar">{inicial}</span>
+            {/* La inicial abre el menú: en un teléfono todo lo que se ve se
+                toca, y un adorno que no responde se siente roto. */}
+            <button className="mv-avatar" onClick={() => setMas(true)} aria-label="Menú">{inicial}</button>
           </div>
         </div>
       </header>
+
+      {/* Las secciones con varias pantallas llevan sus solapas acá arriba: una
+          pestaña de abajo no alcanza para tres vistas, y esconder dos de ellas
+          en el menú las vuelve invisibles. */}
+      {SOLAPAS[activa] && (
+        <div className="mv-solapas">
+          {SOLAPAS[activa].map(([v, l]) => (
+            <button key={v} className={vista === v ? 'on' : ''} onClick={() => onNavegar(v)}>{l}</button>
+          ))}
+        </div>
+      )}
 
       <main className="mv-cuerpo">{children}</main>
 
