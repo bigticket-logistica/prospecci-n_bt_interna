@@ -845,3 +845,86 @@ tr:last-child td { border-bottom: none; }
   background: transparent; border-style: dashed;
 }
 .nt-kpi.sin-nada:hover { background: transparent; border-color: var(--line); transform: none; }
+
+/* ── Reclamos ───────────────────────────────────────────────────────────── */
+.rc-top { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
+.rc-urgente {
+  max-width: 520px; flex: 1 1 340px; background: #fff; border: 1px solid var(--line);
+  border-radius: 16px; padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px;
+}
+.rc-aviso {
+  flex: 1 1 260px; margin: 0; display: flex; align-items: center; background: #fff;
+  border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px;
+  font-size: 14px; color: var(--ink); line-height: 1.5;
+}
+.rc-aviso b { font-family: var(--font-display); color: var(--navy); margin-right: 5px; }
+
+.rc-caso {
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,46,93,.05);
+  transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+}
+.rc-caso:hover { box-shadow: 0 12px 28px rgba(0,46,93,.14); transform: translateY(-2px); border-color: #B8C4D3; }
+.rc-caso-head { display: flex; align-items: center; gap: 10px; padding: 18px 22px 0; flex-wrap: wrap; }
+.rc-tipo { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--navy); }
+.rc-caso-id {
+  font-family: var(--font-display); font-weight: 600; font-size: 12px; color: #4A5058;
+  background: #F4F5F7; border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px;
+}
+.rc-caso-estado {
+  margin-left: auto; font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--navy);
+  border: 1.5px solid var(--navy); padding: 5px 16px; border-radius: 999px;
+}
+
+/* Cabeceras y datos comparten la misma grilla: así las columnas quedan
+   alineadas sin usar una tabla. */
+.rc-tabla-wrap { overflow-x: auto; padding: 0 22px 18px; }
+.rc-grid {
+  display: grid; min-width: 820px; font-size: 13.5px;
+  grid-template-columns: 84px minmax(0,.7fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1fr)
+                         minmax(0,1.15fr) minmax(0,.8fr) minmax(0,.9fr) 104px;
+}
+.rc-th {
+  font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); text-align: center; padding: 10px 6px;
+  border-block: 1px solid #EFEDED;
+}
+.rc-td { padding: 12px 6px 0; text-align: center; font-weight: 700; white-space: nowrap; }
+.rc-plazo {
+  font-family: var(--font-display); font-weight: 700; font-size: 11.5px; color: #B42318;
+  background: #FDECEA; padding: 4px 10px; border-radius: 999px;
+}
+.rc-plazo.vencido { color: #fff; background: var(--red); }
+.rc-espera { font-weight: 500; color: var(--muted); }
+.rc-monto { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--navy); }
+.rc-ver {
+  border: none; background: none; color: var(--navy); font-family: var(--font-display);
+  font-weight: 700; font-size: 13px; text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; transition: color .15s ease;
+}
+.rc-ver:hover { color: var(--orange); }
+
+.rc-detalle { margin: 0 22px 20px; background: #F4F5F7; border-radius: 10px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.rc-detalle-head { display: flex; align-items: center; justify-content: space-between; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--navy); }
+.rc-cerrar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #D3DAE3; background: #fff; color: var(--navy); cursor: pointer; font-size: 13px; }
+.rc-cerrar:hover { box-shadow: 0 4px 10px rgba(0,46,93,.2); transform: translateY(-1px); }
+.rc-box { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.rc-estado { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--muted); }
+.rc-pill { font-family: var(--font-display); font-weight: 700; font-size: 12.5px; color: var(--navy); border: 1.5px solid var(--navy); padding: 4px 14px; border-radius: 999px; }
+.rc-producto { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 32px; align-items: center; }
+.rc-producto-t { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--navy); }
+.rc-producto-d { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.rc-producto-v { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--navy); }
+.rc-avisos-t { font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--navy); margin-bottom: 10px; }
+.rc-avisos { display: grid; grid-template-columns: minmax(160px,1fr) repeat(4, max-content); column-gap: 40px; row-gap: 7px; font-size: 13px; }
+.rc-avisos-th { font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rc-avisos-plazo { text-align: right; font-weight: 700; color: var(--navy); }
+.rc-respuesta { margin: 12px 0 0; font-size: 12.5px; color: var(--green); line-height: 1.5; }
+
+@media (max-width: 860px) {
+  .rc-caso-estado { margin-left: 0; }
+  .rc-avisos { grid-template-columns: 1fr; column-gap: 0; }
+  .rc-avisos-th:not(:first-child) { display: none; }
+}
+.rc-reclamo { margin: 0; font-size: 13.5px; color: var(--ink); line-height: 1.55; font-style: italic; }

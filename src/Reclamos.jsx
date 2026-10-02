@@ -9,7 +9,7 @@
 // Cada caso dice quién tiene que mover ahora y cuánto plazo queda, porque la
 // mayoría todavía se puede ganar respondiendo a tiempo.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
 const ESTADOS = {
@@ -24,6 +24,9 @@ const nombreEstado = (k) => (ESTADOS[k] || { t: k || 'Sin estado', d: '' })
 const AVISO = { 'aviso inicial': 'Primer aviso', 'recordatorio': 'Recordatorio', 'alerta 3 horas': 'Últimas 3 horas' }
 const ENTREGA = { entregado: 'entregado', enviado: 'enviado', fallido: 'no llegó' }
 
+// El monto va sin decimales en la tabla y completo en el detalle.
+const pesosEnteros = (n) => '$' + Math.round(Number(n || 0)).toLocaleString('es-MX')
+const corto = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : (p[0] || '—') }
 const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const dia = (v) => { if (!v) return '—'; const d = new Date(String(v).length <= 10 ? v + 'T12:00:00' : v); return `${d.getDate()} ${MESES[d.getMonth()]}` }
@@ -102,20 +105,23 @@ export default function Reclamos({ tercero, onIr }) {
 
       {error && <div className="dx-error">{error}</div>}
 
+      {/* Indicador urgente: el mismo del inicio pero sin navegación, porque
+          ya estamos en la pantalla a la que llevaría. */}
       {lista.length > 0 && (
-        <div className="dx-tabs">
-          <div className="dx-tab on" style={{ cursor: 'default' }}>
-            <span className="dx-tab-t">En riesgo</span>
-            <span className="dx-tab-n" style={{ color: 'var(--amber)' }}>{lista.length}</span>
-            <span className="dx-tab-m">{pesos(total)}</span>
-          </div>
-          <div className="dx-tab" style={{ cursor: 'default' }}>
-            <span className="dx-tab-t">Esperan tu respuesta</span>
-            <span className="dx-tab-n" style={{ color: tuyos.length ? 'var(--red)' : 'var(--green)' }}>{tuyos.length}</span>
-            <span className="dx-tab-m">
-              {tuyos.length ? 'responde antes del plazo' : 'ninguno pendiente de tu parte'}
-            </span>
-          </div>
+        <div className="rc-top">
+          <article className="rc-urgente">
+            <header className="nt-head">
+              <span className="nt-tag urgente">URGENTE</span>
+              <span className="nt-resumen">{pesos(total)} Riesgo de cobro</span>
+            </header>
+            <div className="nt-kpi" style={{ cursor: 'default' }}>
+              <span className="nt-num">{lista.length}</span>
+              <span className="nt-label">{lista.length === 1 ? 'Reclamo' : 'Reclamos'}</span>
+            </div>
+          </article>
+          <p className="rc-aviso">
+            <b>Evita el descuento.</b> Gestiona sin perder el plazo.
+          </p>
         </div>
       )}
 
@@ -131,82 +137,130 @@ export default function Reclamos({ tercero, onIr }) {
           <p>Cuando MELI reclame un paquete de tus rutas, lo vas a ver aquí mientras se resuelve.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {lista.map(c => {
             const e = nombreEstado(c.sub_estado)
             const open = abierto === c.case_id
             return (
-              <div key={c.case_id} className="dx-card" style={{ borderLeftColor: 'var(--amber)' }}>
-                <button className="dx-head" onClick={() => abrir(c)}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="dx-titulo">
-                      {e.t}
-                      {c.le_toca_a === 'tercero' && <span className="dx-pill amber">Te toca responder</span>}
-                      {c.le_toca_a === 'meli' && <span className="dx-pill gris">Esperando a MELI</span>}
+              <article key={c.case_id} className="rc-caso">
+                <header className="rc-caso-head">
+                  <span className="rc-tipo">Post venta</span>
+                  <span className="rc-caso-id">Caso: {c.case_id}</span>
+                  <span className="rc-caso-estado">{e.t}</span>
+                </header>
+
+                <div className="rc-tabla-wrap">
+                  <div className="rc-grid">
+                    {['F. Reclamo', 'Operación', 'Patente', 'Conductor', 'Ruta', 'Paquete',
+                      'Vence en', 'En riesgo', ''].map((t, i) => (
+                      <div key={i} className="rc-th">{t}</div>
+                    ))}
+
+                    <div className="rc-td">{dia(c.fecha_caso)}</div>
+                    <div className="rc-td">{c.sc || '—'}</div>
+                    <div className="rc-td">{c.placa || '—'}</div>
+                    <div className="rc-td">{corto(c.conductor)}</div>
+                    <div className="rc-td">{c.ruta || c.id_ruta || '—'}</div>
+                    <div className="rc-td">{c.guia || '—'}</div>
+                    <div className="rc-td">
+                      {c.le_toca_a === 'tercero'
+                        ? <span className={`rc-plazo${c.horas_restantes > 0 ? '' : ' vencido'}`}>
+                            {c.horas_restantes > 0 ? `${c.horas_restantes} H` : 'VENCIDO'}
+                          </span>
+                        : <span className="rc-espera">Con MELI</span>}
                     </div>
-                    <div className="dx-sub">
-                      Guía {c.guia || '—'} · {c.sc} · ruta {c.ruta || c.id_ruta || '—'} del {dia(c.fecha_ruta)}
-                      {c.placa ? ` · ${c.placa}` : ''}
-                      {c.le_toca_a === 'tercero' && (
-                        <span className={c.horas_restantes > 0 ? 'dx-plazo' : 'dx-plazo malo'}>
-                          {c.horas_restantes > 0 ? ` · quedan ${c.horas_restantes} h para responder` : ' · el plazo venció'}
-                        </span>
+                    <div className="rc-td"><span className="rc-monto">{pesosEnteros(c.monto)}</span></div>
+                    <div className="rc-td">
+                      {!open && (
+                        <button className="rc-ver" onClick={() => abrir(c)}>Ver detalle ▾</button>
                       )}
                     </div>
                   </div>
-                  <div className="dx-monto">{pesos(c.monto)}</div>
-                  <span className="dx-chev">{open ? '▲' : '▼'}</span>
-                </button>
+                </div>
 
                 {open && (
-                  <div className="dx-detalle">
-                    <p className="dx-que-pasa">{e.d}</p>
-
-                    {c.le_toca_a === 'tercero' && <QueHacer c={c} />}
-
-                    <div className="dx-datos">
-                      <Dato k="Caso" v={c.case_id} />
-                      <Dato k="Guía" v={c.guia} />
-                      <Dato k="Conductor" v={c.conductor} />
-                      <Dato k="Placa" v={c.placa} />
-                      <Dato k="Centro" v={c.sc} />
-                      <Dato k="Ruta" v={c.ruta || c.id_ruta} />
-                      <Dato k="Fecha de la ruta" v={dia(c.fecha_ruta)} />
-                      <Dato k="Reclamo abierto" v={diaHora(c.fecha_caso)} />
-                      <Dato k="Valor del paquete" v={pesos(c.monto)} />
-                      {c.comprobante_en && <Dato k="Comprobante cargado" v={diaHora(c.comprobante_en)} />}
+                  <div className="rc-detalle">
+                    <div className="rc-detalle-head">
+                      <span>Detalle del caso</span>
+                      <button className="rc-cerrar" onClick={() => setAbierto(null)} aria-label="Cerrar">▴</button>
                     </div>
 
-                    <div className="dx-avisos">
-                      <div className="dx-avisos-t">
-                        Avisos enviados {c.n_avisos > 0 ? `(${c.n_avisos})` : ''}
+                    <div className="rc-box rc-estado">
+                      <span>Estado del reclamo</span>
+                      <span className="rc-pill">{e.t}</span>
+                    </div>
+
+                    <div className="rc-box rc-producto">
+                      <div>
+                        <div className="rc-producto-t">{c.producto || `Paquete ${c.guia || '—'}`}</div>
+                        <div className="rc-producto-d">
+                          Guía {c.guia || '—'}
+                          {c.id_seguimiento ? ` · seguimiento ${c.id_seguimiento}` : ''}
+                        </div>
+                        <div className="rc-producto-d">{e.d}</div>
                       </div>
+                      <div className="rc-producto-v">{pesos(c.valor_compra || c.monto)}</div>
+                    </div>
+
+                    {/* Lo que alega el comprador: es contra esto que el tercero
+                        tiene que responder, así que va textual. */}
+                    {c.mensaje_reclamo && (
+                      <div className="rc-box">
+                        <div className="rc-avisos-t">Lo que dice el comprador</div>
+                        <p className="rc-reclamo">{c.mensaje_reclamo}</p>
+                      </div>
+                    )}
+
+                    {(c.recibio_nombre || c.estado_texto || c.entregado_en) && (
+                      <div className="rc-box">
+                        <div className="rc-avisos-t">Lo que registró la entrega</div>
+                        <div className="dx-datos">
+                          <Dato k="Quién recibió" v={c.recibio_nombre} />
+                          <Dato k="En calidad de" v={c.recibio_quien} />
+                          <Dato k="Estado en MELI" v={c.estado_texto} />
+                          <Dato k="Entregado el" v={c.entregado_en ? diaHora(c.entregado_en) : null} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rc-box">
+                      <div className="rc-avisos-t">Detalle de avisos</div>
                       {avisos[c.case_id] === undefined ? (
                         <p className="dx-vacio-txt">Cargando…</p>
-                      ) : avisos[c.case_id].length === 0 ? (
-                        <p className="dx-vacio-txt">
-                          No se enviaron avisos por este caso. Si crees que debió avisarse, escríbenos.
-                        </p>
+                      ) : avisos[c.case_id].filter(a => a.destino === 'conductor').length === 0 ? (
+                        <p className="dx-vacio-txt">No se enviaron avisos al conductor por este caso.</p>
                       ) : (
-                        <ul className="dx-linea">
-                          {avisos[c.case_id].map((a, i) => (
-                            <li key={i}>
-                              <span className="dx-linea-f">{diaHora(a.creado_en)}</span>
-                              <span className="dx-linea-t">
-                                {AVISO[a.tipo] || a.tipo} al {a.destino === 'conductor' ? 'conductor' : 'supervisor'}
-                                {a.horas_restantes != null ? ` · quedaban ${a.horas_restantes} h` : ''}
-                              </span>
-                              <span className={`dx-linea-e${a.estado_entrega === 'fallido' ? ' malo' : ''}`}>
-                                {ENTREGA[a.estado_entrega] || a.estado_entrega || ''}
-                              </span>
-                            </li>
+                        <div className="rc-avisos">
+                          {['Descripción', 'Canal', 'Fecha', 'Hora', 'Plazo'].map(t => (
+                            <div key={t} className="rc-avisos-th">{t}</div>
                           ))}
-                        </ul>
+                          {avisos[c.case_id].filter(a => a.destino === 'conductor').map((a, i) => {
+                            const f = new Date(a.creado_en)
+                            return (
+                              <Fragment key={i}>
+                                <div>{AVISO[a.tipo] || a.tipo}</div>
+                                <div>WhatsApp</div>
+                                <div>{dia(a.creado_en)}</div>
+                                <div>{String(f.getHours()).padStart(2, '0')}:{String(f.getMinutes()).padStart(2, '0')}</div>
+                                <div className="rc-avisos-plazo">
+                                  {a.horas_restantes != null ? `${a.horas_restantes} H` : '—'}
+                                </div>
+                              </Fragment>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {c.comprobante_en && (
+                        <p className="rc-respuesta">
+                          Recibimos tu respuesta el {diaHora(c.comprobante_en)}. MELI la está revisando.
+                        </p>
                       )}
                     </div>
+
+                    {c.le_toca_a === 'tercero' && <QueHacer c={c} />}
                   </div>
                 )}
-              </div>
+              </article>
             )
           })}
         </div>
