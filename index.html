@@ -22,7 +22,11 @@
       // El service worker solo se registra en el navegador. Dentro de la
       // aplicación de Android, Capacitor sirve los archivos desde el teléfono
       // y registrarlo ahí solo agregaría una capa que puede fallar.
-      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      // Capacitor sirve la aplicación desde https://localhost, así que la sola
+      // comprobación del protocolo no basta: dentro de la aplicación el
+      // service worker servía una copia vieja y dejaba la pantalla en blanco.
+      if ('serviceWorker' in navigator && location.protocol === 'https:'
+          && !window.Capacitor?.isNativePlatform?.()) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => {})
         })
