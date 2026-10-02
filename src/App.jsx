@@ -93,7 +93,10 @@ function DefinirPassword({ onListo }) {
 
 export default function App() {
   const [session, setSession] = useState(null)
-  const [view, setView] = useState('home') // home | estado | conductor | ayudante | vehiculo | firma
+  const [view, setView] = useState('home')
+  // Fecha con la que abrir una pantalla, cuando se llega desde un mensaje que
+  // habla de un día concreto. Se limpia al salir para no arrastrarla.
+  const [fecha, setFecha] = useState(null) // home | estado | conductor | ayudante | vehiculo | firma
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
   // Modo recuperación. Dos caminos: el código de 6 dígitos que el tercero
@@ -180,7 +183,9 @@ export default function App() {
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
           maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
-      {view === 'movimientos' && <Bloque nombre="Movimientos"><Movimientos tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
+      {view === 'movimientos' && <Bloque nombre="Movimientos">
+        <Movimientos key={fecha || 'hoy'} tercero={tercero} email={email} fecha={fecha}
+          onBack={() => { setFecha(null); setView('home') }} /></Bloque>}
       {view === 'descuentos' && <Bloque nombre="Descuentos"><Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
@@ -188,7 +193,8 @@ export default function App() {
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
-      {view === 'mensajes' && <Bloque nombre="Mis mensajes"><Mensajes tercero={tercero} onIr={setView} /></Bloque>}
+      {view === 'mensajes' && <Bloque nombre="Mis mensajes">
+        <Mensajes tercero={tercero} onIr={(v, ref) => { setFecha(ref); setView(v) }} /></Bloque>}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}

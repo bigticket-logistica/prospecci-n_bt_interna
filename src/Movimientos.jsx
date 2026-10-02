@@ -96,8 +96,10 @@ const EST_DIF = {
   vencida:     { l: 'Vencida',     bg: '#f1f5f9',           fg: 'var(--muted)', ayuda: 'Se cerró por plazo.' },
 }
 
-export default function Movimientos({ tercero, email, onBack }) {
-  const [lunes, setLunes] = useState(() => lunesDe(new Date()))
+export default function Movimientos({ tercero, email, onBack, fecha }) {
+  // Si se llega desde un mensaje de una jornada concreta, se abre esa semana.
+  const [lunes, setLunes] = useState(() =>
+    lunesDe(/^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? new Date(fecha + 'T12:00:00') : new Date()))
   const [scSel, setScSel] = useState('todos')
   const [extras, setExtras] = useState([])
   const [prefs, setPrefs] = useState([])   // la prefactura de la semana, para el IVA y el total

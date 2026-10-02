@@ -43,7 +43,7 @@ export default function Mensajes({ tercero, onIr }) {
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
     const { data, error } = await supabase.from('notificaciones_tercero')
-      .select('id, tipo, clase, categoria, titulo, detalle, estilo, etiqueta, destino, evento_at, vence_at, urgente_desde, leida_at')
+      .select('id, tipo, clase, categoria, titulo, detalle, estilo, etiqueta, destino, ref_id, evento_at, vence_at, urgente_desde, leida_at')
       .eq('tercero_id', tercero.tercero_id)
       .order('evento_at', { ascending: false })
       .limit(200)
@@ -69,7 +69,9 @@ export default function Mensajes({ tercero, onIr }) {
       marcarLeida(n.id)
       setFilas(p => (p || []).map(x => x.id === n.id ? { ...x, leida_at: new Date().toISOString() } : x))
     }
-    if (onIr && n.destino) onIr(n.destino)
+    // El mensaje lleva su fecha: si habla de la jornada del 24, Movimientos
+    // tiene que abrirse en esa semana y no en la actual.
+    if (onIr && n.destino) onIr(n.destino, n.ref_id || null)
   }
 
   const marcarTodo = async () => {
