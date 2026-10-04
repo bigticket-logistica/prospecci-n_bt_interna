@@ -120,6 +120,16 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
             <button className="mv-avatar" onClick={() => setMas(true)} aria-label="Menú">{inicial}</button>
           </div>
         </div>
+
+        {/* Biggy va acá y no flotando sobre el contenido: en el teléfono el
+            botón tapaba la última tarjeta y competía con las pestañas. */}
+        <button className="mv-biggy" onClick={() => onNavegar('biggy')}>
+          <img src="/biggy.jpg" alt="" />
+          <p>
+            <b>Biggy</b> responde tus dudas sobre pagos, reclamos y certificación.<br />
+            <span className="toca">Tócame para preguntarme lo que quieras</span>
+          </p>
+        </button>
       </header>
 
       {/* Las secciones con varias pantallas llevan sus solapas acá arriba: una
