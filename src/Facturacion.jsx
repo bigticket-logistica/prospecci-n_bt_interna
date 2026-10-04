@@ -14,8 +14,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
+import { esMovil } from './ArmazonMovil'
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// El signo va antes del peso: "−$950.00" se lee como descuento; "$-950.00" no.
+const money = (n) => (Number(n) < 0 ? '−' : '') + '$' +
+  Math.abs(Number(n || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fecha = (s) => s ? new Date(s).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
 const fechaCorta = (s) => s ? new Date(s + (String(s).length <= 10 ? 'T12:00:00' : '')).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—'
 
@@ -25,18 +28,21 @@ const fechaCorta = (s) => s ? new Date(s + (String(s).length <= 10 ? 'T12:00:00'
 const VISTAS = {
   facturacion: {
     titulo: 'Por facturar',
+    rotulo: 'POR FACTURAR',
     ayuda: 'Las prefacturas que todavía esperan tu factura. Súbela y queda conciliada.',
     filtra: (p) => !p.pagado_at && p.facturas.length === 0,
     vacio: ['Estás al día', 'No tienes prefacturas pendientes de factura. La de cada semana se arma el lunes con los días que ya viste en Movimientos.'],
   },
   facturado: {
     titulo: 'Facturado',
+    rotulo: 'EN VALIDACIÓN',
     ayuda: 'Las facturas que ya subiste y están en validación. Cuando se pague, pasan a Pagado.',
     filtra: (p) => !p.pagado_at && p.facturas.length > 0,
     vacio: ['No hay facturas en validación', 'Aquí aparecen las facturas que subiste mientras esperan el pago.'],
   },
   pagado: {
     titulo: 'Pagado',
+    rotulo: 'TOTAL PAGADO',
     ayuda: 'Las prefacturas que ya se te pagaron, con su fecha y referencia de depósito.',
     filtra: (p) => !!p.pagado_at,
     vacio: ['Todavía no hay pagos', 'Aquí aparecen las semanas que ya se te pagaron, con la referencia del depósito.'],
@@ -51,6 +57,10 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
   const [subiendo, setSubiendo] = useState(null)
   const [error, setError] = useState(null)
   const [aviso, setAviso] = useState(null)
+  // En el teléfono la lista de viajes no lleva su propio scroll dentro de la
+  // página: se muestran los primeros y un botón abre el resto.
+  const [todosViajes, setTodosViajes] = useState({})
+  const movil = esMovil()
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
@@ -246,26 +256,39 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
     }))
   }, [filas, scSel, V])
 
+  const total = useMemo(() => {
+    const ps = semanas.flatMap(s => s.prefs)
+    const suma = (k) => ps.reduce((t, p) => t + Number(p[k] || 0), 0)
+    return {
+      n: ps.length, liquido: suma('liquido_pago'), neto: suma('total_neto'),
+      iva: suma('iva_16'), cobros: suma('total_cobros'),
+      desde: semanas.length ? Math.min(...semanas.map(s => s.semana)) : null,
+      hasta: semanas.length ? Math.max(...semanas.map(s => s.semana)) : null,
+    }
+  }, [semanas])
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div className="fx-pantalla" style={{ maxWidth: 900, margin: '0 auto' }}>
       <button className="back-link" onClick={onBack}>← Volver</button>
 
-      <div style={{ background: 'var(--navy)', color: '#fff', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
+      <div className="bm-solo-escritorio" style={{ background: 'var(--navy)', color: '#fff', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>{V.titulo}</div>
         <div style={{ fontSize: 12.5, color: '#b8c6de', marginTop: 3, lineHeight: 1.5 }}>{V.ayuda}</div>
       </div>
 
+      {movil && <p className="fx-ayuda">{V.ayuda}</p>}
+
       {centros.length > 1 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div className="fx-centros" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           {['todos', ...centros].map(c => (
-            <button key={c} onClick={() => setScSel(c)}
+            <button key={c} onClick={() => setScSel(c)} className={scSel === c ? 'on' : ''}
               style={{
                 padding: '6px 14px', borderRadius: 16, fontSize: 12.5, fontWeight: 600,
                 border: `1px solid ${scSel === c ? 'var(--navy)' : 'var(--line)'}`,
                 background: scSel === c ? 'var(--navy)' : '#fff',
                 color: scSel === c ? '#fff' : 'var(--muted)',
               }}>
-              {c === 'todos' ? 'Todos los centros' : c}
+              {c === 'todos' ? (movil ? 'Todos' : 'Todos los centros') : c}
             </button>
           ))}
         </div>
@@ -286,7 +309,24 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
             {V.vacio[1]}
           </div>
         </div>
-      ) : semanas.map(s => (
+      ) : <>
+      {movil && (
+        <div className="bm-hero">
+          <div className="bm-rotulo">{V.rotulo}</div>
+          <div className="bm-monto">{money(total.liquido)}</div>
+          <div className="bm-fecha">
+            {total.n} {total.n === 1 ? 'prefactura' : 'prefacturas'}
+            {total.desde != null && (total.desde === total.hasta ? ` · semana ${total.desde}` : ` · semanas ${total.desde} a ${total.hasta}`)}
+          </div>
+          <div className="bm-celdas">
+            <div><b>{money(total.neto)}</b><span>Viajes</span></div>
+            <div><b>{money(total.iva)}</b><span>IVA 16%</span></div>
+            <div><b className={total.cobros ? 'neg' : ''}>{total.cobros ? money(total.cobros) : '—'}</b><span>Descuentos</span></div>
+            <div><b>{total.n}</b><span>{total.n === 1 ? 'Prefactura' : 'Prefacturas'}</span></div>
+          </div>
+        </div>
+      )}
+      {semanas.map(s => (
         <div key={s.semana} style={{ marginBottom: 18 }}>
           {/* Mismo desglose que la cabecera de Movimientos: son los mismos
               montos y tienen que leerse igual en las dos pantallas. */}
@@ -295,8 +335,9 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
               {fechaCorta(s.inicio)} – {fechaCorta(s.fin)}
             </span>
+            {movil && s.prefs.length > 1 && <b className="fx-sem-total">{money(s.liquido)}</b>}
           </div>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end',
+          <div className="bm-solo-escritorio" style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end',
             background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12,
             padding: '10px 16px', marginBottom: 8 }}>
             <Mini k="Neto" v={money(s.neto)} />
@@ -318,8 +359,8 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
             const saldos = ex.filter(l => l.tipo === 'saldo')
             const ajustes = ex.filter(l => l.tipo === 'ajuste')
             return (
-              <div key={p.id} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 8, overflow: 'hidden' }}>
-                <button onClick={() => setAbierta(exp ? null : p.id)}
+              <div key={p.id} className="fx-pref" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, marginBottom: 8, overflow: 'hidden' }}>
+                <button className="fx-pref-head" onClick={() => setAbierta(exp ? null : p.id)}
                   style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 18px', background: 'transparent', border: 'none', textAlign: 'left' }}>
                   <div>
                     <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--navy)' }}>
@@ -356,7 +397,7 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                         regeneración: si algún día se discute qué decía la
                         prefactura, este archivo es la prueba. */}
                     {p.pdf_url && (
-                      <button onClick={() => abrirArchivo(p.pdf_url)}
+                      <button className="fx-ver-pref" onClick={() => abrirArchivo(p.pdf_url)}
                         style={{ width: '100%', marginBottom: 14, padding: '11px', borderRadius: 10,
                           border: '1px solid var(--navy)', background: '#fff', color: 'var(--navy)',
                           fontSize: 13, fontWeight: 600 }}>
@@ -364,6 +405,15 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                       </button>
                     )}
 
+                    {movil ? (
+                      <div className="bm-celdas fx-celdas">
+                        <div><b>{money(p.total_neto)}</b><span>Viajes</span></div>
+                        <div><b>{money(p.iva_16)}</b><span>IVA 16%</span></div>
+                        <div><b>{money(p.total_bruto)}</b><span>Bruto</span></div>
+                        <div><b className={Number(p.total_cobros) ? 'neg' : ''}>{money(p.total_cobros)}</b><span>Descuentos</span></div>
+                        <div className="ancho"><b>{money(p.liquido_pago)}</b><span>A pagar</span></div>
+                      </div>
+                    ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
                       <Tot k="Viajes" v={money(p.total_neto)} />
                       <Tot k="IVA 16%" v={money(p.iva_16)} />
@@ -371,6 +421,7 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                       <Tot k="Descuentos" v={money(p.total_cobros)} rojo />
                       <Tot k="A pagar" v={money(p.liquido_pago)} fuerte />
                     </div>
+                    )}
 
                     <Bloque titulo="Cobros del período" lineas={cobros}
                       nota="PNR, paquetes perdidos y no shows. Cada uno dice de qué día viene." />
@@ -384,8 +435,8 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                       Viajes ({viajes.length})
                     </div>
-                    <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10 }}>
-                      {viajes.map((d, i) => (
+                    <div className="fx-viajes" style={{ maxHeight: movil ? 'none' : 280, overflowY: movil ? 'visible' : 'auto', border: '1px solid var(--line)', borderRadius: 10 }}>
+                      {(movil && !todosViajes[p.id] ? viajes.slice(0, 8) : viajes).map((d, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', fontSize: 12.5, borderBottom: '1px solid #f4f6f9' }}>
                           <span>
                             <b>{d.placa || '—'}</b>
@@ -395,6 +446,11 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                         </div>
                       ))}
                     </div>
+                    {movil && viajes.length > 8 && !todosViajes[p.id] && (
+                      <button className="fx-mas" onClick={() => setTodosViajes(t => ({ ...t, [p.id]: true }))}>
+                        Ver los {viajes.length} viajes
+                      </button>
+                    )}
 
                     <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Tu factura</div>
@@ -457,11 +513,20 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
                           Sube tu factura contra esta prefactura. Así queda conciliada y no se pierde en el correo.
                         </div>
                       )}
+                      {movil ? (
+                        <label className={`fx-subir${subiendo === p.id ? ' ocupado' : ''}${p.facturas.length ? ' otra' : ''}`}>
+                          <input type="file" accept="application/pdf,.xml" hidden
+                            disabled={subiendo === p.id}
+                            onChange={e => { subirFactura(p, e.target.files?.[0]); e.target.value = '' }} />
+                          {subiendo === p.id ? 'Subiendo…' : p.facturas.length ? 'Subir otro archivo' : 'Subir factura (XML o PDF)'}
+                        </label>
+                      ) : (<>
                       <input type="file" accept="application/pdf,.xml"
                         disabled={subiendo === p.id}
                         onChange={e => subirFactura(p, e.target.files?.[0])}
                         style={{ fontSize: 12.5 }} />
                       {subiendo === p.id && <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>Subiendo…</span>}
+                      </>)}
                     </div>
                   </div>
                 )}
@@ -470,6 +535,7 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
           })}
         </div>
       ))}
+      </>}
     </div>
   )
 }
