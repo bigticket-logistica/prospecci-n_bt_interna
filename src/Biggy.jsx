@@ -35,6 +35,24 @@ export default function Biggy({ tercero }) {
   const finRef = useRef(null)
   const inputRef = useRef(null)
 
+  // En el teléfono el botón flotante no existe: lo reemplaza la franja de la
+  // cabecera azul, que avisa con este evento.
+  useEffect(() => {
+    const abrir = () => setAbierto(true)
+    window.addEventListener('bt:biggy', abrir)
+    return () => window.removeEventListener('bt:biggy', abrir)
+  }, [])
+
+  // El botón físico de volver cierra el chat antes de mover la pantalla de
+  // fondo. App pregunta con un evento cancelable; si el chat está abierto, lo
+  // cierra y cancela, y App entiende que el toque ya se usó.
+  useEffect(() => {
+    if (!abierto) return
+    const volver = (e) => { e.preventDefault(); setAbierto(false) }
+    window.addEventListener('bt:volver', volver)
+    return () => window.removeEventListener('bt:volver', volver)
+  }, [abierto])
+
   useEffect(() => { finRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, cargando])
   useEffect(() => { if (abierto) setTimeout(() => inputRef.current?.focus(), 250) }, [abierto])
 

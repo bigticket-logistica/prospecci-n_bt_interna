@@ -123,7 +123,10 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
 
         {/* Biggy va acá y no flotando sobre el contenido: en el teléfono el
             botón tapaba la última tarjeta y competía con las pestañas. */}
-        <button className="mv-biggy" onClick={() => onNavegar('biggy')}>
+        {/* Biggy no es una vista: es una capa que vive en App y abre encima de
+            cualquier pantalla. Por eso se le avisa con un evento y no con
+            onNavegar, que solo cambia la pantalla de fondo. */}
+        <button className="mv-biggy" onClick={() => window.dispatchEvent(new Event('bt:biggy'))}>
           <img src="/biggy.jpg" alt="" />
           <p>
             <b>Biggy</b> responde tus dudas sobre pagos, reclamos y certificación.<br />

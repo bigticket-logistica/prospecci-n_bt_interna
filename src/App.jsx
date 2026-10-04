@@ -102,18 +102,29 @@ export default function App() {
 
   // Dentro de la aplicación: barra de estado, botón de volver y notificaciones.
   // En el navegador no hace nada.
+  //
+  // Se arranca una sola vez. Antes dependía de [view] y cada cambio de pantalla
+  // sumaba otro oyente del botón de volver: los antiguos seguían creyendo estar
+  // en el inicio y cerraban la aplicación. La pantalla actual se lee de una
+  // referencia para que el único oyente siempre la vea al día.
+  const viewRef = useRef(view)
+  useEffect(() => { viewRef.current = view }, [view])
   useEffect(() => {
     iniciarNativo({
       onVolver: () => {
-        // El botón físico lleva al inicio antes de cerrar la aplicación.
-        if (view !== 'home') { setView('home'); return true }
+        // Primero lo que esté abierto encima (el chat de Biggy).
+        if (!window.dispatchEvent(new Event('bt:volver', { cancelable: true }))) return true
+        // Después, el inicio antes de cerrar la aplicación.
+        if (viewRef.current !== 'home') { setView('home'); return true }
         return false
       },
     })
+  }, [])
+  useEffect(() => {
     const ir = (e) => setView(e.detail)
     window.addEventListener('bt:ir', ir)
     return () => window.removeEventListener('bt:ir', ir)
-  }, [view])
+  }, [])
 
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 
