@@ -18,6 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { esMovil } from './ArmazonMovil'
 
 // Los ocho estados de MELI, con el nombre que usa la Torre y lo que significan
 // para el tercero. Si MELI inventa uno nuevo, cae en el último caso y se
@@ -82,11 +83,18 @@ export default function Descuentos({ tercero, onBack, onIr }) {
     setAvisos(p => ({ ...p, [id]: data || [] }))
   }
 
+  // Lo que se le descontó, por origen. En el teléfono va arriba como una sola
+  // cifra grande; en el computador cada bloque ya trae su propio total.
+  const suma = (xs) => (xs || []).reduce((t, x) => t + Number(x.monto || 0), 0)
+  const deOrigen = (o) => (otros || []).filter(f => f.origen === o && !f.devuelto)
+  const tPnr = suma(casos), tMerma = suma(deOrigen('merma')), tNoshow = suma(deOrigen('noshow'))
+  const movil = esMovil()
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="dx-pantalla" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <a href="#" className="bt-volver" onClick={e => { e.preventDefault(); onBack() }}>← Volver</a>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className="bm-solo-escritorio" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <h1 className="bt-titulo">Descuentos</h1>
         <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, maxWidth: 720, lineHeight: 1.5 }}>
           Todo lo que se te descuenta, con su detalle y su estado. Cada tipo de descuento tiene su
@@ -95,6 +103,19 @@ export default function Descuentos({ tercero, onBack, onIr }) {
       </div>
 
       {error && <div className="dx-error">{error}</div>}
+
+      {movil && casos !== null && otros !== null && (
+        <div className="bm-hero">
+          <div className="bm-rotulo">TOTAL DESCONTADO</div>
+          <div className="bm-monto">{pesos(tPnr + tMerma + tNoshow)}</div>
+          <div className="bm-fecha">Lo que ya entró a tus prefacturas. Lo que sigue en juego está en Reclamos.</div>
+          <div className="bm-celdas tres">
+            <div><b>{pesos(tPnr)}</b><span>PNR · {(casos || []).length}</span></div>
+            <div><b>{pesos(tMerma)}</b><span>Perdidos · {deOrigen('merma').length}</span></div>
+            <div><b>{pesos(tNoshow)}</b><span>No show · {deOrigen('noshow').length}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* Un bloque por origen del descuento. Hoy solo PNR; mermas, robos y
           No show se suman como bloques nuevos, cada uno con su explicación. */}

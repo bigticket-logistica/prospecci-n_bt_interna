@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
+import { esMovil } from './ArmazonMovil'
 
 function lunesDe(d) {
   const x = new Date(d)
@@ -119,6 +120,9 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
   const [difAbierta, setDifAbierta] = useState(null)
 
   const domingo = useMemo(() => sumaDias(lunes, 6), [lunes])
+  // En el teléfono la cartola no cabe como tabla: cinco columnas en 390px
+  // obligan a desplazarse de lado. Se dibuja como lista, con los mismos datos.
+  const movil = esMovil()
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
@@ -415,6 +419,10 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     })
   }
 
+  // Lo que el tercero escribe en cada línea marcada. Sin este campo el envío
+  // siempre se frenaba en "Escribe qué reclamas", porque no había dónde.
+  const comentar = (k, v) => setSel(p => (k in p ? { ...p, [k]: v } : p))
+
   const enviarDiferencia = async () => {
     const sinComentario = Object.entries(sel).filter(([, c]) => !c.trim())
     if (sinComentario.length) { alert('Escribe qué reclamas en cada línea marcada.'); return }
@@ -516,7 +524,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
         <span>›</span><span className="on">Movimientos</span>
       </nav>
 
-      <div className="mv-cab">
+      <div className="mv-cab bm-solo-escritorio">
         <h1 className="bt-titulo">Movimientos</h1>
         <button className="mv-descargar" onClick={() => descargarPdf()}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -533,7 +541,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
             disabled={iso(lunes) <= INICIO_PORTAL}
             title={iso(lunes) <= INICIO_PORTAL ? 'Es la primera semana disponible' : ''}>‹</button>
           <span className="mv-semana-t">
-            <b>Semana {semanaBrain(lunes)}</b> · {rango(lunes, domingo)}
+            <b>Semana {semanaBrain(lunes)}</b><span className="bm-sep"> · </span><span className="bm-rango">{rango(lunes, domingo)}</span>
           </span>
           <button onClick={() => setLunes(sumaDias(lunes, 7))}>›</button>
         </div>
@@ -552,6 +560,25 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
 
       {/* Resumen de la semana: primero lo que suma, después lo que resta, y el
           detalle de cada parte a la vista para que el total no sea un misterio. */}
+      {movil ? (
+        <div className="bm-hero">
+          <div className="bm-rotulo">
+            {pagada ? 'PAGADO' : hayPrefactura ? 'TOTAL A PAGAR' : 'NETO DE LA SEMANA'}
+          </div>
+          <div className="bm-monto">{money(hayPrefactura ? totalBruto : totalNeto)}</div>
+          <div className="bm-fecha">
+            {pagada
+              ? `Se pagó el ${fechaCorta(pagadoAt)}${prefSC[0]?.pago_referencia ? ` · ref. ${prefSC[0].pago_referencia}` : ''}`
+              : hayPrefactura ? 'Con IVA incluido' : 'Sin IVA: el total se calcula el lunes'}
+          </div>
+          <div className="bm-celdas">
+            <div><b className="pos">{money(totalPagos)}</b><span>Tus rutas</span></div>
+            <div><b className={totalCobros ? 'neg' : ''}>{totalCobros ? money(totalCobros) : '—'}</b><span>Descuentos</span></div>
+            <div><b className="pos">{totalAjustes ? money(totalAjustes) : '—'}</b><span>Ajustes a tu favor</span></div>
+            <div><b>{hayPrefactura ? money(iva) : '—'}</b><span>IVA 16%</span></div>
+          </div>
+        </div>
+      ) : (
       <div className="mv-resumen">
         <div className="mv-fila">
           <span>Tus rutas</span><b className="pos">+ {money(totalPagos)}</b>
@@ -586,6 +613,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           <b>{hayPrefactura ? money(totalBruto) : '—'}</b>
         </div>
       </div>
+      )}
 
       {enviado && (
         <div style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 12, padding: '14px 16px', marginBottom: 12, fontSize: 13.5 }}>
@@ -595,7 +623,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
       )}
 
       {/* Barra de reclamo */}
-      <div style={{
+      <div className="bm-reclamo" style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
         flexWrap: 'wrap', marginBottom: 12,
       }}>
@@ -707,7 +735,11 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
            como una cartola bancaria. Los días quedan como separadores para no
            perder la lectura por jornada. */
         <>
-        <h2 className="mv-detalle-t">Detalle de movimientos por día</h2>
+        <h2 className="mv-detalle-t">{movil ? 'Movimientos por día' : 'Detalle de movimientos por día'}</h2>
+        {movil ? (
+          <ListaMovil lineas={lineas} reclamando={reclamando} sel={sel} toggleSel={toggleSel}
+            pagada={pagada} reclamadas={reclamadas} esInapelable={esInapelable} comentar={comentar} />
+        ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'auto', marginBottom: 14 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <thead>
@@ -789,6 +821,11 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
                               {m.tiene_auxiliar && m.monto_auxiliar ? ` · ayudante ${money(m.monto_auxiliar)}` : ''}</>}
                         {m.motivo && <span style={{ color: 'var(--red)' }}> · {m.motivo}</span>}
                       </div>
+                      {marcado && (
+                        <input value={sel[k]} onChange={e => comentar(k, e.target.value)} autoFocus
+                          placeholder="¿Qué reclamas en esta línea?"
+                          style={{ ...inp, width: '100%', marginTop: 8, background: '#fff' }} />
+                      )}
                     </td>
                     <td style={tdC}>{monto > 0 && ln.cuenta ? monto.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : ''}</td>
                     <td style={{ ...tdC, color: 'var(--red)' }}>
@@ -814,6 +851,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
             </tfoot>
           </table>
         </div>
+        )}
         </>
       )}
 
@@ -828,13 +866,13 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           {faltantes.map((f, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <input value={f.placa} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value } : x))}
-                placeholder="Placa" style={{ ...inp, width: 110 }} />
+                placeholder="Placa" className="bm-campo" style={{ ...inp, width: 110 }} />
               <input type="date" value={f.fecha} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, fecha: e.target.value } : x))}
-                style={{ ...inp, width: 150 }} />
+                className="bm-campo" style={{ ...inp, width: 150 }} />
               <input value={f.id_ruta} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, id_ruta: e.target.value } : x))}
-                placeholder="Id de ruta (si lo tienes)" style={{ ...inp, width: 180 }} />
+                placeholder="Id de ruta (si lo tienes)" className="bm-campo" style={{ ...inp, width: 180 }} />
               <input value={f.comentario} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, comentario: e.target.value } : x))}
-                placeholder="¿Qué ocurrió?" style={{ ...inp, flex: 1, minWidth: 180 }} />
+                placeholder="¿Qué ocurrió?" className="bm-campo" style={{ ...inp, flex: 1, minWidth: 180 }} />
               <button onClick={() => setFaltantes(p => p.filter((_, j) => j !== i))}
                 style={{ border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)', borderRadius: 6, padding: '0 12px' }}>×</button>
             </div>
@@ -861,7 +899,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           una fecha que no tienen. */}
       {/* Cuándo se pagó. Sin esto el tercero tiene que preguntar, que es la
           mitad de las llamadas que recibe el analista. */}
-      {pagada && !reclamando && (
+      {pagada && !reclamando && !movil && (
         <div style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 12,
           padding: '11px 16px', marginTop: 12, fontSize: 13, fontWeight: 600 }}>
           Esta semana ya se pagó{pagadoAt ? ` el ${fechaCorta(pagadoAt)}` : ''}.
@@ -879,6 +917,22 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
               No pertenecen a un día: saldos anteriores, paquetes perdidos y reliquidaciones que el analista cargó a tu prefactura.
             </div>
           </div>
+          {movil ? (
+            <div>
+              {lineasExtra.map(({ e }, i) => {
+                const monto = Number(e.monto || 0)
+                return (
+                  <div key={i} className="bm-extra">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="bm-extra-t">{e.concepto}</div>
+                      <div className="bm-extra-s">{e.fecha ? fechaCorta(e.fecha) : 'Sin fecha'}{e.service_center ? ` · ${e.service_center}` : ''}</div>
+                    </div>
+                    <b className={monto < 0 ? 'neg' : 'pos'}>{monto < 0 ? '− ' : '+ '}{money(Math.abs(monto))}</b>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
             <tbody>
               {lineasExtra.map(({ e, saldo }, i) => {
@@ -906,11 +960,12 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
               })}
             </tbody>
           </table>
+          )}
         </div>
       )}
 
       {/* El cierre: de los totales al monto que efectivamente se transfiere. */}
-      {!reclamando && dias.length > 0 && (
+      {!reclamando && dias.length > 0 && !movil && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
@@ -953,6 +1008,100 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           )}
         </div>
       )}
+
+      {movil && !reclamando && (
+        <button className="bm-accion bm-secundaria" onClick={() => descargarPdf()}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Descargar movimientos en PDF
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── La cartola en el teléfono ───────────────────────────────────────────────
+// Un bloque por día. Cada línea muestra a la izquierda qué fue y a la derecha
+// cuánto sumó o restó, con el saldo corrido debajo en gris. El detalle fino
+// (conductor, NS, guía) va en una segunda línea, igual que en la tabla.
+function ListaMovil({ lineas, reclamando, sel, toggleSel, pagada, reclamadas, esInapelable, comentar }) {
+  const bloques = []
+  let actual = null
+  for (const ln of lineas.filas) {
+    if (ln._sep) { actual = { fecha: ln.fecha, filas: [] }; bloques.push(actual); continue }
+    if (!actual) { actual = { fecha: null, filas: [] }; bloques.push(actual) }
+    actual.filas.push(ln)
+  }
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {bloques.map((b, bi) => (
+        <section key={b.fecha || bi} className="bm-dia">
+          {b.fecha && <div className="bm-dia-t">{fechaLarga(b.fecha)}</div>}
+          <div className="bm-tarjeta bm-lista">
+            {b.filas.map(ln => {
+              const m = ln.m
+              const k = claveDe(m)
+              const marcado = k in sel
+              const tabla = pagada ? ESTADOS_PAGADOS : ESTADOS
+              const est = tabla[m.estado] || tabla.aprobada
+              const esCobro = m.tipo === 'cobro'
+              const inapelable = esInapelable(m)
+              const monto = Number(m.monto || 0)
+              const rec = esCobro ? reclamadas[`cobro|${m.cobro_id}`] : reclamadas[`pago|${m.fecha}|${m.ref}`]
+              const recE = rec ? (EST_DIF[rec.estado] || EST_DIF.abierta) : null
+              return (
+                <div key={k} className={`bm-linea${marcado ? ' marcada' : ''}${reclamando && inapelable ? ' bloqueada' : ''}`}
+                  onClick={e => { if (reclamando && !inapelable && e.target.tagName !== 'INPUT') toggleSel(m) }}
+                  style={{ cursor: reclamando && !inapelable ? 'pointer' : 'default' }}>
+                  {reclamando && (
+                    <input type="checkbox" checked={marcado} disabled={inapelable}
+                      onChange={() => toggleSel(m)} className="bm-check" aria-label="Marcar esta línea" />
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="bm-linea-t">
+                      {esCobro ? (m.concepto || 'Cobro') : `Ruta ${m.ref}`}
+                    </div>
+                    <div className="bm-linea-s">
+                      {[m.placa, m.sc].filter(Boolean).join(' · ')}
+                      {esCobro
+                        ? <>{m.shipment_id ? ` · guía ${m.shipment_id}` : ''}{m.fecha_hecho ? ` · ${m.tipo_cobro === 'noshow' ? 'del día' : 'ruta del'} ${fechaCorta(m.fecha_hecho)}` : ''}</>
+                        : <>{m.driver_name ? ` · ${m.driver_name}` : ''}
+                            {m.ns_pct != null && ` · NS ${Number(m.ns_pct).toFixed(1)}%`}
+                            {m.tiene_auxiliar && m.monto_auxiliar ? ` · ayudante ${money(m.monto_auxiliar)}` : ''}</>}
+                    </div>
+                    {m.motivo && <div className="bm-linea-s" style={{ color: 'var(--red)' }}>{m.motivo}</div>}
+                    {(m.estado !== 'aprobada' || inapelable || rec) && (
+                      <div className="bm-pills">
+                        {m.estado !== 'aprobada' && <span style={{ background: est.bg, color: est.fg }}>{est.label}</span>}
+                        {inapelable && <span style={{ background: '#EFEFEF', color: 'var(--muted)' }}>Inapelable</span>}
+                        {rec && <span style={{ background: recE.bg, color: recE.fg }}>Diferencia #{rec.folio}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bm-linea-m">
+                    <b className={!ln.cuenta ? 'gris' : monto < 0 ? 'neg' : 'pos'}>
+                      {monto < 0 ? '− ' : '+ '}{money(Math.abs(monto))}
+                    </b>
+                    {ln.cuenta && <small>saldo {money(ln.saldo)}</small>}
+                  </div>
+                  {marcado && (
+                    <input className="bm-comentario" value={sel[k]} autoFocus
+                      onChange={e => comentar(k, e.target.value)}
+                      placeholder="¿Qué reclamas en esta línea?" />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      <div className="bm-subtotal">
+        <span>Subtotal de los días</span>
+        <b>{money(lineas.saldoDias)}</b>
+      </div>
     </div>
   )
 }
