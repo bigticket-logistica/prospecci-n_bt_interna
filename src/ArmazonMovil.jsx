@@ -154,10 +154,10 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
             onNavegar, que solo cambia la pantalla de fondo. */}
         <button className="mv-biggy" onClick={() => window.dispatchEvent(new Event('bt:biggy'))}>
           <img src="/biggy.jpg" alt="" />
-          <p>
-            <b>Biggy</b> responde tus dudas sobre pagos, reclamos y certificación.<br />
-            <span className="toca">Tócame para preguntarme lo que quieras</span>
-          </p>
+          {/* Una sola línea: la banda completa ocupaba casi un tercio de la
+              primera pantalla y dejaba el resumen fuera de la vista. */}
+          <p><b>Biggy</b> responde tus dudas</p>
+          <span className="toca">Preguntar ›</span>
         </button>
       </header>
 

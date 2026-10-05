@@ -657,7 +657,7 @@ function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual
                 </button>
               )}
             </FilaAviso>
-            <FilaAviso tipo="importante" etiqueta="IMPORTANTE" n={nImp}
+            <FilaAviso tipo="importante" etiqueta="ATENCIÓN" n={nImp}
               texto={importante ? 'Riesgo de bloqueo' : 'Sin pendientes'}
               abierta={abierta === 'importante'} onToggle={() => alternar('importante')}>
               {importante && importante.map(k => (
