@@ -142,7 +142,20 @@ deriva al supervisor de su centro.`,
   },
 };
 
+// La aplicación de Android no corre en el dominio del portal: su origen es
+// https://localhost. Sin estos encabezados el navegador del teléfono bloquea
+// la respuesta y Biggy contesta "problema técnico" aunque el servidor funcione.
+const ORIGENES_APP = ["https://localhost", "capacitor://localhost", "http://localhost"];
+
 export default async function handler(req, res) {
+  const origen = req.headers.origin;
+  if (ORIGENES_APP.includes(origen)) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Usa POST." });
   if (!ANTHROPIC_KEY) {
     return res.status(200).json({ error: "Falta configurar ANTHROPIC_API_KEY en el proyecto." });
