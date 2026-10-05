@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import { esMovil } from './ArmazonMovil'
+import { guardarPdf } from './archivos'
 
 function lunesDe(d) {
   const x = new Date(d)
@@ -318,92 +319,120 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     })),
   ], [filasSC, extrasSC])
 
-  // El PDF se arma con una ventana de impresión: sin librerías nuevas, el
-  // tercero elige "Guardar como PDF" y obtiene el mismo documento en cualquier
-  // navegador, con el logo y los totales de la semana.
-  const descargarPdf = () => {
-    const esc = (t) => String(t ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-    // Se recorre la misma lista que ve el tercero en pantalla, con su saldo
-    // corrido: el PDF y la pantalla no pueden decir cosas distintas.
-    let filasHtml = ''
-    for (const l of lineas.filas) {
-      if (l._sep) {
-        const d = dias.find(x => x.fecha === l.fecha)
-        filasHtml += `<tr class="dia"><td colspan="4">${esc(fechaLarga(l.fecha))}</td>` +
-          `<td style="display:none"></td></tr>`
-        continue
-      }
-      const m = l.m, n = Number(m.monto || 0)
-      const detalle = m.tipo === 'cobro'
-        ? [m.placa, m.concepto || 'Cobro', m.sc].filter(Boolean).join(' · ')
-        : [m.placa, `Ruta ${m.ref || ''}`, m.sc, m.driver_name].filter(Boolean).join(' · ')
-      filasHtml += `<tr>
-        <td>${esc(detalle)}</td>
-        <td class="n">${n > 0 && l.cuenta ? money(n) : ''}</td>
-        <td class="n rojo">${n < 0 ? money(Math.abs(n)) : ''}</td>
-        <td class="n">${l.cuenta ? money(l.saldo) : '—'}</td></tr>`
-    }
-    for (const { e, saldo } of lineasExtra) {
-      filasHtml += `<tr>
-        <td>${esc(e.concepto || 'Ajuste')}${e.service_center ? ` · ${esc(e.service_center)}` : ''}</td>
-        <td class="n">${Number(e.monto) > 0 ? money(e.monto) : ''}</td>
-        <td class="n rojo">${Number(e.monto) < 0 ? money(Math.abs(e.monto)) : ''}</td>
-        <td class="n">${money(saldo)}</td></tr>`
-    }
+  // El PDF se genera acá mismo con jsPDF y se descarga como archivo. Antes se
+  // abría una ventana para imprimir, que en la aplicación de Android no hacía
+  // nada: el WebView no abre ventanas ni imprime. En la app se abre el menú de
+  // compartir, para guardarlo o mandarlo.
+  const [armandoPdf, setArmandoPdf] = useState(false)
+  const descargarPdf = async () => {
+    if (armandoPdf) return
+    setArmandoPdf(true)
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+      // Las fuentes estándar de un PDF no traen el signo menos tipográfico ni
+      // las rayas largas: se cambian por el guion común para que no salgan
+      // como cuadros.
+      const t = (x) => String(x ?? '').replace(/[−–—]/g, '-').replace(/[^\x00-\xFF]/g, '')
+      const pm = (n) => (Number(n) < 0 ? '-' : '') + '$' +
+        Math.abs(Number(n || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      const NAVY = [0, 46, 93], NARANJA = [255, 102, 0], ROJO = [217, 45, 32], GRIS = [84, 84, 84]
 
-    const w = window.open('', '_blank')
-    if (!w) { alert('Tu navegador bloqueó la ventana. Permite las ventanas emergentes y vuelve a intentarlo.'); return }
-    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
-      <title>Movimientos semana ${semanaBrain(lunes)} · ${esc(tercero.nombre)}</title>
-      <style>
-        @page { size: A4; margin: 14mm }
-        body { font-family: 'Open Sans', Arial, sans-serif; color: #1A1A1A; font-size: 11px; margin: 0 }
-        .cab { display: flex; justify-content: space-between; align-items: flex-start;
-               border-bottom: 3px solid #FF6600; padding-bottom: 10px; margin-bottom: 16px }
-        .cab img { height: 30px }
-        .cab .t { text-align: right }
-        h1 { font-size: 17px; color: #002E5D; margin: 0 0 2px }
-        .muted { color: #545454; font-size: 10.5px }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px }
-        th { background: #002E5D; color: #fff; text-align: left; padding: 7px 9px; font-size: 10px;
-             text-transform: uppercase; letter-spacing: .05em }
-        td { padding: 6px 9px; border-bottom: 1px solid #E4E3E3 }
-        td.n { text-align: right; white-space: nowrap }
-        td.rojo { color: #D92D20 }
-        tr.dia td { background: #F4F3F3; font-weight: 700; color: #002E5D }
-        tr.tot td { font-weight: 700 }
-        .res { width: 320px; margin-left: auto; margin-top: 14px }
-        .res div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #E4E3E3 }
-        .res .final { border-bottom: none; border-top: 2px solid #002E5D; font-weight: 700;
-                      font-size: 13px; color: #002E5D; margin-top: 4px; padding-top: 8px }
-        .pie { margin-top: 22px; font-size: 9.5px; color: #545454; text-align: center }
-      </style></head><body>
-      <div class="cab">
-        <img src="${window.location.origin}/bt_logo_color.png" alt="Bigticket">
-        <div class="t">
-          <h1>Movimientos · Semana ${semanaBrain(lunes)}</h1>
-          <div class="muted">${esc(rango(lunes, domingo))}</div>
-          <div class="muted">${esc(tercero.nombre)}${scSel !== 'todos' ? ` · ${esc(scSel)}` : ''}</div>
-        </div>
-      </div>
-      <table>
-        <tr><th>Ruta / detalle</th><th style="text-align:right">Abono</th>
-            <th style="text-align:right">Cargo</th><th style="text-align:right">Saldo</th></tr>
-        ${filasHtml}
-      </table>
-      <div class="res">
-        <div><span>Tus rutas</span><span>${money(totalPagos)}</span></div>
-        ${totalAjustes ? `<div><span>Ajustes a tu favor</span><span>${money(totalAjustes)}</span></div>` : ''}
-        ${totalCobros ? `<div><span>Descuentos</span><span>−${money(Math.abs(totalCobros))}</span></div>` : ''}
-        <div><span>Neto</span><span>${money(totalNeto)}</span></div>
-        ${hayPrefactura ? `<div><span>IVA 16%</span><span>${money(iva)}</span></div>` : ''}
-        <div class="final"><span>${pagada ? 'Pagado' : 'Total'}</span><span>${hayPrefactura ? money(totalBruto) : '—'}</span></div>
-      </div>
-      <p class="pie">Documento generado desde el Portal Transportista de Bigticket · ${new Date().toLocaleDateString('es-MX')}</p>
-      </body></html>`)
-    w.document.close()
-    // Se espera al logo: si se imprime antes, el PDF sale sin él.
-    w.onload = () => { w.focus(); w.print() }
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const W = doc.internal.pageSize.getWidth()
+      const M = 14
+
+      // Logo: se dibuja en un lienzo para obtener su tamaño real y no deformarlo.
+      try {
+        const img = await new Promise((ok, mal) => {
+          const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = '/bt_logo_color.png'
+        })
+        const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight
+        c.getContext('2d').drawImage(img, 0, 0)
+        const alto = 9, ancho = alto * img.naturalWidth / img.naturalHeight
+        doc.addImage(c.toDataURL('image/png'), 'PNG', M, 12, ancho, alto)
+      } catch { /* sin logo, el documento sirve igual */ }
+
+      const sem = semanaBrain(lunes)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...NAVY)
+      doc.text(t(`Movimientos · Semana ${sem}`), W - M, 15, { align: 'right' })
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRIS)
+      doc.text(t(rango(lunes, domingo)), W - M, 20.5, { align: 'right' })
+      doc.text(t(`${tercero.nombre}${scSel !== 'todos' ? ` · ${scSel}` : ''}`), W - M, 25, { align: 'right' })
+      doc.setDrawColor(...NARANJA); doc.setLineWidth(0.9); doc.line(M, 29, W - M, 29)
+
+      // Las mismas líneas que ve el tercero en pantalla, con su saldo corrido:
+      // el PDF y la pantalla no pueden decir cosas distintas.
+      const cuerpo = []
+      for (const l of lineas.filas) {
+        if (l._sep) {
+          cuerpo.push([{ content: t(fechaLarga(l.fecha)), colSpan: 4,
+            styles: { fillColor: [244, 243, 243], fontStyle: 'bold', textColor: NAVY } }])
+          continue
+        }
+        const m = l.m, n = Number(m.monto || 0)
+        const detalle = m.tipo === 'cobro'
+          ? [m.placa, m.concepto || 'Cobro', m.sc].filter(Boolean).join(' · ')
+          : [m.placa, `Ruta ${m.ref || ''}`, m.sc, m.driver_name].filter(Boolean).join(' · ')
+        cuerpo.push([
+          t(detalle) + (l.cuenta ? '' : ' (pendiente)'),
+          n > 0 && l.cuenta ? pm(n) : '',
+          { content: n < 0 ? pm(Math.abs(n)) : '', styles: { textColor: ROJO } },
+          l.cuenta ? pm(l.saldo) : '-',
+        ])
+      }
+      if (lineasExtra.length) {
+        cuerpo.push([{ content: 'Agregados de la semana', colSpan: 4,
+          styles: { fillColor: [246, 241, 234], fontStyle: 'bold', textColor: [107, 79, 42] } }])
+        for (const { e, saldo } of lineasExtra) {
+          const n = Number(e.monto || 0)
+          cuerpo.push([
+            t(`${e.concepto || 'Ajuste'}${e.service_center ? ` · ${e.service_center}` : ''}`),
+            n > 0 ? pm(n) : '',
+            { content: n < 0 ? pm(Math.abs(n)) : '', styles: { textColor: ROJO } },
+            pm(saldo),
+          ])
+        }
+      }
+
+      autoTable(doc, {
+        startY: 34, margin: { left: M, right: M },
+        head: [['Ruta / detalle', 'Abono', 'Cargo', 'Saldo']],
+        body: cuerpo.length ? cuerpo : [[{ content: 'Sin movimientos esta semana.', colSpan: 4 }]],
+        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, textColor: [26, 26, 26], lineColor: [228, 227, 227], lineWidth: { bottom: 0.2 } },
+        headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        columnStyles: { 1: { halign: 'right', cellWidth: 26 }, 2: { halign: 'right', cellWidth: 26 }, 3: { halign: 'right', cellWidth: 28 } },
+        didParseCell: (d) => { if (d.section === 'head' && d.column.index > 0) d.cell.styles.halign = 'right' },
+      })
+
+      // El resumen, alineado a la derecha como en la versión anterior.
+      const res = [
+        ['Tus rutas', pm(totalPagos)],
+        ...(totalAjustes ? [['Ajustes a tu favor', pm(totalAjustes)]] : []),
+        ...(totalCobros ? [['Descuentos', pm(totalCobros)]] : []),
+        ['Neto', pm(totalNeto)],
+        ...(hayPrefactura ? [['IVA 16%', pm(iva)]] : []),
+      ]
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 6, margin: { left: W - M - 80, right: M }, tableWidth: 80,
+        body: res,
+        foot: [[pagada ? 'Pagado' : 'Total', hayPrefactura ? pm(totalBruto) : 'Se calcula el lunes']],
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: [26, 26, 26], lineColor: [228, 227, 227], lineWidth: { bottom: 0.2 } },
+        footStyles: { fillColor: 255, textColor: NAVY, fontStyle: 'bold', fontSize: 10.5, lineColor: NAVY, lineWidth: { top: 0.6 } },
+        columnStyles: { 1: { halign: 'right' } },
+        didParseCell: (d) => { if (d.section === 'foot' && d.column.index === 1) d.cell.styles.halign = 'right' },
+      })
+
+      doc.setFontSize(8); doc.setTextColor(...GRIS)
+      doc.text(t(`Documento generado desde el Portal Transportista de Bigticket · ${new Date().toLocaleDateString('es-MX')}`),
+        W / 2, doc.lastAutoTable.finalY + 12, { align: 'center' })
+
+      const limpio = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '_').replace(/^_|_$/g, '')
+      await guardarPdf(doc, `movimientos_semana_${sem}_${limpio(tercero.nombre)}.pdf`)
+    } catch (e) {
+      console.error('No se pudo armar el PDF:', e)
+      alert('No se pudo generar el PDF. Vuelve a intentarlo en un momento.')
+    }
+    setArmandoPdf(false)
   }
 
   const nSel = Object.keys(sel).length + faltantes.length
@@ -531,7 +560,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          Descargar movimientos
+          {armandoPdf ? 'Generando PDF…' : 'Descargar movimientos'}
         </button>
       </div>
 
@@ -1015,7 +1044,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          Descargar movimientos en PDF
+          {armandoPdf ? 'Generando PDF…' : 'Descargar movimientos en PDF'}
         </button>
       )}
     </div>

@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import { esMovil } from './ArmazonMovil'
+import { abrirUrl } from './archivos'
 
 // El signo va antes del peso: "−$950.00" se lee como descuento; "$-950.00" no.
 const money = (n) => (Number(n) < 0 ? '−' : '') + '$' +
@@ -210,22 +211,12 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
     setSubiendo(null)
   }
 
+  // Las prefacturas en HTML se muestran como página y el resto se abre tal
+  // cual; archivos.js resuelve la diferencia entre navegador y aplicación.
   const abrirArchivo = async (path) => {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 300)
     if (!data?.signedUrl) { setError('No se pudo abrir el archivo.'); return }
-    // Los .html firmados llegan como texto plano y el navegador los muestra
-    // como código. Se bajan y se abren desde un blob para que se rendericen.
-    if (/\.html?($|\?)/i.test(path)) {
-      try {
-        const r = await fetch(data.signedUrl)
-        const t = await r.text()
-        const url = URL.createObjectURL(new Blob([t], { type: 'text/html;charset=utf-8' }))
-        window.open(url, '_blank')
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
-        return
-      } catch (e) { console.error('No se pudo renderizar:', e) }
-    }
-    window.open(data.signedUrl, '_blank')
+    await abrirUrl(data.signedUrl)
   }
 
   // Los centros donde la empresa tuvo prefactura. Cada SC es una prefactura y

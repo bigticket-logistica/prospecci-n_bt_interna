@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
+import { abrirUrl } from './archivos'
+import Visor from './Visor'
 import Movimientos from './Movimientos'
 import Facturacion from './Facturacion'
 import Postula from './Postula'
@@ -245,6 +247,7 @@ export default function App() {
 
       {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
       <Biggy tercero={tercero} />
+      <Visor />
     </Armazon>
     </Red>
   )
@@ -572,7 +575,7 @@ function FlotaPersonal({ tercero, onBack }) {
   const verDoc = async (d) => {
     const { data, error } = await supabase.storage.from(d.bucket || 'archivador_empresas').createSignedUrl(d.storage_path, 300)
     if (error || !data?.signedUrl) { alert('No se pudo abrir el documento.'); return }
-    window.open(data.signedUrl, '_blank')
+    abrirUrl(data.signedUrl)
   }
 
   const personas = (rows || []).filter(r => r.tipo !== 'vehiculo')
@@ -660,7 +663,7 @@ function DocumentosEmpresa({ tercero, onBack }) {
   const abrir = async (d) => {
     const { data, error } = await supabase.storage.from(d.bucket || 'archivador_empresas').createSignedUrl(d.storage_path, 300)
     if (error || !data?.signedUrl) { alert('No se pudo abrir el documento. Intenta de nuevo.'); return }
-    window.open(data.signedUrl, '_blank')
+    abrirUrl(data.signedUrl)
   }
 
   const cats = [...new Set((docs || []).map(d => d.categoria))]
@@ -764,7 +767,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   }
   const verArchivo = async (path) => {
     const { data } = await supabase.storage.from('archivador_empresas').createSignedUrl(path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    if (data?.signedUrl) abrirUrl(data.signedUrl)
   }
 
   const guardar = async () => {
@@ -929,7 +932,7 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
               <span style={{ fontSize: 13, fontWeight: 700, color: '#166534', background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 20, padding: '6px 14px' }}>✓ Evidencia cargada</span>
               <button className="btn" onClick={async () => {
                 const { data } = await supabase.storage.from('archivador_empresas').createSignedUrl(p.evidencia_cuenta_path, 300)
-                if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                if (data?.signedUrl) abrirUrl(data.signedUrl)
               }}>Ver</button>
               <button className="btn" onClick={() => fileRef.current && fileRef.current.click()} disabled={subiendo}>{subiendo ? 'Subiendo…' : 'Reemplazar'}</button>
             </div>
@@ -1040,7 +1043,7 @@ function MisCertificaciones({ tercero, email, onBack }) {
 
   const ver = async (d) => {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(d.storage_path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    if (data?.signedUrl) abrirUrl(data.signedUrl)
   }
 
   const reemplazar = async (cert, d, file) => {

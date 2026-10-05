@@ -1353,3 +1353,17 @@ tr:last-child td { border-bottom: none; }
   .mv-cuerpo .fx-subir.otra { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
   .mv-cuerpo .fx-subir.ocupado { background: #c8ced8; color: #fff; border: none; cursor: default; }
 }
+
+/* Visor de documentos dentro de la aplicación (prefacturas en HTML). */
+.vs-capa { position: fixed; inset: 0; z-index: 960; background: #fff; display: flex; flex-direction: column; }
+.vs-cab {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--navy); color: #fff; padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+}
+.vs-cab span { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.vs-cab button {
+  border: none; background: rgba(255,255,255,.14); color: #fff; border-radius: 10px;
+  padding: 9px 16px; font-family: var(--font-display); font-weight: 700; font-size: 13.5px; cursor: pointer;
+}
+.vs-doc { flex: 1; width: 100%; border: none; background: #fff; }
