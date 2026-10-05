@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { cargarNotificaciones, marcarLeida, cuentaCampana } from './notificaciones'
 import { sinVer } from './vistos'
+import { esMovil } from './ArmazonMovil'
 
 const LOGO = '/logo-bigticket-blanco.png'
 
@@ -472,6 +473,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
   const actual = lista[idx] || null
   const hayAnterior = idx < lista.length - 1
   const haySiguiente = idx > 0
+  const movil = esMovil()
 
   return (
     <>
@@ -500,7 +502,13 @@ export function Inicio({ tercero, perfilOk, onPick }) {
       {/* Las dos tarjetas van siempre juntas mientras haya algo que mostrar: si
           se ocultara la vacía, la otra se estiraría a lo ancho y la pantalla
           cambiaría de forma según el día. */}
-      {listo && (urgente || importante) && (
+      {listo && movil && (
+        <InicioMovil urgente={urgente} importante={importante} onPick={onPick}
+          pagos={tercero.pagosHabilitados} dia={dia} setVista={setVista} actual={actual}
+          hayAnterior={hayAnterior} haySiguiente={haySiguiente} setIdx={setIdx} />
+      )}
+
+      {listo && !movil && (urgente || importante) && (
         <>
           <span className="bt-eyebrow">Notificaciones</span>
           <div className="nt-grid">
@@ -547,7 +555,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </>
       )}
 
-      {listo && tercero.pagosHabilitados && (
+      {listo && !movil && tercero.pagosHabilitados && (
         <>
         <span className="bt-eyebrow">Movimientos</span>
         <div className="bt-tarjetas">
@@ -618,6 +626,115 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         <button onClick={() => onPick('postula')}>Postular mi unidad</button>
       </div>
     </>
+  )
+}
+
+// ── El Inicio en el teléfono ────────────────────────────────────────────────
+// Todo en una pantalla: las notificaciones van comprimidas en dos filas que se
+// abren al tocarlas, y los movimientos en una sola tarjeta con Día, Semana y
+// Mes. Antes eran cuatro tarjetas una debajo de otra y los movimientos
+// quedaban fuera de la vista.
+function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual, hayAnterior, haySiguiente, setIdx }) {
+  const [abierta, setAbierta] = useState(null)       // 'urgente' | 'importante'
+  const [per, setPer] = useState('dia')
+  const elegir = (k) => { setPer(k); if (k !== 'dia') setVista(k) }
+  const datos = per === 'dia' ? dia : actual
+  const nImp = importante ? importante.reduce((t, k) => t + k.n, 0) : 0
+  const alternar = (k) => setAbierta(a => (a === k ? null : k))
+
+  return (
+    <>
+      {(urgente || importante) && (
+        <>
+          <span className="bt-eyebrow">Notificaciones</span>
+          <div className="im-notis">
+            <FilaAviso tipo="urgente" etiqueta="URGENTE" n={urgente ? urgente.n : 0}
+              texto={urgente ? urgente.resumen : 'Sin plata en riesgo'}
+              abierta={abierta === 'urgente'} onToggle={() => alternar('urgente')}>
+              {urgente && (
+                <button className="im-accion" onClick={() => onPick('reclamos')}>
+                  <b>{urgente.n}</b><span>{urgente.label}</span><em>Revisar <Chev /></em>
+                </button>
+              )}
+            </FilaAviso>
+            <FilaAviso tipo="importante" etiqueta="IMPORTANTE" n={nImp}
+              texto={importante ? 'Riesgo de bloqueo' : 'Sin pendientes'}
+              abierta={abierta === 'importante'} onToggle={() => alternar('importante')}>
+              {importante && importante.map(k => (
+                <button key={k.v} className="im-accion" onClick={() => onPick(k.v)}>
+                  <b>{k.n}</b><span>{k.label}</span><em>Revisar <Chev /></em>
+                </button>
+              ))}
+            </FilaAviso>
+          </div>
+        </>
+      )}
+
+      {pagos && (
+        <>
+          <span className="bt-eyebrow">Movimientos</span>
+          <div className="bt-card im-mov">
+            <div className="im-seg" role="tablist">
+              {[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => (
+                <button key={k} role="tab" aria-selected={per === k} className={per === k ? 'on' : ''}
+                  onClick={() => elegir(k)}>{l}</button>
+              ))}
+            </div>
+
+            <div className="im-per">
+              {per === 'dia' ? (
+                <span className="im-per-t">
+                  {dia ? <><b>{fechaDia(dia.fecha)}</b> · al cierre del día</> : 'Aún no hay jornadas publicadas'}
+                </span>
+              ) : (
+                <>
+                  <button className="bt-flecha" aria-label="Anterior" disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                  </button>
+                  <span className="im-per-t">
+                    {actual
+                      ? <><b>{per === 'semana' ? `Semana ${actual.periodo}` : mesLargo(actual.periodo)}</b> · {rango(actual.desde, actual.hasta)}</>
+                      : 'Sin datos de este período'}
+                  </span>
+                  <button className="bt-flecha" aria-label="Siguiente" disabled={!haySiguiente} onClick={() => setIdx(i => i - 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                  </button>
+                </>
+              )}
+            </div>
+
+            <Cifras monto={datos?.ganancia} rutas={rutasDe(datos)} datos={[
+              [entero(datos?.entregas), 'Entregas'],
+              [entero(devolucionesDe(datos)), 'Devoluc.'],
+              [pct(datos?.ns, 1), 'Nivel serv.'],
+              [pct(nsDomicilioDe(datos), 1), 'Visitado'],
+            ]} />
+
+            <button className="im-ver" onClick={() => onPick('movimientos')}>Ver movimientos <Chev /></button>
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
+// Una fila de aviso: se toca para abrir lo que hay detrás. Sin pendientes no
+// se abre y queda en gris, para que la pantalla no cambie de forma según el día.
+function FilaAviso({ tipo, etiqueta, n, texto, abierta, onToggle, children }) {
+  const vacia = n === 0
+  return (
+    <div className={`im-fila ${tipo}${vacia ? ' vacia' : ''}${abierta ? ' abierta' : ''}`}>
+      <button className="im-fila-cab" onClick={vacia ? undefined : onToggle} aria-expanded={abierta} disabled={vacia}>
+        <span className="im-tag">{etiqueta}</span>
+        <span className="im-texto">{texto}</span>
+        {!vacia && <span className="im-n">{n}</span>}
+        {!vacia && <svg className="im-flecha" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>}
+      </button>
+      {abierta && <div className="im-fila-cuerpo">{children}</div>}
+    </div>
   )
 }
 

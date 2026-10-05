@@ -1516,3 +1516,75 @@ tr:last-child td { border-bottom: none; }
 .ac-hoja .lp-ayuda { margin-top: auto; padding: 14px 16px; font-size: 13px; }
 .ac-hoja .lp-aviso + .ac-boton { margin-top: 16px; }
 .ac-hoja .lp-recuperar { margin-bottom: 24px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Inicio en el teléfono: todo en una pantalla. Notificaciones en dos filas que
+   se abren al tocarlas y movimientos en una sola tarjeta con Día/Semana/Mes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 820px) {
+  .mv-cuerpo .bt-eyebrow { margin: 18px 2px 8px; }
+  .mv-cuerpo .im-notis {
+    background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(14,27,46,.04), 0 8px 24px rgba(14,27,46,.06);
+  }
+  .mv-cuerpo .im-fila + .im-fila { border-top: 1px solid #F0F1F3; }
+  .mv-cuerpo .im-fila-cab {
+    width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 14px;
+    background: none; border: none; cursor: pointer; text-align: left; font: inherit; color: inherit;
+  }
+  .mv-cuerpo .im-fila-cab:disabled { cursor: default; }
+  .mv-cuerpo .im-tag {
+    font-family: var(--font-display); font-weight: 800; font-size: 10.5px; letter-spacing: .05em;
+    color: #fff; border-radius: 999px; padding: 4px 9px; flex-shrink: 0;
+  }
+  .mv-cuerpo .im-fila.urgente .im-tag { background: var(--red); }
+  .mv-cuerpo .im-fila.importante .im-tag { background: var(--orange); }
+  .mv-cuerpo .im-fila.vacia .im-tag { background: #C9CDD2; }
+  .mv-cuerpo .im-texto {
+    flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--navy);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mv-cuerpo .im-fila.vacia .im-texto { color: var(--muted); font-weight: 600; }
+  .mv-cuerpo .im-n {
+    min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 800; font-size: 13px; color: var(--navy); background: #E9EEF6;
+  }
+  .mv-cuerpo .im-flecha { color: var(--muted); transition: transform .15s ease; flex-shrink: 0; }
+  .mv-cuerpo .im-fila.abierta .im-flecha { transform: rotate(180deg); }
+  .mv-cuerpo .im-fila-cuerpo { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .mv-cuerpo .im-accion {
+    display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; padding: 0 14px;
+    border: 1px solid var(--line); border-radius: 10px; background: #FBFCFE; cursor: pointer;
+    font-family: var(--font-display); color: var(--navy); text-align: left;
+  }
+  .mv-cuerpo .im-accion b { font-size: 20px; font-weight: 800; }
+  .mv-cuerpo .im-accion span { flex: 1; font-size: 14.5px; font-weight: 500; }
+  .mv-cuerpo .im-accion em { font-style: normal; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+
+  /* Movimientos: una tarjeta, tres períodos. */
+  .mv-cuerpo .im-mov { padding: 14px 16px 10px; }
+  .mv-cuerpo .im-seg {
+    display: grid; grid-template-columns: repeat(3, 1fr); background: #E9EEF6; border-radius: 11px; padding: 3px;
+  }
+  .mv-cuerpo .im-seg button {
+    border: none; background: transparent; border-radius: 9px; padding: 8px 0; cursor: pointer;
+    font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--muted);
+  }
+  .mv-cuerpo .im-seg button.on { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(14,27,46,.12); }
+  .mv-cuerpo .im-per { display: flex; align-items: center; gap: 8px; margin-top: 12px; min-height: 30px; }
+  .mv-cuerpo .im-per-t { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mv-cuerpo .im-per-t b { color: var(--navy); font-family: var(--font-display); }
+  .mv-cuerpo .im-per .bt-flecha { width: 30px; height: 30px; flex-shrink: 0; }
+  .mv-cuerpo .im-mov .bt-cifras { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 0 0; }
+  .mv-cuerpo .im-mov .bt-monto { font-size: 34px; }
+  .mv-cuerpo .im-mov .bt-rutas { margin-top: 0; white-space: nowrap; }
+  .mv-cuerpo .im-mov .bt-datos { grid-template-columns: repeat(4, 1fr); margin-top: 12px; }
+  .mv-cuerpo .im-mov .bt-datos > div { padding: 10px 4px; }
+  .mv-cuerpo .im-mov .bt-datos .v { font-size: 15px; }
+  .mv-cuerpo .im-mov .bt-datos .l { font-size: 10px; }
+  .mv-cuerpo .im-ver {
+    width: 100%; margin-top: 8px; padding: 10px; border: none; background: none; cursor: pointer;
+    font-family: var(--font-display); font-weight: 700; font-size: 13.5px; color: var(--navy);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+}
