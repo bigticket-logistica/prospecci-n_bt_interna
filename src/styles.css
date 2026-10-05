@@ -1627,3 +1627,34 @@ tr:last-child td { border-bottom: none; }
   border-radius: 0 0 3px 3px; background: var(--navy);
 }
 .mv-punto { top: 6px; margin-left: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Landing · Maqueta 4 (solo el portal web; la app tiene su propio acceso).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.lp-cta { border: none; }
+.lp-nec-titulo h2 { font-family: var(--font); }
+.lp-atajos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.lp-atajo {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px;
+  padding: 16px 4px; border: none; background: transparent; color: var(--muted); text-align: center;
+  text-decoration: none; font-family: var(--font); cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.lp-atajo + .lp-atajo { border-left: 1px solid #E3E2E2; }
+.lp-atajo:hover { background: var(--page); color: var(--navy); }
+.lp-atajo img { width: 64px; height: auto; display: block; }
+.lp-atajo span { font-size: clamp(13px, 1.1vw, 15px); line-height: 1.3; text-wrap: balance; }
+.lp-panel-logo { width: 210px; height: auto; }
+.lp-panel .lp-link { color: var(--muted); }
+.lp-panel .lp-link:hover:not(:disabled) { color: var(--orange); }
+
+/* En pantallas angostas la sección se apila y los accesos bajan a filas. */
+@media (max-width: 760px) {
+  .lp-necesidades { grid-template-columns: 1fr; gap: 20px; padding: 36px 20px; }
+  .lp-nec-regla { margin-left: -20px; }
+  .lp-nec-titulo h2 { font-size: 26px; }
+  .lp-atajos { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 8px; }
+  .lp-atajo + .lp-atajo { border-left: none; }
+  .lp-atajo img { width: 52px; }
+  .lp-slide-texto { padding: 48px 64px 72px 28px; }
+}

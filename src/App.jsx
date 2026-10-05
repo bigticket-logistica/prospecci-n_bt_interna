@@ -217,7 +217,7 @@ export default function App() {
     try { destino = sessionStorage.getItem('bt_destino'); sessionStorage.removeItem('bt_destino') } catch { /* sin sessionStorage */ }
     if (!destino) return
     const dePagos = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
-    const permitidas = ['postula', 'flota', 'consultas', 'docs', 'perfil', 'estado', 'firma', 'baja', 'certificar',
+    const permitidas = ['postula', 'flota', 'consultas', 'docs', 'perfil', 'estado', 'firma', 'baja', 'certificar', 'reclamos', 'mensajes',
       ...(tercero.pagosHabilitados ? dePagos : [])]
     if (permitidas.includes(destino)) setView(destino)
   }, [tercero])

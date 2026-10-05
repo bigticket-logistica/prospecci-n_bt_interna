@@ -21,31 +21,31 @@ const PAGE = '#F4F3F3'
 
 const SLIDES = [
   {
-    img: '/landing-flota.png',
+    img: '/landing-vans.png',
     pos: 'center',
     titulo: 'Gestiona tu día a día sin complicaciones.',
     texto: 'Certifica conductores, vehículos, firma tu contrato y consulta movimientos y facturas.',
   },
   {
-    img: '/landing-conductor.jpg',
+    img: '/landing-peak.jpg',
     pos: '70% 30%',
     titulo: 'Súmate al peak season.',
     texto: 'Suma tus unidades, certifícalas y opera cuando más se necesita.',
     cta: 'Más información',
-    // El peak se postula en el sitio de prospección, fuera de este portal.
-    href: 'https://bigticket-portal.vercel.app/',
+    // Maqueta 4: abre el acceso y, una vez dentro, lleva a postular la unidad.
+    destino: 'postula',
   },
 ]
 
 // Cada atajo entra al portal y aterriza en su pantalla: el tercero llega a lo
-// que vino a hacer en vez de buscarlo en el menú.
-const NECESIDADES = [
-  { label: 'Rutas', v: 'movimientos', d: 'M3 17V7h11v10M14 10h4l3 3v4h-7M6.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z' },
-  { label: 'Documentos', v: 'docs', d: 'M14 3H6v18h12V7l-4-4zM14 3v4h4M9 12h6M9 16h6' },
-  { label: 'Facturación', v: 'facturacion', d: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6' },
-  { label: 'Pagos', v: 'pagado', d: 'M3 6h18v12H3zM3 10h18M7 15h3' },
-  { label: 'Mi flota', v: 'flota', d: 'M4 11l2-5h12l2 5M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01' },
-  { label: 'Soporte', v: 'consultas', d: 'M4 13a8 8 0 0116 0M4 13v4h3v-5H4M20 13v4h-3v-5h3M17 17c0 2-2 3-5 3' },
+// que vino a hacer en vez de buscarlo en el menú. Soporte abre el correo.
+// Maqueta 4: cinco accesos en una fila, con los íconos de la marca.
+const ATAJOS = [
+  { label: 'Mi billetera', v: 'movimientos', icono: '/iconos/billetera.png' },
+  { label: 'Facturación', v: 'facturacion', icono: '/iconos/facturacion.png' },
+  { label: 'Mi operación', v: 'reclamos', icono: '/iconos/operacion.png' },
+  { label: 'Certificación', v: 'estado', icono: '/iconos/certificacion.png' },
+  { label: 'Soporte', href: 'mailto:soporte@bigticket.cl', icono: '/iconos/soporte.png' },
 ]
 
 const Flecha = ({ dir = 'der', size = 10 }) => (
@@ -110,9 +110,9 @@ export default function Landing() {
                 <h1>{s.titulo}</h1>
                 <p>{s.texto}</p>
                 {s.cta && (
-                  <a className="lp-cta" href={s.href}>
+                  <button className="lp-cta" onClick={() => abrirAcceso(s.destino)}>
                     {s.cta}<Flecha />
-                  </a>
+                  </button>
                 )}
               </div>
             </div>
@@ -134,14 +134,14 @@ export default function Landing() {
           <div className="lp-nec-regla" />
           <h2>Cuéntanos, ¿qué necesitas?</h2>
         </div>
-        <div className="lp-nec-items">
-          {NECESIDADES.map(n => (
-            <button key={n.label} onClick={() => abrirAcceso(n.v)}>
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={ORANGE}
-                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d={n.d} />
-              </svg>
-              <span>{n.label}</span>
+        <div className="lp-atajos">
+          {ATAJOS.map(a => a.href ? (
+            <a key={a.label} className="lp-atajo" href={a.href}>
+              <img src={a.icono} alt="" /><span>{a.label}</span>
+            </a>
+          ) : (
+            <button key={a.label} className="lp-atajo" onClick={() => abrirAcceso(a.v)}>
+              <img src={a.icono} alt="" /><span>{a.label}</span>
             </button>
           ))}
         </div>
@@ -243,9 +243,9 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
             <form onSubmit={entrar}>
               {err && <div className="lp-error">{err}</div>}
               {aviso && <div className="lp-aviso">{aviso}</div>}
-              <input ref={primero} type="email" autoComplete="username" placeholder="Correo de tu empresa"
+              <input ref={primero} type="email" autoComplete="username" placeholder={incrustado ? 'Correo de tu empresa' : 'Correo electrónico'}
                 value={correo} onChange={e => setCorreo(e.target.value)} />
-              <input type="password" autoComplete="current-password" placeholder="Clave"
+              <input type="password" autoComplete="current-password" placeholder={incrustado ? 'Clave' : 'Contraseña'}
                 value={clave} onChange={e => setClave(e.target.value)} />
               <button type="submit" disabled={!puede}
                 style={{ background: puede ? ORANGE : '#e6e5e5', color: puede ? '#fff' : GRIS }}>
@@ -254,7 +254,7 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
             </form>
 
             <div className="lp-recuperar">
-              <span>¿Olvidaste tu clave?</span>
+              <span>{incrustado ? '¿Olvidaste tu clave?' : '¿Olvidaste tu contraseña?'}</span>
               <button type="button" className="lp-link" onClick={pedirCodigo} disabled={busy}>
                 <svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke={ORANGE} strokeWidth="1.5" aria-hidden="true">
                   <rect x="2" y="8" width="12" height="9" rx="2" /><path d="M5 8V5a3 3 0 016 0v3" />
@@ -312,7 +312,7 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
           </svg>
         </button>
 
-        <img src="/bt_logo_color.png" alt="Bigticket Logística y Transporte" className="lp-panel-logo" />
+        <img src="/logo-bt-naranjo-negro.png" alt="Bigticket Logística y Transporte" className="lp-panel-logo" />
         <div className="lp-panel-regla" />
         {cuerpo}
       </aside>
