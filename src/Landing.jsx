@@ -158,7 +158,9 @@ export default function Landing() {
 }
 
 // ── Panel de acceso ────────────────────────────────────────────────────────
-function PanelAcceso({ onCerrar }) {
+// incrustado: el mismo formulario sin el panel lateral ni el velo, para la
+// pantalla de acceso de la aplicación (AccesoApp, más abajo).
+function PanelAcceso({ onCerrar, incrustado = false }) {
   const [paso, setPaso] = useState('acceso')   // 'acceso' | 'codigo'
   const [correo, setCorreo] = useState('')
   const [clave, setClave] = useState('')
@@ -169,11 +171,13 @@ function PanelAcceso({ onCerrar }) {
   const primero = useRef(null)
 
   useEffect(() => {
+    // En la app no se enfoca solo: el teclado taparía la pantalla apenas abre.
+    if (incrustado) return
     primero.current?.focus()
     const esc = (e) => { if (e.key === 'Escape') onCerrar() }
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
-  }, [onCerrar])
+  }, [onCerrar, incrustado])
 
   const puede = correo.trim() && clave && !busy
 
@@ -226,20 +230,12 @@ function PanelAcceso({ onCerrar }) {
     }
   }
 
-  return (
-    <div className="lp-modal" role="dialog" aria-modal="true" aria-label="Ingresar al portal">
-      <div className="lp-velo" onClick={onCerrar} />
-      <aside className="lp-panel">
-        <button className="lp-cerrar" aria-label="Cerrar" onClick={onCerrar}>
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-            <path d="M2 2l14 14M16 2L2 16" stroke={ORANGE} strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </button>
-
-        <img src="/bt_logo_color.png" alt="Bigticket Logística y Transporte" className="lp-panel-logo" />
-        <div className="lp-panel-regla" />
+  const cuerpo = (
+    <>
         <p className="lp-panel-titulo">
-          {paso === 'acceso' ? 'Ingresa al Portal del Transportista' : 'Escribe el código que te enviamos'}
+          {paso === 'acceso'
+            ? (incrustado ? 'Ingresa con el correo de tu empresa' : 'Ingresa al Portal del Transportista')
+            : 'Escribe el código que te enviamos'}
         </p>
 
         {paso === 'acceso' ? (
@@ -301,7 +297,44 @@ function PanelAcceso({ onCerrar }) {
           </svg>
           <p>Si necesitas ayuda, escríbenos a soporte@bigticket.cl</p>
         </div>
+    </>
+  )
+
+  if (incrustado) return <div className="ac-hoja">{cuerpo}</div>
+
+  return (
+    <div className="lp-modal" role="dialog" aria-modal="true" aria-label="Ingresar al portal">
+      <div className="lp-velo" onClick={onCerrar} />
+      <aside className="lp-panel">
+        <button className="lp-cerrar" aria-label="Cerrar" onClick={onCerrar}>
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M2 2l14 14M16 2L2 16" stroke={ORANGE} strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <img src="/bt_logo_color.png" alt="Bigticket Logística y Transporte" className="lp-panel-logo" />
+        <div className="lp-panel-regla" />
+        {cuerpo}
       </aside>
+    </div>
+  )
+}
+
+// ── Acceso dentro de la aplicación ─────────────────────────────────────────
+// La aplicación no muestra la landing de marketing (carrusel, atajos, peak
+// season): quien la abre ya es transportista y viene a entrar. Arriba la marca
+// sobre el azul de la cabecera del portal; abajo, el formulario en una hoja
+// blanca. Con hijos, la hoja muestra otra cosa, como la clave nueva tras el
+// código de recuperación.
+export function AccesoApp({ children }) {
+  return (
+    <div className="ac-pantalla">
+      <header className="ac-cab">
+        <img src="/logo-bigticket-blanco.png" alt="Bigticket" />
+        <h1>Portal del Transportista</h1>
+        <p>Tus pagos, facturas y reclamos en un solo lugar.</p>
+      </header>
+      {children || <PanelAcceso incrustado onCerrar={() => {}} />}
     </div>
   )
 }

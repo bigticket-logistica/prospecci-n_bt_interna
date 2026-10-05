@@ -7,13 +7,13 @@ import Facturacion from './Facturacion'
 import Postula from './Postula'
 import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
-import Landing from './Landing'
+import Landing, { AccesoApp } from './Landing'
 import Descuentos from './Descuentos'
 import Reclamos from './Reclamos'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
 import { ShellMovil, esMovil } from './ArmazonMovil'
-import { iniciarNativo, registrarPush } from './nativo'
+import { iniciarNativo, registrarPush, esApp } from './nativo'
 
 // Ambiente del widget de firma MIFIEL. ⚠️ Cambiar a 'production' al salir del sandbox.
 const MIFIEL_ENV = 'production'
@@ -64,6 +64,32 @@ function DefinirPassword({ onListo }) {
     if (error) { setErr('No se pudo guardar: ' + error.message); return }
     setOk(true)
   }
+
+  // En la aplicación, la misma pantalla de acceso con la hoja blanca.
+  if (esApp()) return (
+    <AccesoApp>
+      <div className="ac-hoja">
+        <p className="lp-panel-titulo">{ok ? 'Clave guardada' : 'Crea tu clave nueva'}</p>
+        {ok ? (
+          <>
+            <div className="lp-aviso">Listo. Desde ahora entras con esta clave.</div>
+            <button className="ac-boton" onClick={onListo}>Entrar al portal</button>
+          </>
+        ) : (
+          <form onSubmit={e => { e.preventDefault(); guardar() }}>
+            {err && <div className="lp-error">{err}</div>}
+            <input type="password" autoComplete="new-password" placeholder="Clave nueva (mínimo 8 caracteres)"
+              value={p1} onChange={e => setP1(e.target.value)} />
+            <input type="password" autoComplete="new-password" placeholder="Repite la clave"
+              value={p2} onChange={e => setP2(e.target.value)} />
+            <button type="submit" className="ac-boton" disabled={busy}>
+              {busy ? 'Guardando…' : 'Guardar clave'}
+            </button>
+          </form>
+        )}
+      </div>
+    </AccesoApp>
+  )
 
   return (
     <div className="login-form-side" style={{ minHeight: '100vh' }}>
@@ -202,7 +228,9 @@ export default function App() {
     if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname)
   }} />
 
-  if (!session) return <Landing />
+  // La aplicación abre directo en el acceso; la landing de marketing queda
+  // para quien llega al portal desde el navegador.
+  if (!session) return esApp() ? <AccesoApp /> : <Landing />
   if (tercero === undefined) return <PantallaCentro titulo="Cargando…" texto="Buscando tu empresa." />
   if (tercero === null) return (
     <PantallaCentro titulo="Cuenta sin empresa asociada"
