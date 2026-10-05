@@ -11,9 +11,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { pastillaDe, marcarLeida } from './notificaciones'
+import { esMovil } from './ArmazonMovil'
+
+// En el teléfono la fecha va corta, como en cualquier bandeja: "Hoy, 09:12",
+// "Ayer, 18:40" o "30 sep, 09:12".
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+function cuandoCorto(v) {
+  if (!v) return ''
+  const d = new Date(v), hoy = new Date()
+  const h = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const mismo = (a, b) => a.toDateString() === b.toDateString()
+  const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1)
+  if (mismo(d, hoy)) return `Hoy, ${h}`
+  if (mismo(d, ayer)) return `Ayer, ${h}`
+  return `${d.getDate()} ${MESES[d.getMonth()]}, ${h}`
+}
 
 // A qué pantalla lleva cada mensaje, con el verbo de su categoría.
 const BOTON = {
+  reclamos: 'Ver reclamos',
   descuentos: 'Ver reclamo', movimientos: 'Ver movimiento', facturacion: 'Ver prefactura',
   facturado: 'Ver factura', pagado: 'Ver pago', estado: 'Ver certificación',
   firma: 'Ver contrato', docs: 'Ver documentos', perfil: 'Ver perfil',
@@ -63,6 +79,7 @@ export default function Mensajes({ tercero, onIr }) {
     (categoria === 'todas' || f.categoria === categoria)), [filas, solapa, categoria])
 
   const sinLeer = (filas || []).filter(f => !f.leida_at).length
+  const movil = esMovil()
 
   const abrir = (n) => {
     if (!n.leida_at) {
@@ -98,7 +115,7 @@ export default function Mensajes({ tercero, onIr }) {
 
       {error && <div className="dx-error">{error}</div>}
 
-      <div className="ms-filtros">
+      <div className={`ms-filtros${movil ? ' movil' : ''}`}>
         <div className="ms-solapas">
           {[['todos', 'Todos'], ['nuevos', `No leídos${sinLeer ? ` (${sinLeer})` : ''}`]].map(([k, l]) => (
             <button key={k} className={solapa === k ? 'on' : ''} onClick={() => setSolapa(k)}>{l}</button>
@@ -129,7 +146,20 @@ export default function Mensajes({ tercero, onIr }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {visibles.map(n => (
+          {movil ? visibles.map(n => (
+            <button key={n.id} className={`ms-tarjeta ${n.leida_at ? 'leido' : 'sin-leer'}`} onClick={() => abrir(n)}>
+              <span className={`ms-marca e-${n.pastilla.estilo}`} aria-hidden="true" />
+              <span className="ms-cuerpo">
+                <span className="ms-arriba">
+                  <span className="ms-cat-t">{n.categoria || 'Mis mensajes'}</span>
+                  <span className="ms-cuando">{cuandoCorto(n.evento_at)}</span>
+                </span>
+                <span className="ms-texto">{n.titulo}</span>
+                {n.detalle && <span className="ms-detalle">{n.detalle}</span>}
+                <span className="ms-ir">{BOTON[n.destino] || 'Ver'} ›</span>
+              </span>
+            </button>
+          )) : visibles.map(n => (
             <div key={n.id} className={`ms-item ${n.leida_at ? 'leido' : 'sin-leer'}`}>
               <span className="ms-punto" aria-hidden="true" />
               <div style={{ flex: 1, minWidth: 0 }}>
