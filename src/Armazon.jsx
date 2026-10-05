@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { cargarNotificaciones, marcarLeida, cuentaCampana } from './notificaciones'
+import { sinVer } from './vistos'
 
 const LOGO = '/logo-bigticket-blanco.png'
 
@@ -99,17 +100,15 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
         supabase.from('vw_campana_tercero').select('total').eq('tercero_id', tercero.tercero_id).maybeSingle(),
         // Los reclamos abiertos alimentan el número del menú: el tercero lo ve
         // esté en la pantalla que esté, no solo al entrar al inicio.
-        supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
+        supabase.from('vw_portal_pnr').select('case_id, sub_estado').eq('resultado', 'en_curso'),
       ])
       // Los reclamos ya vistos no vuelven a contar: el número avisa de lo
       // nuevo. El caso sigue abierto y se ve igual al entrar a la pantalla.
-      let vistos = []
-      try { vistos = JSON.parse(localStorage.getItem('bt_reclamos_vistos') || '[]') } catch { /* sin storage */ }
       setAvisos(lista)
       // El menú cuenta solo lo de la bandeja; la campana, todo lo nuevo.
       setSinLeer(m.count || 0)
       setEnCampana((m.count || 0) + (c.data?.total || 0))
-      setPropios({ reclamos: (p.data || []).filter(x => !vistos.includes(x.case_id)).length })
+      setPropios({ reclamos: sinVer(p.data).length })
     }
     leer()
     // Al leer un mensaje el número baja de inmediato, sin esperar a que el

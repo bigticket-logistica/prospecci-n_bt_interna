@@ -11,6 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { esMovil } from './ArmazonMovil'
+import { claveCaso, leerVistos, marcarVisto } from './vistos'
 
 const ESTADOS = {
   WAITING_RECEIPT:  { t: 'Esperando comprobante', d: 'El conductor todavía puede responder con la evidencia de entrega.' },
@@ -29,8 +31,35 @@ const pesosEnteros = (n) => '$' + Math.round(Number(n || 0)).toLocaleString('es-
 const corto = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : (p[0] || '—') }
 const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-const dia = (v) => { if (!v) return '—'; const d = new Date(String(v).length <= 10 ? v + 'T12:00:00' : v); return `${d.getDate()} ${MESES[d.getMonth()]}` }
-const diaHora = (v) => { if (!v) return '—'; const d = new Date(v); return `${d.getDate()} ${MESES[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+// Las fechas llegan en más de un formato: ISO desde la base y "dd/mm/aaaa
+// hh:mm" cuando vienen copiadas de MELI. Si ninguno calza se muestra el texto
+// tal cual, que siempre es mejor que "NaN undefined".
+const aFecha = (v) => {
+  if (!v) return null
+  const t = String(v).trim()
+  let d = new Date(t.length <= 10 && /^\d{4}-/.test(t) ? t + 'T12:00:00' : t)
+  if (!isNaN(d)) return d
+  const m = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2}))?/)
+  if (m) {
+    const anio = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])
+    d = new Date(anio, Number(m[2]) - 1, Number(m[1]), Number(m[4] || 12), Number(m[5] || 0))
+    if (!isNaN(d)) return d
+  }
+  return null
+}
+const dos = (n) => String(n).padStart(2, '0')
+const dia = (v) => { if (!v) return '—'; const d = aFecha(v); return d ? `${d.getDate()} ${MESES[d.getMonth()]}` : String(v) }
+const hora = (v) => { const d = aFecha(v); return d ? `${dos(d.getHours())}:${dos(d.getMinutes())}` : '' }
+const diaHora = (v) => { if (!v) return '—'; const d = aFecha(v); return d ? `${dia(v)}, ${hora(v)}` : String(v) }
+
+// MELI informa quién recibió con códigos en inglés. "holder" es el titular de
+// la compra, o sea, el mismo comprador que hoy reclama.
+const RECIBIO = {
+  holder: 'El titular de la compra', buyer: 'El comprador', receiver: 'El destinatario',
+  other: 'Otra persona', family: 'Un familiar', neighbor: 'Un vecino', neighbour: 'Un vecino',
+  doorman: 'Portería o recepción', concierge: 'Portería o recepción', employee: 'Un empleado',
+}
+const quien = (v) => (v ? (RECIBIO[String(v).trim().toLowerCase()] || v) : null)
 
 // Lo que MELI informa de cada paquete, en palabras que el tercero entienda.
 // Parte viene en portugués desde el origen; se traduce acá, no en la base.
@@ -53,6 +82,10 @@ export default function Reclamos({ tercero, onIr }) {
   const [abierto, setAbierto] = useState(null)
   const [avisos, setAvisos] = useState({})
   const [error, setError] = useState('')
+  // Los casos ya abiertos, para marcar con un punto los que no. Se relee al
+  // abrir uno, así el punto se apaga en el momento.
+  const [vistos, setVistos] = useState(() => leerVistos())
+  const movil = esMovil()
 
   const cargar = useCallback(async () => {
     if (!tercero?.tercero_id) return
@@ -70,12 +103,9 @@ export default function Reclamos({ tercero, onIr }) {
   const abrir = async (c) => {
     const id = c.case_id
     setAbierto(abierto === id ? null : id)
-    // Queda marcado como visto para que el número del menú deje de contarlo.
-    // Se guarda en el navegador: es una señal de lectura, no un dato del caso.
-    try {
-      const v = JSON.parse(localStorage.getItem('bt_reclamos_vistos') || '[]')
-      if (!v.includes(id)) localStorage.setItem('bt_reclamos_vistos', JSON.stringify([...v, id].slice(-300)))
-    } catch { /* sin storage: el número sigue contándolo */ }
+    // Abrir el detalle apaga el punto del caso y el de la pestaña.
+    marcarVisto(c)
+    setVistos(leerVistos())
     if (abierto === id || avisos[id]) return
     const { data } = await supabase.from('vw_portal_pnr_avisos')
       .select('tipo, destino, creado_en, horas_restantes, estado_entrega')
@@ -144,6 +174,7 @@ export default function Reclamos({ tercero, onIr }) {
             return (
               <article key={c.case_id} className="rc-caso">
                 <header className="rc-caso-head">
+                  {!vistos.has(claveCaso(c)) && <span className="rc-nuevo" title="Todavía no lo abres">Nuevo</span>}
                   <span className="rc-tipo">Post venta</span>
                   <span className="rc-caso-id">Caso: {c.case_id}</span>
                   <span className="rc-caso-estado">{e.t}</span>
@@ -215,8 +246,8 @@ export default function Reclamos({ tercero, onIr }) {
                       <div className="rc-box">
                         <div className="rc-avisos-t">Lo que registró la entrega</div>
                         <div className="dx-datos">
-                          <Dato k="Quién recibió" v={c.recibio_nombre} />
-                          <Dato k="En calidad de" v={c.recibio_quien} />
+                          <Dato k="Quién recibió" v={quien(c.recibio_nombre)} />
+                          <Dato k="En calidad de" v={quien(c.recibio_quien)} />
                           <Dato k="Estado en MELI" v={c.estado_texto} />
                           <Dato k="Entregado el" v={c.entregado_en ? diaHora(c.entregado_en) : null} />
                         </div>
@@ -230,25 +261,36 @@ export default function Reclamos({ tercero, onIr }) {
                       ) : avisos[c.case_id].filter(a => a.destino === 'conductor').length === 0 ? (
                         <p className="dx-vacio-txt">No se enviaron avisos al conductor por este caso.</p>
                       ) : (
+                        movil ? (
+                          <ul className="rc-avisos-lista">
+                            {avisos[c.case_id].filter(a => a.destino === 'conductor').map((a, i) => (
+                              <li key={i}>
+                                <div>
+                                  <b>{AVISO[a.tipo] || a.tipo}</b>
+                                  <span>WhatsApp · {diaHora(a.creado_en)}</span>
+                                </div>
+                                {a.horas_restantes != null && <em>{a.horas_restantes} h para responder</em>}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
                         <div className="rc-avisos">
                           {['Descripción', 'Canal', 'Fecha', 'Hora', 'Plazo'].map(t => (
                             <div key={t} className="rc-avisos-th">{t}</div>
                           ))}
-                          {avisos[c.case_id].filter(a => a.destino === 'conductor').map((a, i) => {
-                            const f = new Date(a.creado_en)
-                            return (
-                              <Fragment key={i}>
-                                <div>{AVISO[a.tipo] || a.tipo}</div>
-                                <div>WhatsApp</div>
-                                <div>{dia(a.creado_en)}</div>
-                                <div>{String(f.getHours()).padStart(2, '0')}:{String(f.getMinutes()).padStart(2, '0')}</div>
-                                <div className="rc-avisos-plazo">
-                                  {a.horas_restantes != null ? `${a.horas_restantes} H` : '—'}
-                                </div>
-                              </Fragment>
-                            )
-                          })}
+                          {avisos[c.case_id].filter(a => a.destino === 'conductor').map((a, i) => (
+                            <Fragment key={i}>
+                              <div>{AVISO[a.tipo] || a.tipo}</div>
+                              <div>WhatsApp</div>
+                              <div>{dia(a.creado_en)}</div>
+                              <div>{hora(a.creado_en)}</div>
+                              <div className="rc-avisos-plazo">
+                                {a.horas_restantes != null ? `${a.horas_restantes} H` : '—'}
+                              </div>
+                            </Fragment>
+                          ))}
                         </div>
+                        )
                       )}
                       {c.comprobante_en && (
                         <p className="rc-respuesta">

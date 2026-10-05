@@ -13,9 +13,10 @@
 // Se activa solo en pantallas angostas o dentro de la aplicación; el portal web
 // sigue exactamente igual.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { cargarNotificaciones } from './notificaciones'
+import { sinVer } from './vistos'
 
 // Cinco pestañas: las cuatro cosas que un tercero hace a diario, más el resto.
 // Desempeño queda fuera a propósito mientras esté en construcción; Reclamos
@@ -80,11 +81,13 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
       const [m, p] = await Promise.all([
         supabase.from('notificaciones_tercero').select('id', { count: 'exact', head: true })
           .eq('tercero_id', tercero.tercero_id).is('leida_at', null),
-        supabase.from('vw_portal_pnr').select('case_id').eq('resultado', 'en_curso'),
+        supabase.from('vw_portal_pnr').select('case_id, sub_estado').eq('resultado', 'en_curso'),
       ])
       if (!vivo) return
       setSinLeer(m.count || 0)
-      setReclamos((p.data || []).length)
+      // Solo lo que el tercero no ha abierto: el punto avisa de lo nuevo, no
+      // de lo que sigue abierto. Antes contaba todo y nunca se apagaba.
+      setReclamos(sinVer(p.data).length)
     }
     contar()
     // Al leer un mensaje el número baja de inmediato, sin esperar a que el
@@ -93,15 +96,38 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
     return () => { vivo = false; window.removeEventListener('bt:leido', contar) }
   }, [tercero, vista])
 
+  // La cabecera completa se va con el scroll. Cuando sale de la pantalla
+  // aparece arriba una barra delgada con el nombre y la campana: la campana
+  // sigue al alcance sin que la banda de Biggy tape un cuarto de la pantalla.
+  const hdRef = useRef(null)
+  const [compacto, setCompacto] = useState(false)
+  useEffect(() => {
+    const hd = hdRef.current
+    if (!hd || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setCompacto(!e.isIntersecting), { threshold: 0 })
+    io.observe(hd)
+    return () => io.disconnect()
+  }, [])
+
   const ir = (v) => { setMas(false); onNavegar(v) }
   const activa = TAB_DE[vista] || (mas ? 'mas' : null)
   const inicial = (tercero?.nombre || '?').trim().charAt(0).toUpperCase()
 
   return (
-    <div className="mv-shell">
+    <div className={`mv-shell${compacto ? ' compacto' : ''}`}>
+      <div className="mv-mini" aria-hidden={!compacto}>
+        <span>{tercero?.nombre || 'Transportista'}</span>
+        <button className="mv-bell" onClick={() => ir('mensajes')} aria-label="Mis mensajes" tabIndex={compacto ? 0 : -1}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          {sinLeer > 0 && <span className="mv-badge">{sinLeer > 99 ? '99+' : sinLeer}</span>}
+        </button>
+      </div>
       {/* Cabecera azul: saludo, campana y la empresa. Se queda arriba mientras
           se baja, porque la campana tiene que estar siempre al alcance. */}
-      <header className="mv-hd">
+      <header className="mv-hd" ref={hdRef}>
         <div className="mv-hd-top">
           <div style={{ minWidth: 0 }}>
             <div className="mv-saludo">Hola,</div>
