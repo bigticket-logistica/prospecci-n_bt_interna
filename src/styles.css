@@ -1425,3 +1425,13 @@ tr:last-child td { border-bottom: none; }
 .mv-shell.compacto .mv-mini { transform: none; pointer-events: auto; }
 /* Las solapas se pegan justo debajo de la barra cuando está a la vista. */
 .mv-shell.compacto .mv-solapas { top: calc(52px + env(safe-area-inset-top, 0px)); }
+/* Controles de zoom del visor, abajo y al ancho completo. */
+.vs-zoom {
+  display: flex; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: #fff; border-top: 1px solid var(--line);
+}
+.vs-zoom button {
+  height: 44px; min-width: 52px; border-radius: 10px; border: 1px solid var(--line); background: #F2F5FA;
+  font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--navy); cursor: pointer;
+}
+.vs-zoom .vs-ajustar { flex: 1; font-size: 14px; }
