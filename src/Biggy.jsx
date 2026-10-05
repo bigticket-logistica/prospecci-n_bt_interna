@@ -12,8 +12,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { esApp } from './nativo'
 
-const API = '/api/biggy-chat'
+// En el navegador la ruta relativa basta: el portal y la API viven en el mismo
+// dominio. En la aplicación de Android no: ahí /api apunta al propio teléfono.
+// VITE_API_BASE va en el .env de la carpeta local con la dirección del portal.
+const API = `${esApp() ? (import.meta.env.VITE_API_BASE || '') : ''}/api/biggy-chat`
 const CARA = '/biggy.jpg'   // el mismo retrato que usa la maqueta de marketing
 
 // Cuatro áreas con contextos distintos. Un tercero que pregunta por una
