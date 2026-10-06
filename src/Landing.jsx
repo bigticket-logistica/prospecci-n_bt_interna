@@ -245,8 +245,8 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
               {aviso && <div className="lp-aviso">{aviso}</div>}
               <input ref={primero} type="email" autoComplete="username" placeholder={incrustado ? 'Correo de tu empresa' : 'Correo electrónico'}
                 value={correo} onChange={e => setCorreo(e.target.value)} />
-              <input type="password" autoComplete="current-password" placeholder={incrustado ? 'Clave' : 'Contraseña'}
-                value={clave} onChange={e => setClave(e.target.value)} />
+              <CampoClave autoComplete="current-password" placeholder={incrustado ? 'Clave' : 'Contraseña'}
+                value={clave} onChange={setClave} />
               <button type="submit" disabled={!puede}
                 style={{ background: puede ? ORANGE : '#e6e5e5', color: puede ? '#fff' : GRIS }}>
                 {busy ? 'Entrando…' : 'Ingresar'}
@@ -316,6 +316,34 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
         <div className="lp-panel-regla" />
         {cuerpo}
       </aside>
+    </div>
+  )
+}
+
+// ── Campo de clave con ojo ─────────────────────────────────────────────────
+// En el teléfono es fácil equivocarse con una letra que no se ve: el ojo deja
+// mostrar la clave para revisarla antes de ingresar, y vuelve a ocultarla.
+export function CampoClave({ value, onChange, placeholder, autoComplete }) {
+  const [ver, setVer] = useState(false)
+  return (
+    <div className="lp-clave">
+      <input type={ver ? 'text' : 'password'} autoComplete={autoComplete} placeholder={placeholder}
+        value={value} onChange={e => onChange(e.target.value)}
+        autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+      <button type="button" className="lp-ojo" onClick={() => setVer(v => !v)}
+        aria-label={ver ? 'Ocultar la clave' : 'Mostrar la clave'} aria-pressed={ver}>
+        {ver ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.8 9.8 0 0112 5c5 0 9 4.5 10 7-.4 1-1.3 2.4-2.6 3.7M6.1 6.1C4 7.5 2.6 9.6 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+        )}
+      </button>
     </div>
   )
 }

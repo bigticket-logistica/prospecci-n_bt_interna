@@ -7,7 +7,7 @@ import Facturacion from './Facturacion'
 import Postula from './Postula'
 import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
-import Landing, { AccesoApp } from './Landing'
+import Landing, { AccesoApp, CampoClave } from './Landing'
 import Descuentos from './Descuentos'
 import Reclamos from './Reclamos'
 import Mensajes from './Mensajes'
@@ -78,10 +78,10 @@ function DefinirPassword({ onListo }) {
         ) : (
           <form onSubmit={e => { e.preventDefault(); guardar() }}>
             {err && <div className="lp-error">{err}</div>}
-            <input type="password" autoComplete="new-password" placeholder="Clave nueva (mínimo 8 caracteres)"
-              value={p1} onChange={e => setP1(e.target.value)} />
-            <input type="password" autoComplete="new-password" placeholder="Repite la clave"
-              value={p2} onChange={e => setP2(e.target.value)} />
+            <CampoClave autoComplete="new-password" placeholder="Clave nueva (mínimo 8 caracteres)"
+              value={p1} onChange={setP1} />
+            <CampoClave autoComplete="new-password" placeholder="Repite la clave"
+              value={p2} onChange={setP2} />
             <button type="submit" className="ac-boton" disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar clave'}
             </button>

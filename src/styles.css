@@ -1658,3 +1658,20 @@ tr:last-child td { border-bottom: none; }
   .lp-atajo img { width: 52px; }
   .lp-slide-texto { padding: 48px 64px 72px 28px; }
 }
+
+/* Campo de clave con ojo para mostrarla u ocultarla (web y app). */
+.lp-clave { position: relative; display: flex; }
+.lp-clave input { flex: 1; width: 100%; padding-right: 46px !important; }
+.lp-panel form .lp-ojo, .ac-hoja form .lp-ojo {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  width: 40px; height: 40px; margin: 0; padding: 0; border: 0; border-radius: 8px !important;
+  background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer;
+}
+.lp-panel form .lp-ojo:hover, .ac-hoja form .lp-ojo:hover { color: var(--navy); }
+
+/* Las dos etiquetas del Inicio con el mismo ancho, medido en em para que
+   crezca con el tamaño de letra del teléfono: con letra grande, un ancho fijo
+   en píxeles dejaba "ATENCIÓN" pegada a los bordes. */
+@media (max-width: 820px) {
+  .mv-cuerpo .im-tag { width: 7.8em; padding: 4px 0; white-space: nowrap; box-sizing: border-box; }
+}
