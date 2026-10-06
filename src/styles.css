@@ -1697,3 +1697,33 @@ tr:last-child td { border-bottom: none; }
 
 /* Punto de pendiente más grande y visible en las pestañas. */
 .mv-punto { width: 10px; height: 10px; top: 3px; margin-left: 13px; border-width: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Reclamos · Maqueta 8.6 (portal web).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rc-volver {
+  display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 0;
+  color: #5D646C; font-family: var(--font); font-size: 13px; cursor: pointer; transition: color .15s ease;
+}
+.rc-volver:hover { color: var(--navy); text-decoration: underline; }
+.rc-sep { width: 1px; height: 14px; background: #D9D9D9; }
+.ms-ruta a:hover { text-decoration: underline; }
+
+@media (min-width: 821px) {
+  /* El aviso va debajo del indicador, a lo ancho, con su ícono. */
+  .rc-top { flex-direction: column; align-items: stretch; gap: 14px; }
+  .rc-urgente { flex: none; width: 100%; }
+  .rc-aviso { flex: none; padding: 10px 14px; border-radius: 12px; gap: 10px; font-size: 13.5px; }
+  .rc-aviso-i {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--orange); color: #fff; flex-shrink: 0;
+    display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 12px;
+  }
+  .rc-caso-estado { font-size: 13px; letter-spacing: .04em; padding: 5px 16px; }
+  .rc-ver {
+    display: inline-flex; align-items: center; gap: 5px; border: none; background: none; padding: 0;
+    color: var(--navy); font-family: var(--font-display); font-weight: 700; font-size: 13px;
+    text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: color .15s ease;
+  }
+  .rc-ver:hover { color: var(--orange); }
+  .rc-cerrar { display: grid; place-items: center; padding: 0; transition: box-shadow .15s ease, transform .15s ease; }
+}

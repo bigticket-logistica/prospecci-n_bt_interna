@@ -23,6 +23,13 @@ const ESTADOS = {
 }
 const nombreEstado = (k) => (ESTADOS[k] || { t: k || 'Sin estado', d: '' })
 
+// Maqueta 8.6: en el encabezado del caso va su vigencia (si todavía le toca
+// responder al tercero o ya está con MELI) y en el detalle el estado del
+// reclamo en tres palabras.
+const vigencia = (c) => (c.le_toca_a === 'tercero' ? 'Vigente' : 'En revisión')
+const estadoReclamo = (k) => (k === 'NOT_BILLED' ? 'Aprobado'
+  : (k === 'BILLED' || k === 'WITHOUT_RECEIPT') ? 'Rechazado' : 'En revisión')
+
 const AVISO = { 'aviso inicial': 'Primer aviso', 'recordatorio': 'Recordatorio', 'alerta 3 horas': 'Últimas 3 horas' }
 const ENTREGA = { entregado: 'entregado', enviado: 'enviado', fallido: 'no llegó' }
 
@@ -48,6 +55,8 @@ const aFecha = (v) => {
   return null
 }
 const dos = (n) => String(n).padStart(2, '0')
+// En la tabla web la fecha va completa, como en la maqueta: 29/09/2026.
+const ddmmaaaa = (v) => { const d = aFecha(v); return d ? `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()}` : '—' }
 const dia = (v) => { if (!v) return '—'; const d = aFecha(v); return d ? `${d.getDate()} ${MESES[d.getMonth()]}` : String(v) }
 const hora = (v) => { const d = aFecha(v); return d ? `${dos(d.getHours())}:${dos(d.getMinutes())}` : '' }
 const diaHora = (v) => { if (!v) return '—'; const d = aFecha(v); return d ? `${dia(v)}, ${hora(v)}` : String(v) }
@@ -120,17 +129,27 @@ export default function Reclamos({ tercero, onIr }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <nav className="ms-ruta">
+        {!movil && (
+          <>
+            <button className="rc-volver" onClick={() => onIr && onIr('home')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+              Volver
+            </button>
+            <span className="rc-sep" aria-hidden="true" />
+          </>
+        )}
         <a href="#" onClick={e => { e.preventDefault(); onIr && onIr('home') }}>Inicio</a>
         <span>›</span><span>Mi operación</span>
-        <span>›</span><span className="on">Reclamos</span>
+        <span>›</span><span className="on" aria-current="page">Reclamos</span>
       </nav>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <h1 className="bt-titulo">Reclamos</h1>
-        <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, maxWidth: 720, lineHeight: 1.5 }}>
+        {movil && <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, maxWidth: 720, lineHeight: 1.5 }}>
           Los casos abiertos que todavía se pueden ganar. Nada de esto se te ha cobrado: lo que ya
           se descontó está en Mi billetera, en Descuentos.
-        </p>
+        </p>}
       </div>
 
       {error && <div className="dx-error">{error}</div>}
@@ -142,7 +161,7 @@ export default function Reclamos({ tercero, onIr }) {
           <article className="rc-urgente">
             <header className="nt-head">
               <span className="nt-tag urgente">URGENTE</span>
-              <span className="nt-resumen">{pesos(total)} Riesgo de cobro</span>
+              <span className="nt-resumen">{movil ? pesos(total) : pesosEnteros(total)} Riesgo de cobro</span>
             </header>
             <div className="nt-kpi" style={{ cursor: 'default' }}>
               <span className="nt-num">{lista.length}</span>
@@ -150,14 +169,17 @@ export default function Reclamos({ tercero, onIr }) {
             </div>
           </article>
           <p className="rc-aviso">
-            <b>Evita el descuento.</b> Gestiona sin perder el plazo.
+            {!movil && <span className="rc-aviso-i" aria-hidden="true">!</span>}
+            <span><b>Evita el descuento.</b> Gestiona sin perder el plazo.</span>
           </p>
         </div>
       )}
 
-      <div className="dx-origen">
-        <h2>Paquetes no recibidos (PNR)</h2>
-      </div>
+      {movil && (
+        <div className="dx-origen">
+          <h2>Paquetes no recibidos (PNR)</h2>
+        </div>
+      )}
 
       {casos === null ? (
         <div className="bt-vacio"><h3>Cargando…</h3></div>
@@ -177,7 +199,7 @@ export default function Reclamos({ tercero, onIr }) {
                   {!vistos.has(claveCaso(c)) && <span className="rc-nuevo" title="Todavía no lo abres">Nuevo</span>}
                   <span className="rc-tipo">Post venta</span>
                   <span className="rc-caso-id">Caso: {c.case_id}</span>
-                  <span className="rc-caso-estado">{e.t}</span>
+                  <span className="rc-caso-estado">{movil ? e.t : vigencia(c)}</span>
                 </header>
 
                 <div className="rc-tabla-wrap">
@@ -187,14 +209,14 @@ export default function Reclamos({ tercero, onIr }) {
                       <div key={i} className="rc-th">{t}</div>
                     ))}
 
-                    <div className="rc-td">{dia(c.fecha_caso)}</div>
+                    <div className="rc-td">{movil ? dia(c.fecha_caso) : ddmmaaaa(c.fecha_caso)}</div>
                     <div className="rc-td">{c.sc || '—'}</div>
                     <div className="rc-td">{c.placa || '—'}</div>
                     <div className="rc-td">{corto(c.conductor)}</div>
                     <div className="rc-td">{c.ruta || c.id_ruta || '—'}</div>
                     <div className="rc-td">{c.guia || '—'}</div>
                     <div className="rc-td">
-                      {c.le_toca_a === 'tercero'
+                      {(c.le_toca_a === 'tercero' || !movil)
                         ? <span className={`rc-plazo${c.horas_restantes > 0 ? '' : ' vencido'}`}>
                             {c.horas_restantes > 0 ? `${c.horas_restantes} H` : 'VENCIDO'}
                           </span>
@@ -203,7 +225,11 @@ export default function Reclamos({ tercero, onIr }) {
                     <div className="rc-td"><span className="rc-monto">{pesosEnteros(c.monto)}</span></div>
                     <div className="rc-td">
                       {!open && (
-                        <button className="rc-ver" onClick={() => abrir(c)}>Ver detalle ▾</button>
+                        <button className="rc-ver" onClick={() => abrir(c)}>
+                          Ver detalle
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -213,12 +239,15 @@ export default function Reclamos({ tercero, onIr }) {
                   <div className="rc-detalle">
                     <div className="rc-detalle-head">
                       <span>Detalle del caso</span>
-                      <button className="rc-cerrar" onClick={() => setAbierto(null)} aria-label="Cerrar">▴</button>
+                      <button className="rc-cerrar" onClick={() => setAbierto(null)} aria-label="Cerrar el detalle">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>
+                      </button>
                     </div>
 
                     <div className="rc-box rc-estado">
                       <span>Estado del reclamo</span>
-                      <span className="rc-pill">{e.t}</span>
+                      <span className="rc-pill">{movil ? e.t : estadoReclamo(c.sub_estado)}</span>
                     </div>
 
                     <div className="rc-box rc-producto">
@@ -233,6 +262,7 @@ export default function Reclamos({ tercero, onIr }) {
                       <div className="rc-producto-v">{pesos(c.valor_compra || c.monto)}</div>
                     </div>
 
+                    {movil && (<>
                     {/* Lo que alega el comprador: es contra esto que el tercero
                         tiene que responder, así que va textual. */}
                     {c.mensaje_reclamo && (
@@ -253,6 +283,8 @@ export default function Reclamos({ tercero, onIr }) {
                         </div>
                       </div>
                     )}
+
+                    </>)}
 
                     <div className="rc-box">
                       <div className="rc-avisos-t">Detalle de avisos</div>
@@ -298,6 +330,32 @@ export default function Reclamos({ tercero, onIr }) {
                         </p>
                       )}
                     </div>
+
+                    {/* En la web, lo que alega el comprador y lo que registró la
+                        entrega van después de los avisos, como pide la maqueta. */}
+                    {!movil && (<>
+                    {/* Lo que alega el comprador: es contra esto que el tercero
+                        tiene que responder, así que va textual. */}
+                    {c.mensaje_reclamo && (
+                      <div className="rc-box">
+                        <div className="rc-avisos-t">Lo que dice el comprador</div>
+                        <p className="rc-reclamo">{c.mensaje_reclamo}</p>
+                      </div>
+                    )}
+
+                    {(c.recibio_nombre || c.estado_texto || c.entregado_en) && (
+                      <div className="rc-box">
+                        <div className="rc-avisos-t">Lo que registró la entrega</div>
+                        <div className="dx-datos">
+                          <Dato k="Quién recibió" v={quien(c.recibio_nombre)} />
+                          <Dato k="En calidad de" v={quien(c.recibio_quien)} />
+                          <Dato k="Estado en MELI" v={c.estado_texto} />
+                          <Dato k="Entregado el" v={c.entregado_en ? diaHora(c.entregado_en) : null} />
+                        </div>
+                      </div>
+                    )}
+
+                    </>)}
 
                     {c.le_toca_a === 'tercero' && <QueHacer c={c} />}
                   </div>
