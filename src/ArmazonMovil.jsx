@@ -111,11 +111,14 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
 
   const ir = (v) => { setMas(false); onNavegar(v) }
   const activa = TAB_DE[vista] || (mas ? 'mas' : null)
-  const inicial = (tercero?.nombre || '?').trim().charAt(0).toUpperCase()
 
   return (
     <div className={`mv-shell${compacto ? ' compacto' : ''}`}>
       <div className="mv-mini" aria-hidden={!compacto}>
+        <button className="mv-menu" onClick={() => setMas(true)} aria-label="Menú" tabIndex={compacto ? 0 : -1}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"
+                strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
         <span>{tercero?.nombre || 'Transportista'}</span>
         <button className="mv-bell" onClick={() => ir('mensajes')} aria-label="Mis mensajes" tabIndex={compacto ? 0 : -1}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -129,7 +132,13 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
           se baja, porque la campana tiene que estar siempre al alcance. */}
       <header className="mv-hd" ref={hdRef}>
         <div className="mv-hd-top">
-          <div style={{ minWidth: 0 }}>
+          {/* El menú va a la izquierda, con el ícono de tres líneas que todos
+              reconocen; antes era la inicial de la empresa, a la derecha. */}
+          <button className="mv-menu" onClick={() => setMas(true)} aria-label="Menú">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"
+                strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+          <div className="mv-hd-nombre">
             <div className="mv-saludo">Hola,</div>
             <div className="mv-nombre">{tercero?.nombre || 'Transportista'}</div>
           </div>
@@ -141,9 +150,6 @@ export function ShellMovil({ tercero, email, vista, onNavegar, children }) {
               </svg>
               {sinLeer > 0 && <span className="mv-badge">{sinLeer > 99 ? '99+' : sinLeer}</span>}
             </button>
-            {/* La inicial abre el menú: en un teléfono todo lo que se ve se
-                toca, y un adorno que no responde se siente roto. */}
-            <button className="mv-avatar" onClick={() => setMas(true)} aria-label="Menú">{inicial}</button>
           </div>
         </div>
 
