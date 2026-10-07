@@ -62,6 +62,25 @@ const GRUPO_DE = {
 }
 
 
+// Íconos del nivel 1 del menú lateral (Maqueta 8.7). Se usan tal cual vienen de
+// diseño: línea fina, color heredado del contenedor.
+const ICONO_MENU = {
+  inicio: '<path d="M3 10a2 2 0 0 1 .7-1.53l7-6a2 2 0 0 1 2.6 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M10 21v-5a2 2 0 0 1 4 0v5"/>',
+  mensajes: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M7.5 8h9"/><path d="M7.5 12h5"/>',
+  billetera: '<path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M21 11.5h-3.5a2 2 0 0 0 0 4H21"/><path d="M6.5 7V5.6a1.5 1.5 0 0 1 1.8-1.47l7.4 1.5A1.5 1.5 0 0 1 16.9 7.1V7"/><path d="M17.5 13.5h.01"/>',
+  facturacion: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 10v8"/><path d="M14.5 11.5h-3.25a1.75 1.75 0 0 0 0 3.5h1.5a1.75 1.75 0 0 1 0 3.5H9.5"/>',
+  operacion: '<path d="M14 17V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1"/><path d="M10 17h5"/><path d="M14 9h3.5l3.5 4.2V16a1 1 0 0 1-1 1h-1"/><path d="M1 9h2.5"/><path d="M1.5 12.5h2"/><circle cx="8" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+  certificacion: '<path d="M13 17H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2"/><path d="M6 8h12"/><path d="M6 11.5h5"/><path d="M15.2 15.4 14.5 21l2.5-1.3 2.5 1.3-.7-5.6"/><circle cx="17" cy="13" r="3"/>',
+  empresa: '<path d="M3 21V9.5a1 1 0 0 1 .55-.9l8-4a1 1 0 0 1 .9 0l8 4a1 1 0 0 1 .55.9V21"/><path d="M7 21v-7h10v7"/><path d="M7 17.5h10"/><path d="M12 9.5h.01"/>',
+}
+const IconoMenu = ({ k }) => (
+  <span className="nav-icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: ICONO_MENU[k] || '' }} />
+  </span>
+)
+
 const Chevron = ({ size = 13, color = 'currentColor', w = 2.5, style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={w}
     strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M6 9l6 6 6-6" /></svg>
@@ -231,8 +250,10 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
         <aside className={`bt-lateral${menuMovil ? ' abierto' : ''}`}>
           <nav className="bt-nav">
             {grupos.map(g => {
-              const on = activo === g.key
+              // Solo se destaca una sección: la abierta o, si no hay ninguna
+              // abierta, la de la página actual.
               const open = abierto === g.key
+              const on = activo === g.key && (!abierto || open)
               const conSub = g.items.length > 0
               const nGrupo = g.key === 'mensajes' ? sinLeer
                 : g.items.reduce((s, i) => s + (contadores[i.v] || 0), 0)
@@ -242,7 +263,7 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
                     className={`bt-grupo-btn${on ? ' on' : ''}${open ? ' open' : ''}`}
                     onClick={() => conSub ? setAbierto(open ? null : g.key) : ir(g.v)}>
                     <span className="bt-grupo-izq">
-                      <span className="bt-barra" />
+                      <IconoMenu k={g.key} />
                       <span className="bt-grupo-label">{g.label}</span>
                       {nGrupo > 0 && (
                         <span className="bt-contador" style={{ background: g.naranja ? 'var(--orange)' : '#C43D2F' }}>
@@ -250,7 +271,7 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
                         </span>
                       )}
                     </span>
-                    {conSub && <Chevron style={{ flexShrink: 0, transition: 'transform .15s ease',
+                    {conSub && <Chevron style={{ flexShrink: 0, marginLeft: 'auto', transition: 'transform .15s ease',
                       transform: `rotate(${open ? '180deg' : '0deg'})` }} />}
                   </button>
                   {open && (
@@ -532,7 +553,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
 
             <article className={`nt-card${importante ? '' : ' vacia'}`}>
               <header className="nt-head">
-                <span className="nt-tag importante">IMPORTANTE</span>
+                <span className="nt-tag importante">ATENCIÓN</span>
                 <span className="nt-resumen">
                   {importante ? 'Riesgo de bloqueo y pago' : 'Sin pendientes'}
                 </span>
@@ -559,7 +580,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         <>
         <span className="bt-eyebrow">Movimientos</span>
         <div className="bt-tarjetas">
-          <div className="bt-card bt-card-click" onClick={() => onPick('movimientos')}>
+          <TarjetaMov onIr={() => onPick('movimientos')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px' }}>
               <h3 className="bt-card-t" style={{ margin: 0 }}>Diario</h3>
               <span className="bt-info">
@@ -574,13 +595,13 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               [pct(dia?.ns, 1), 'Nivel servicio'],
               [pct(nsDomicilioDe(dia), 1), 'Visitado'],
             ]} />
-          </div>
+          </TarjetaMov>
 
-          <div className="bt-card">
+          <TarjetaMov onIr={() => onPick('movimientos')}>
             <div className="bt-card-cab">
               <div style={{ minWidth: 0 }}>
                 <h3 className="bt-card-t">{vista === 'semana' ? 'Semanal' : 'Mensual'}</h3>
-                <div className="bt-periodo">
+                <div className="bt-periodo" onClick={e => e.stopPropagation()}>
                   <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}
                     disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
@@ -601,7 +622,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                   </button>
                 </div>
               </div>
-              <div className="bt-toggle">
+              <div className="bt-toggle" onClick={e => e.stopPropagation()}>
                 {[['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => (
                   <button key={k} className={`bt-per${vista === k ? ' on' : ''}`} onClick={() => setVista(k)}>{l}</button>
                 ))}
@@ -613,7 +634,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               [pct(actual?.ns, 0), 'Nivel servicio'],
               [pct(nsDomicilioDe(actual), 0), 'Visitado'],
             ]} />
-          </div>
+          </TarjetaMov>
         </div>
         </>
       )}
@@ -734,6 +755,21 @@ function FilaAviso({ tipo, etiqueta, n, texto, abierta, onToggle, children }) {
           strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>}
       </button>
       {abierta && <div className="im-fila-cuerpo">{children}</div>}
+    </div>
+  )
+}
+
+// Tarjeta de movimientos del escritorio (Maqueta 8.7): toda la tarjeta lleva a
+// Movimientos; detrás asoma una hoja al pasar el mouse y aparece "Ver detalle".
+function TarjetaMov({ onIr, children }) {
+  const tecla = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onIr() } }
+  return (
+    <div className="kpi-wrap" role="link" tabIndex={0} onClick={onIr} onKeyDown={tecla}>
+      <div className="kpi-sheet" aria-hidden="true" />
+      <div className="bt-card kpi">
+        {children}
+        <span className="kpi-cta">Ver detalle <span className="kpi-cta-f">→</span></span>
+      </div>
     </div>
   )
 }

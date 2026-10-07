@@ -1746,3 +1746,75 @@ tr:last-child td { border-bottom: none; }
 @media (max-width: 760px) {
   .lp-atajo-icono svg { width: 48px; height: 48px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Maqueta 8.7 · Menú lateral con íconos e Inicio del escritorio.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.bt-grupo-btn {
+  position: relative; min-height: 48px; padding: 6px 12px 6px 10px; gap: 12px;
+  font-weight: 400; justify-content: flex-start;
+}
+.bt-grupo-btn.open, .bt-grupo-btn.on { color: var(--navy); font-weight: 700; }
+.bt-grupo-btn.open:not(.on) { background: transparent; }
+.bt-grupo-btn.open:not(.on):hover { background: #F4F3F3; }
+.bt-grupo-btn.on::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--orange);
+}
+.bt-grupo-btn:focus { outline: none; }
+.bt-grupo-btn:focus-visible { box-shadow: inset 0 0 0 2px #B8C4D3; }
+.bt-grupo-izq { gap: 12px; }
+.bt-barra { display: none; }
+.nav-icon {
+  width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px;
+  border: 1px solid transparent; color: #8B8B8B;
+  transition: border-color .18s ease-out, box-shadow .18s ease-out, background .18s ease-out, color .18s ease-out, transform .18s ease-out;
+}
+.nav-icon svg { width: 28px; height: 28px; }
+.bt-grupo-btn:hover .nav-icon, .bt-grupo-btn.on .nav-icon, .bt-grupo-btn.open .nav-icon {
+  color: var(--orange); border-color: #FFC7A3; background: #fff; box-shadow: 0 2px 8px rgba(255,102,0,.16);
+}
+.bt-grupo-btn:hover .nav-icon { transform: translateY(-2px) scale(1.08); box-shadow: 0 6px 14px rgba(255,102,0,.22); }
+.bt-contador { min-width: 20px; height: 20px; border-radius: 10px; font-size: 12px; padding: 0 5px; }
+
+/* Subsecciones: sin ícono, con la línea guía bajo el centro del ícono. */
+.bt-sub { margin-left: 28px; padding: 2px 0 8px; border-left: 1px solid #E4E3E3; }
+.bt-sub-btn { min-height: 44px; padding: 9px 12px 9px 29px; border-radius: 0 8px 8px 0; align-items: center; }
+.bt-sub-t { font-weight: 400; color: #5D646C; }
+.bt-sub-btn:hover .bt-sub-t { color: var(--navy); font-weight: 700; }
+.bt-sub-d { color: #5D646C; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-grupo-btn:hover .nav-icon { transform: none; }
+}
+
+/* Notificaciones del Inicio: las dos etiquetas del mismo ancho. */
+.nt-tag { min-width: 108px; text-align: center; box-sizing: border-box; }
+
+/* Tarjetas Diario y Semanal/Mensual: enlace completo con hoja detrás. */
+.kpi-wrap { position: relative; cursor: pointer; outline: none; border-radius: 18px; }
+.kpi-wrap:focus-visible { box-shadow: 0 0 0 2px #B8C4D3; }
+.kpi-sheet {
+  position: absolute; inset: 0; z-index: 0; background: #EFEDED; border: 1px solid #D9D9D9; border-radius: 18px;
+  transform-origin: 50% 100%; transition: transform .7s cubic-bezier(.25,.1,.25,1), box-shadow .7s;
+}
+.kpi-wrap .kpi {
+  position: relative; z-index: 1; height: 100%; border-radius: 18px;
+  transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s, border-color .25s;
+}
+.kpi-wrap:hover .kpi { transform: translateY(-2px); border-color: #8B9097; box-shadow: 0 8px 20px rgba(0,46,93,.10); }
+.kpi-wrap:hover .kpi-sheet { transform: translate(-5px, -3px) rotate(-1deg); box-shadow: 0 2px 8px rgba(0,46,93,.05); }
+.kpi-cta {
+  display: inline-flex; gap: 4px; margin-top: 14px; font-family: var(--font-display); font-size: 13px; color: #5D646C;
+  opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s;
+}
+.kpi-cta-f { display: inline-block; transition: transform .2s; }
+.kpi-wrap:hover .kpi-cta { opacity: 1; transform: none; }
+.kpi-wrap:hover .kpi-cta-f { transform: translateX(3px); }
+@media (hover: none) { .kpi-cta { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .kpi-wrap .kpi, .kpi-sheet, .kpi-cta { transition: none; }
+  .kpi-wrap:hover .kpi, .kpi-wrap:hover .kpi-sheet { transform: none; }
+}
+.bt-info-i { width: 22px; height: 22px; font-size: 14px; }
+.bt-info-tip { bottom: 30px; }
