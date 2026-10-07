@@ -40,13 +40,32 @@ const SLIDES = [
 // Cada atajo entra al portal y aterriza en su pantalla: el tercero llega a lo
 // que vino a hacer en vez de buscarlo en el menú. Soporte abre el correo.
 // Maqueta 4: cinco accesos en una fila, con los íconos de la marca.
+// Íconos de la Maqueta 7: SVG en línea, trazo naranjo, para que se vean nítidos
+// en cualquier pantalla. Los trazos vienen tal cual de la entrega de diseño.
+const ICONOS = {
+  billetera: '<path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M21 11.5h-3.5a2 2 0 0 0 0 4H21"/><path d="M6.5 7V5.6a1.5 1.5 0 0 1 1.8-1.47l7.4 1.5A1.5 1.5 0 0 1 16.9 7.1V7"/><path d="M17.5 13.5h.01"/>',
+  facturacion: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 10v1.5"/><path d="M12 17.5V19"/><path d="M14.5 11.5H11a1.5 1.5 0 0 0 0 3h2a1.5 1.5 0 0 1 0 3H9.5"/>',
+  operacion: '<path d="M14 17V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1"/><path d="M10 17h5"/><path d="M14 9h3.5l3.5 4.2V16a1 1 0 0 1-1 1h-1"/><path d="M1 9h2.5"/><path d="M1.5 12.5h2"/><circle cx="8" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+  certificacion: '<path d="M13 17H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2"/><path d="M6 8h12"/><path d="M6 11.5h5"/><path d="M15.2 15.4 14.5 21l2.5-1.3 2.5 1.3-.7-5.6"/><circle cx="17" cy="13" r="3"/>',
+  soporte: '<path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M3 14a2 2 0 0 1 2-2h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2Z"/><path d="M21 14a2 2 0 0 0-2-2h-1a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a2 2 0 0 0 2-2Z"/><path d="M20 18v.5a2.5 2.5 0 0 1-2.5 2.5H15"/><path d="M12.5 21h.01"/>',
+}
+
 const ATAJOS = [
-  { label: 'Mi billetera', v: 'movimientos', icono: '/iconos/billetera.png' },
-  { label: 'Facturación', v: 'facturacion', icono: '/iconos/facturacion.png' },
-  { label: 'Mi operación', v: 'reclamos', icono: '/iconos/operacion.png' },
-  { label: 'Certificación', v: 'estado', icono: '/iconos/certificacion.png' },
-  { label: 'Soporte', href: 'mailto:soporte@bigticket.cl', icono: '/iconos/soporte.png' },
+  { label: 'Mi billetera', v: 'movimientos', icono: 'billetera' },
+  { label: 'Facturación', v: 'facturacion', icono: 'facturacion' },
+  { label: 'Mi operación', v: 'reclamos', icono: 'operacion' },
+  { label: 'Certificación', v: 'estado', icono: 'certificacion' },
+  { label: 'Soporte', href: 'mailto:soporte@bigticket.cl', icono: 'soporte' },
 ]
+
+// Los trazos son fijos y vienen de este mismo archivo, no de afuera.
+const IconoAtajo = ({ nombre }) => (
+  <span className="lp-atajo-icono">
+    <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="#FF6600" strokeWidth="0.83"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: ICONOS[nombre] }} />
+  </span>
+)
 
 const Flecha = ({ dir = 'der', size = 10 }) => (
   <svg width={size} height={size * 1.6} viewBox="0 0 10 16" fill="none" aria-hidden="true">
@@ -137,11 +156,11 @@ export default function Landing() {
         <div className="lp-atajos">
           {ATAJOS.map(a => a.href ? (
             <a key={a.label} className="lp-atajo" href={a.href}>
-              <img src={a.icono} alt="" /><span>{a.label}</span>
+              <IconoAtajo nombre={a.icono} /><span className="lp-atajo-label">{a.label}</span>
             </a>
           ) : (
             <button key={a.label} className="lp-atajo" onClick={() => abrirAcceso(a.v)}>
-              <img src={a.icono} alt="" /><span>{a.label}</span>
+              <IconoAtajo nombre={a.icono} /><span className="lp-atajo-label">{a.label}</span>
             </button>
           ))}
         </div>

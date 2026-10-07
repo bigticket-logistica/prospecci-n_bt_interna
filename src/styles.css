@@ -1727,3 +1727,22 @@ tr:last-child td { border-bottom: none; }
   .rc-ver:hover { color: var(--orange); }
   .rc-cerrar { display: grid; place-items: center; padding: 0; transition: box-shadow .15s ease, transform .15s ease; }
 }
+
+/* Accesos de la landing · Maqueta 7: íconos SVG en caja blanca que sube al
+   pasar el mouse. Reemplaza los PNG y los divisores de la Maqueta 4. */
+.lp-atajo { gap: 12px; padding: 16px 8px; border-radius: 12px; outline: none; background: transparent !important; }
+.lp-atajo + .lp-atajo { border-left: none; }
+.lp-atajo:focus-visible { outline: 2px solid var(--navy); }
+.lp-atajo-icono {
+  display: flex; align-items: center; justify-content: center; padding: 10px;
+  border: 1px solid transparent; border-radius: 14px; background: #fff;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.lp-atajo:hover .lp-atajo-icono, .lp-atajo:focus-visible .lp-atajo-icono {
+  border-color: #FFB98A; transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,46,93,.12);
+}
+.lp-atajo-icono svg { display: block; width: 58px; height: 58px; }
+.lp-atajo-label { font-family: 'Open Sans', var(--font); font-size: 14px; line-height: 1.3; color: #4B5563; }
+@media (max-width: 760px) {
+  .lp-atajo-icono svg { width: 48px; height: 48px; }
+}
