@@ -1818,3 +1818,6 @@ tr:last-child td { border-bottom: none; }
 }
 .bt-info-i { width: 22px; height: 22px; font-size: 14px; }
 .bt-info-tip { bottom: 30px; }
+
+/* "Ver detalle →" va abajo a la derecha, como en la maqueta. */
+.kpi-cta { display: flex; justify-content: flex-end; width: 100%; }
