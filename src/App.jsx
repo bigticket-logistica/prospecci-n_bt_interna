@@ -172,7 +172,12 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  // Resuelve la empresa del usuario que inició sesión (usuarios_terceros → terceros)
+  // Resuelve la empresa del usuario que inició sesión (usuarios_terceros → terceros).
+  // Depende del correo y no de la sesión entera: Supabase entrega una sesión
+  // nueva cada vez que la renueva (al volver de otra app, al abrir el selector
+  // de archivos, cada hora). Antes eso recargaba la empresa y, con ella, cada
+  // formulario abierto, que se rellenaba con lo guardado y perdía lo escrito.
+  const correoSesion = session?.user?.email || null
   useEffect(() => {
     if (!session) { setTercero(undefined); return }
     let cancel = false
@@ -187,10 +192,13 @@ export default function App() {
       const t = Array.isArray(data.terceros) ? data.terceros[0] : data.terceros
       // portal_activo = contrato firmado: habilita el módulo de pagos.
       // No controla el acceso general al portal (eso es usuarios_terceros).
-      setTercero({ tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa', rfc: t?.rfc || null, pagosHabilitados: !!t?.portal_activo })
+      const nuevo = { tercero_id: data.tercero_id, nombre: t?.nombre || 'Mi empresa', rfc: t?.rfc || null, pagosHabilitados: !!t?.portal_activo }
+      // Si nada cambió, se conserva el mismo objeto para no disparar recargas.
+      setTercero(prev => (prev && prev.tercero_id === nuevo.tercero_id && prev.nombre === nuevo.nombre
+        && prev.rfc === nuevo.rfc && prev.pagosHabilitados === nuevo.pagosHabilitados) ? prev : nuevo)
     })()
     return () => { cancel = true }
-  }, [session])
+  }, [correoSesion])
 
   const [perfilOk, setPerfilOk] = useState(null)   // null = sin revisar aún
 
@@ -753,16 +761,35 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
   const [intento, setIntento] = useState(false)   // ya intentó guardar → marcar faltantes en rojo
   const fileRef = useRef(null)
   const actaRef = useRef(null)
-  const S = (k, v) => setP(prev => ({ ...prev, [k]: v }))
+  const [guardadoAt, setGuardadoAt] = useState(null)   // cuándo se guardó en esta visita
+  const [recuperado, setRecuperado] = useState(false)  // se restauró un borrador sin guardar
+  const [sucio, setSucio] = useState(false)            // hay cambios que todavía no se guardan
+  // Lo que se escribe queda como borrador en este teléfono o navegador hasta
+  // guardar. Así no se pierde nada si el tercero sale a buscar la CLABE en la
+  // app del banco o se le cierra la pantalla. Se borra al guardar.
+  const claveBorrador = `bt_perfil_borrador_${tercero.tercero_id}`
+  const S = (k, v) => setP(prev => {
+    setSucio(true)
+    const n = { ...prev, [k]: v }
+    try { localStorage.setItem(claveBorrador, JSON.stringify(n)) } catch { /* sin almacenamiento */ }
+    return n
+  })
   const rojo = (k) => intento && !String(p?.[k] || '').trim() ? { borderColor: '#e74c3c', background: '#fff5f5' } : {}
 
+  // Se carga una sola vez por empresa. Si hay un borrador sin guardar, manda
+  // sobre lo de la base: es lo último que escribió el tercero.
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
-      setP(data || { razon_social: tercero.nombre || '', correo_contacto: email || '' })
+      let borrador = null
+      try { borrador = JSON.parse(localStorage.getItem(claveBorrador) || 'null') } catch { /* borrador ilegible */ }
+      const base = data || { razon_social: tercero.nombre || '', correo_contacto: email || '' }
+      setP(borrador ? { ...base, ...borrador } : base)
+      setRecuperado(!!borrador)
+      setSucio(!!borrador)
       setCargando(false)
     })()
-  }, [tercero])
+  }, [tercero.tercero_id])
 
   const subirEvidencia = async (ev) => {
     const file = ev.target.files && ev.target.files[0]
@@ -818,7 +845,14 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       if (!fila.fecha_ingreso_operacion) fila.fecha_ingreso_operacion = null
       const { error } = await supabase.from('perfiles_empresa').upsert(fila, { onConflict: 'tercero_id' })
       if (error) throw new Error(error.message)
-      alert('✅ Perfil de Empresa completo y guardado.')
+      // Se relee lo que quedó en la base: lo que se ve es exactamente lo guardado.
+      const { data: guardado } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
+      if (guardado) setP(guardado)
+      try { localStorage.removeItem(claveBorrador) } catch { /* sin almacenamiento */ }
+      setRecuperado(false)
+      setSucio(false)
+      setGuardadoAt(new Date())
+      alert('✅ Perfil de Empresa guardado. Tus datos de pago quedaron listos.')
       if (onGuardado) onGuardado()
     } catch (e) { alert('No se pudo guardar: ' + e.message) }
     finally { setGuardando(false) }
@@ -858,12 +892,27 @@ function PerfilEmpresa({ tercero, email, onBack, onGuardado }) {
       <div className="page-head"><div><h2>🏢 Perfil de Empresa</h2>
         <div className="lede">Ficha de ingreso de {tercero.nombre}. Estos datos —en especial la cuenta de pago— son los que BigTicket usa para procesar tus pagos.</div></div></div>
 
+      {recuperado && (
+        <div style={{ background: '#eef2f9', border: '1px solid #c9d6ea', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#1a3a6b', fontWeight: 600 }}>
+          📝 Recuperamos lo que estabas escribiendo. Todavía no está guardado: revisa y toca <b>Guardar</b>.
+        </div>
+      )}
+      {guardadoAt && !sucio && (
+        <div style={{ background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#166534', fontWeight: 700 }}>
+          ✅ Guardado a las {guardadoAt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}. Tus datos quedaron registrados.
+        </div>
+      )}
+      {sucio && !recuperado && (
+        <div style={{ background: '#fff4e5', border: '1px solid #f5c48f', borderRadius: 12, padding: '10px 16px', marginBottom: 14, fontSize: 13, color: '#8a4a0f', fontWeight: 600 }}>
+          Tienes cambios sin guardar. Al terminar, toca <b>Guardar</b>.
+        </div>
+      )}
       {!completo && (
         <div style={{ background: '#fff4e5', border: '1.5px solid #F47B20', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#8a4a0f', fontWeight: 600 }}>
           ⚠️ Tu perfil está incompleto. <b>Sin los datos de pago completos (incluido el print de la CLABE), no se realizarán pagos a tu empresa.</b>
         </div>
       )}
-      {completo && (
+      {completo && !sucio && !guardadoAt && (
         <div style={{ background: '#e8f5ec', border: '1px solid #b7e0c2', borderRadius: 12, padding: '12px 16px', marginBottom: 14, fontSize: 13.5, color: '#166534', fontWeight: 600 }}>
           ✅ Perfil completo — tus datos de pago están listos.
         </div>
