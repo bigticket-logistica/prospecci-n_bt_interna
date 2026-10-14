@@ -1967,3 +1967,46 @@ tr:last-child td { border-bottom: none; }
 .bdj-hora { font: 400 11.5px var(--font); color: #545454; white-space: nowrap; padding-top: 1px; }
 .bdj-pie { display: block; text-align: center; padding: 14px 18px; background: #F4F3F3; font: 700 13.5px var(--font-display); color: var(--orange); text-decoration: none; }
 .bdj-pie:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Maqueta 8.9.6 · Reclamos (escritorio).
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 821px) {
+  .rc-urgente .nt-kpi { height: 56px; padding: 0 18px; gap: 14px; }
+  .rc-aviso { padding: 10px 14px; border-radius: 12px; font-size: 13px; color: #545454; }
+  .rc-aviso b { font-family: var(--font); color: #545454; }
+  .rc-aviso-i { font-size: 12px; }
+  .rc-caso-estado { margin-left: 0; font: 600 12px var(--font-display); color: #545454; background: #F4F5F7;
+    border: 1px solid #E4E3E3; padding: 2px 8px; border-radius: 6px; letter-spacing: .02em; text-transform: none;
+    min-width: 96px; box-sizing: border-box; text-align: center; white-space: nowrap; }
+  .rc-caso-id { color: #545454; border-color: #E4E3E3; }
+  .rc-grid { min-width: 910px;
+    grid-template-columns: 84px minmax(0,.7fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,.9fr)
+                           minmax(0,1.15fr) minmax(0,.8fr) minmax(0,.9fr) 104px; }
+  .rc-th { color: #545454; }
+  .rc-td { font: 700 13.5px var(--font); color: #545454; }
+  .deadline--urgent { font: 800 17px var(--font-display); color: #D92D20; }
+  .deadline { font: 700 11.5px var(--font-display); color: #8A5200; background: #FDF1DE; padding: 4px 10px; border-radius: 999px; }
+  .deadline--review { color: #545454; background: #EFEDED; }
+  .rc-monto { color: #545454; }
+  .rc-ver { font: 700 13px var(--font-display); }
+  .rc-detalle-head { font-size: 14px; }
+  .rc-cerrar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #D3DAE3; background: #fff; color: #002E5D; cursor: pointer; }
+  .rc-cerrar:hover { box-shadow: 0 4px 10px rgba(0,46,93,.2); transform: translateY(-1px); }
+  .rc-detalle .rc-box { border-color: #E4E3E3; }
+  .rc-mini { font: 700 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: #545454; }
+  .rc-producto-web { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 32px; }
+  .rc-prod-desc { font-size: 14px; line-height: 1.5; color: #545454; }
+  .rc-prod-valor { font: 700 16px var(--font-display); color: #002E5D; text-align: right; }
+  .notices { display: grid; grid-template-columns: max-content max-content minmax(160px,1fr) max-content;
+    column-gap: 40px; font-size: 13px; color: #545454; margin-top: 10px; }
+  .notices > div { padding: 10px 8px; border-bottom: 1px solid #EFEDED; }
+  .notices-th { font: 700 11px var(--font-display) !important; letter-spacing: .06em; text-transform: uppercase; color: #545454; padding-top: 4px !important; }
+  .rc-detalle .rc-respuesta { color: #545454; }
+}
+@media (min-width: 821px) {
+  .rc-caso .rc-tabla-wrap { padding-top: 14px; }
+  .rc-grid .rc-td { display: flex; align-items: center; justify-content: center; min-height: 38px; }
+  .notices > div { padding: 9px 8px; }
+  .notices-th { padding-bottom: 9px !important; }
+}

@@ -31,6 +31,18 @@ const estadoReclamo = (k) => (k === 'NOT_BILLED' ? 'Aprobado'
   : (k === 'BILLED' || k === 'WITHOUT_RECEIPT') ? 'Rechazado' : 'En revisión')
 
 const AVISO = { 'aviso inicial': 'Primer aviso', 'recordatorio': 'Recordatorio', 'alerta 3 horas': 'Últimas 3 horas' }
+// Maqueta 8.9.6 (web): "Aviso inicial · chofer", "Recordatorio · chofer", "Alerta 3 horas · chofer".
+const AVISO_WEB = { 'aviso inicial': 'Aviso inicial', 'recordatorio': 'Recordatorio', 'alerta 3 horas': 'Alerta 3 horas' }
+const avisoWeb = (t) => `${AVISO_WEB[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Aviso')} · chofer`
+
+// "Vence en" de la web: rojo y grande si quedan 24 horas o menos; etiqueta
+// ámbar si queda más; gris si ya venció o el caso está con MELI sin plazo.
+function venceWeb(c) {
+  const h = c.horas_restantes
+  if (h > 0 && h <= 24) return <span className="deadline--urgent">{h} h</span>
+  if (h > 24) return <span className="deadline">{h} h</span>
+  return <span className="deadline deadline--review">{c.le_toca_a === 'meli' ? 'En revisión' : 'Vencido'}</span>
+}
 const ENTREGA = { entregado: 'entregado', enviado: 'enviado', fallido: 'no llegó' }
 
 // El monto va sin decimales en la tabla y completo en el detalle.
@@ -160,7 +172,9 @@ export default function Reclamos({ tercero, onIr }) {
         <div className="rc-top">
           <article className="rc-urgente">
             <header className="nt-head">
-              <span className="nt-tag urgente">URGENTE</span>
+              {movil
+                ? <span className="nt-tag urgente">URGENTE</span>
+                : <span className="tag tag--urgent"><span className="tag__dot" aria-hidden="true" />URGENTE</span>}
               <span className="nt-resumen">{movil ? pesos(total) : pesosEnteros(total)} Riesgo de cobro</span>
             </header>
             <div className="nt-kpi" style={{ cursor: 'default' }}>
@@ -169,7 +183,7 @@ export default function Reclamos({ tercero, onIr }) {
             </div>
           </article>
           <p className="rc-aviso">
-            {!movil && <span className="rc-aviso-i" aria-hidden="true">!</span>}
+            {!movil && <span className="rc-aviso-i" aria-hidden="true">i</span>}
             <span><b>Evita el descuento.</b> Gestiona sin perder el plazo.</span>
           </p>
         </div>
@@ -196,7 +210,7 @@ export default function Reclamos({ tercero, onIr }) {
             return (
               <article key={c.case_id} className="rc-caso">
                 <header className="rc-caso-head">
-                  {!vistos.has(claveCaso(c)) && <span className="rc-nuevo" title="Todavía no lo abres">Nuevo</span>}
+                  {movil && !vistos.has(claveCaso(c)) && <span className="rc-nuevo" title="Todavía no lo abres">Nuevo</span>}
                   <span className="rc-tipo">Post venta</span>
                   <span className="rc-caso-id">Caso: {c.case_id}</span>
                   <span className="rc-caso-estado">{movil ? e.t : vigencia(c)}</span>
@@ -204,8 +218,10 @@ export default function Reclamos({ tercero, onIr }) {
 
                 <div className="rc-tabla-wrap">
                   <div className="rc-grid">
-                    {['F. Reclamo', 'Operación', 'Patente', 'Conductor', 'Ruta', 'Paquete',
-                      'Vence en', 'En riesgo', ''].map((t, i) => (
+                    {(movil
+                      ? ['F. Reclamo', 'Operación', 'Patente', 'Conductor', 'Ruta', 'Paquete', 'Vence en', 'En riesgo', '']
+                      : ['F. Reclamo', 'Operación', 'Patente', 'Conductor', 'Ruta', 'F. Ruta', 'Paquete', 'Vence en', 'En riesgo', '']
+                    ).map((t, i) => (
                       <div key={i} className="rc-th">{t}</div>
                     ))}
 
@@ -214,9 +230,10 @@ export default function Reclamos({ tercero, onIr }) {
                     <div className="rc-td">{c.placa || '—'}</div>
                     <div className="rc-td">{corto(c.conductor)}</div>
                     <div className="rc-td">{c.ruta || c.id_ruta || '—'}</div>
+                    {!movil && <div className="rc-td">{c.fecha_ruta ? ddmmaaaa(c.fecha_ruta) : '—'}</div>}
                     <div className="rc-td">{c.guia || '—'}</div>
                     <div className="rc-td">
-                      {(c.le_toca_a === 'tercero' || !movil)
+                      {!movil ? venceWeb(c) : (c.le_toca_a === 'tercero')
                         ? <span className={`rc-plazo${c.horas_restantes > 0 ? '' : ' vencido'}`}>
                             {c.horas_restantes > 0 ? `${c.horas_restantes} H` : 'VENCIDO'}
                           </span>
@@ -224,8 +241,10 @@ export default function Reclamos({ tercero, onIr }) {
                     </div>
                     <div className="rc-td"><span className="rc-monto">{pesosEnteros(c.monto)}</span></div>
                     <div className="rc-td">
-                      {!open && (
-                        <button className="rc-ver" onClick={() => abrir(c)}>
+                      {/* En la web el enlace se oculta con el detalle abierto, pero
+                          la columna mantiene su espacio. */}
+                      {(!open || !movil) && (
+                        <button className="rc-ver" onClick={() => abrir(c)} style={open ? { visibility: 'hidden' } : undefined}>
                           Ver detalle
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
                             strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
@@ -245,11 +264,21 @@ export default function Reclamos({ tercero, onIr }) {
                       </button>
                     </div>
 
+                    {movil && (
                     <div className="rc-box rc-estado">
                       <span>Estado del reclamo</span>
-                      <span className="rc-pill">{movil ? e.t : estadoReclamo(c.sub_estado)}</span>
+                      <span className="rc-pill">{e.t}</span>
                     </div>
+                    )}
 
+                    {!movil ? (
+                      <div className="rc-box rc-producto-web">
+                        <span className="rc-mini">Producto</span>
+                        <span className="rc-mini" style={{ textAlign: 'right' }}>Valor</span>
+                        <span className="rc-prod-desc">{c.producto || `Paquete ${c.guia || '—'}`}</span>
+                        <span className="rc-prod-valor">{pesosEnteros(c.valor_compra || c.monto)}</span>
+                      </div>
+                    ) : (
                     <div className="rc-box rc-producto">
                       <div>
                         <div className="rc-producto-t">{c.producto || `Paquete ${c.guia || '—'}`}</div>
@@ -261,6 +290,7 @@ export default function Reclamos({ tercero, onIr }) {
                       </div>
                       <div className="rc-producto-v">{pesos(c.valor_compra || c.monto)}</div>
                     </div>
+                    )}
 
                     {movil && (<>
                     {/* Lo que alega el comprador: es contra esto que el tercero
@@ -287,7 +317,7 @@ export default function Reclamos({ tercero, onIr }) {
                     </>)}
 
                     <div className="rc-box">
-                      <div className="rc-avisos-t">Detalle de avisos</div>
+                      <div className={movil ? 'rc-avisos-t' : 'rc-mini'}>Detalle de avisos</div>
                       {avisos[c.case_id] === undefined ? (
                         <p className="dx-vacio-txt">Cargando…</p>
                       ) : avisos[c.case_id].filter(a => a.destino === 'conductor').length === 0 ? (
@@ -306,19 +336,16 @@ export default function Reclamos({ tercero, onIr }) {
                             ))}
                           </ul>
                         ) : (
-                        <div className="rc-avisos">
-                          {['Descripción', 'Canal', 'Fecha', 'Hora', 'Plazo'].map(t => (
-                            <div key={t} className="rc-avisos-th">{t}</div>
+                        <div className="notices">
+                          {['F. Envío', 'Hora', 'Descripción', 'Canal'].map(t => (
+                            <div key={t} className="notices-th">{t}</div>
                           ))}
                           {avisos[c.case_id].filter(a => a.destino === 'conductor').map((a, i) => (
                             <Fragment key={i}>
-                              <div>{AVISO[a.tipo] || a.tipo}</div>
-                              <div>WhatsApp</div>
-                              <div>{dia(a.creado_en)}</div>
+                              <div>{ddmmaaaa(a.creado_en)}</div>
                               <div>{hora(a.creado_en)}</div>
-                              <div className="rc-avisos-plazo">
-                                {a.horas_restantes != null ? `${a.horas_restantes} H` : '—'}
-                              </div>
+                              <div>{avisoWeb(a.tipo)}</div>
+                              <div>WhatsApp</div>
                             </Fragment>
                           ))}
                         </div>
@@ -331,33 +358,8 @@ export default function Reclamos({ tercero, onIr }) {
                       )}
                     </div>
 
-                    {/* En la web, lo que alega el comprador y lo que registró la
-                        entrega van después de los avisos, como pide la maqueta. */}
-                    {!movil && (<>
-                    {/* Lo que alega el comprador: es contra esto que el tercero
-                        tiene que responder, así que va textual. */}
-                    {c.mensaje_reclamo && (
-                      <div className="rc-box">
-                        <div className="rc-avisos-t">Lo que dice el comprador</div>
-                        <p className="rc-reclamo">{c.mensaje_reclamo}</p>
-                      </div>
-                    )}
-
-                    {(c.recibio_nombre || c.estado_texto || c.entregado_en) && (
-                      <div className="rc-box">
-                        <div className="rc-avisos-t">Lo que registró la entrega</div>
-                        <div className="dx-datos">
-                          <Dato k="Quién recibió" v={quien(c.recibio_nombre)} />
-                          <Dato k="En calidad de" v={quien(c.recibio_quien)} />
-                          <Dato k="Estado en MELI" v={c.estado_texto} />
-                          <Dato k="Entregado el" v={c.entregado_en ? diaHora(c.entregado_en) : null} />
-                        </div>
-                      </div>
-                    )}
-
-                    </>)}
-
-                    {c.le_toca_a === 'tercero' && <QueHacer c={c} />}
+                    {/* La web sigue la maqueta 8.9.6: producto, avisos y respuesta. */}
+                    {movil && c.le_toca_a === 'tercero' && <QueHacer c={c} />}
                   </div>
                 )}
               </article>
