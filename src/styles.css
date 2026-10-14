@@ -2015,3 +2015,19 @@ tr:last-child td { border-bottom: none; }
 .ms-chev { color: #8B8B8B; flex-shrink: 0; }
 /* Subsección activa del menú: 700 y azul (Maqueta 8.9.6). */
 .bt-sub-btn.on .bt-sub-t, .bt-sub-btn[aria-current="page"] .bt-sub-t { color: #002E5D; font-weight: 700; }
+@media (min-width: 821px) {
+  /* Como la maqueta: las etiquetas largas bajan a una segunda línea. */
+  .kpi-wrap .bt-datos .l { white-space: normal; }
+  .rc-grid .rc-td { min-height: 50px; }
+  .rc-aviso b { margin-right: 4px; }
+  .rc-aviso { gap: 0; }
+  .rc-aviso .rc-aviso-i { margin-right: 10px; }
+  .rc-top { gap: 15px; }
+}
+@media (min-width: 821px) {
+  .msg-category { line-height: 21px; }
+  .msg-row { min-height: 26px; align-items: center; }
+  .msg-text { line-height: 26px; }
+  .msg-cuerpo { gap: 4px; }
+}
+@media (min-width: 821px) { .msg-cuerpo { min-height: 55px; } }
