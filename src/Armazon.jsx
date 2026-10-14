@@ -75,7 +75,7 @@ const ICONO_MENU = {
 }
 const IconoMenu = ({ k }) => (
   <span className="nav-icon">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.83"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
       dangerouslySetInnerHTML={{ __html: ICONO_MENU[k] || '' }} />
   </span>
@@ -535,7 +535,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
           <div className="nt-grid">
             <article className={`nt-card${urgente ? '' : ' vacia'}`}>
               <header className="nt-head">
-                <span className="nt-tag urgente">URGENTE</span>
+                <span className="tag tag--urgent"><span className="tag__dot" aria-hidden="true" />URGENTE</span>
                 <span className="nt-resumen">
                   {urgente ? urgente.resumen : 'Sin plata en riesgo'}
                 </span>
@@ -553,7 +553,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
 
             <article className={`nt-card${importante ? '' : ' vacia'}`}>
               <header className="nt-head">
-                <span className="nt-tag importante">ATENCIÓN</span>
+                <span className="tag tag--attention"><span className="tag__dot" aria-hidden="true" />ATENCIÓN</span>
                 <span className="nt-resumen">
                   {importante ? 'Riesgo de bloqueo y pago' : 'Sin pendientes'}
                 </span>
@@ -581,19 +581,28 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         <span className="bt-eyebrow">Movimientos</span>
         <div className="bt-tarjetas">
           <TarjetaMov onIr={() => onPick('movimientos')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px' }}>
-              <h3 className="bt-card-t" style={{ margin: 0 }}>Diario</h3>
-              <span className="bt-info">
-                <span className="bt-info-i">i</span>
-                <span className="bt-info-tip">Información actualizada al cierre del día anterior</span>
-              </span>
+            <div className="bt-card-cab">
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h3 className="bt-card-t" style={{ margin: 0 }}>Diario</h3>
+                  <span className="bt-info">
+                    <span className="bt-info-i">i</span>
+                    <span className="bt-info-tip">Información actualizada al cierre del día anterior</span>
+                  </span>
+                </div>
+                <p className="bt-card-f">{dia ? fechaDia(dia.fecha) : 'Aún no hay jornadas publicadas'}</p>
+              </div>
+              {/* Maqueta 8.9.6: selector "Hoy". La tarjeta siempre muestra el último
+                  día publicado, que es el que queda marcado. */}
+              <div className="bt-toggle" onClick={e => e.stopPropagation()}>
+                <button className="bt-per on" aria-pressed="true">Hoy</button>
+              </div>
             </div>
-            <p className="bt-card-f">{dia ? fechaDia(dia.fecha) : 'Aún no hay jornadas publicadas'}</p>
             <Cifras monto={dia?.ganancia} rutas={rutasDe(dia)} datos={[
               [entero(dia?.entregas), 'Entregas'],
               [entero(devolucionesDe(dia)), 'Devoluciones'],
               [pct(dia?.ns, 1), 'Nivel servicio'],
-              [pct(nsDomicilioDe(dia), 1), 'Visitado'],
+              [pct(nsDomicilioDe(dia), 1), 'NS domicilio'],
             ]} />
           </TarjetaMov>
 
@@ -601,26 +610,9 @@ export function Inicio({ tercero, perfilOk, onPick }) {
             <div className="bt-card-cab">
               <div style={{ minWidth: 0 }}>
                 <h3 className="bt-card-t">{vista === 'semana' ? 'Semanal' : 'Mensual'}</h3>
-                <div className="bt-periodo" onClick={e => e.stopPropagation()}>
-                  <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}
-                    disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
-                      strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                  </button>
-                  <p className="bt-card-f" style={{ margin: 0, display: 'flex', gap: 10 }}>
-                    {actual ? (
-                      <>
-                        <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{vista === 'semana' ? `Semana ${actual.periodo}` : mesLargo(actual.periodo)}</span>
-                        <span style={{ whiteSpace: 'nowrap' }}>{rango(actual.desde, actual.hasta)}</span>
-                      </>
-                    ) : <span>Todavía no hay datos de este período</span>}
-                  </p>
-                  <button className="bt-flecha" aria-label={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
-                    disabled={!haySiguiente} onClick={() => setIdx(i => i - 1)}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
-                      strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                  </button>
-                </div>
+                <p className="bt-card-f">
+                  {actual ? <span>{rango(actual.desde, actual.hasta)}</span> : 'Todavía no hay datos de este período'}
+                </p>
               </div>
               <div className="bt-toggle" onClick={e => e.stopPropagation()}>
                 {[['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => (
@@ -632,7 +624,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
               [entero(actual?.entregas), 'Entregas'],
               [entero(devolucionesDe(actual)), 'Devoluciones'],
               [pct(actual?.ns, 0), 'Nivel servicio'],
-              [pct(nsDomicilioDe(actual), 0), 'Visitado'],
+              [pct(nsDomicilioDe(actual), 0), 'NS domicilio'],
             ]} />
           </TarjetaMov>
         </div>

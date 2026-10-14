@@ -1821,3 +1821,71 @@ tr:last-child td { border-bottom: none; }
 
 /* "Ver detalle →" va abajo a la derecha, como en la maqueta. */
 .kpi-cta { display: flex; justify-content: flex-end; width: 100%; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Maqueta 8.9.6 · Inicio del escritorio (valores tomados de la maqueta).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.bt-eyebrow { color: #545454; }
+
+/* Etiquetas de notificación: contorno y punto; el de URGENTE late. */
+.tag { display: inline-flex; align-items: center; justify-content: center;
+  gap: 10px; min-width: 108px; height: 56px; padding: 0 18px;
+  box-sizing: border-box; background: #fff; border: 1px solid currentColor;
+  border-radius: 12px; white-space: nowrap;
+  font: 800 15px var(--font-display); letter-spacing: .06em; }
+.tag__dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.tag--urgent { color: #D92D20; }
+.tag--urgent .tag__dot { animation: btPulse 2s ease-out infinite; }
+.tag--attention { color: #FF6600; }
+@keyframes btPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(217,45,32,.45); }
+  70%  { box-shadow: 0 0 0 9px rgba(217,45,32,0); }
+  100% { box-shadow: 0 0 0 0 rgba(217,45,32,0); } }
+@media (prefers-reduced-motion: reduce) { .tag--urgent .tag__dot { animation: none; } }
+.nt-card.vacia .tag { color: #9AA3AE; }
+.nt-card.vacia .tag__dot { animation: none; }
+
+@media (min-width: 821px) {
+  /* Tarjetas Diario y Semanal */
+  .bt-tarjetas { gap: 24px; padding: 0 0 0 10px; }
+  .bt-card-t { letter-spacing: .02em; }
+  .bt-card-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin: 0; }
+  .bt-card-f { font-size: 12.5px; color: #545454; margin: 4px 0 0; }
+  .bt-toggle { background: #F4F3F3; border-radius: 9px; padding: 3px; }
+  .bt-toggle button { border-radius: 7px; padding: 5px 12px; font: 600 12px var(--font-display); }
+  .kpi-wrap .kpi { padding: 24px; box-shadow: 0 1px 2px rgba(0,46,93,.05); }
+  .kpi-wrap .bt-cifras { padding: 10px 12px 18px 0; margin-top: 6px; box-shadow: 0 8px 8px -8px rgba(0,46,93,.22); }
+  .kpi-wrap .bt-cifras > * { padding: 0 20px; }
+  .kpi-wrap .bt-cifras > :first-child { padding-left: 0; }
+  .kpi-wrap .bt-rutas .l { font-size: 14px; color: #545454; }
+  .kpi-wrap .bt-datos { padding: 10px 12px 0 0; margin-top: 7px; gap: 14px 0; }
+  .kpi-wrap .bt-datos > div { padding: 0 20px; }
+  .kpi-wrap .bt-datos > div:first-child { padding-left: 0; }
+  .kpi-wrap .bt-datos .l { font-size: 12.5px; color: #545454; }
+  .kpi-cta { font: 400 13px var(--font); color: #545454; }
+}
+/* Menú lateral 8.9.6: el texto ocupa un ancho fijo para que los contadores
+   de Mis mensajes y Mi operación queden alineados. */
+.bt-grupo-label { flex: 0 1 104px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-grupo-label { display: inline-block; width: 104px; flex: 0 0 104px; vertical-align: middle; }
+@media (min-width: 821px) {
+  .bt-tarjetas { margin-left: 0; }
+  .kpi-wrap .bt-datos { margin: 7px 0 0; }
+}
+@media (min-width: 821px) {
+  .bt-eyebrow + .bt-tarjetas { margin-top: 8px; }
+  .kpi-wrap .bt-cifras { margin-top: 7px; }
+  .kpi-wrap .bt-datos .v { line-height: 33px; }
+  .kpi-wrap .bt-datos .l { margin-top: 3px; line-height: 17px; }
+  .kpi-wrap .kpi-cta { margin-top: 17px; line-height: 18px; }
+}
+@media (min-width: 821px) {
+  .bt-eyebrow + .bt-tarjetas { margin-top: 20px; }
+  .kpi-wrap .bt-datos > div { padding: 0 8px 0 20px; }
+  .kpi-wrap .bt-datos > div:first-child { padding-left: 0; }
+  .kpi-wrap .bt-datos .l { white-space: nowrap; }
+}
+@media (min-width: 821px) {
+  .kpi-wrap .bt-card-t { line-height: 31px; }
+  .kpi-wrap .bt-card-f { line-height: 17px; }
+}
