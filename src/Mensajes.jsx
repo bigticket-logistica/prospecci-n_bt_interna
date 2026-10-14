@@ -157,7 +157,7 @@ export default function Mensajes({ tercero, onIr }) {
       <nav className="ms-ruta">
         {!movil && (
           <>
-            <button className="rc-volver" onClick={() => onIr && onIr('home')}>
+            <button className="rc-volver" onClick={() => window.dispatchEvent(new Event('bt:atras'))}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
                 strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
               Volver
@@ -166,7 +166,7 @@ export default function Mensajes({ tercero, onIr }) {
           </>
         )}
         <a href="#" onClick={e => { e.preventDefault(); onIr && onIr('home') }}>Inicio</a>
-        <span>›</span>
+        {movil ? <span>›</span> : <svg className="ms-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>}
         <span className="on" aria-current="page">Mis mensajes</span>
       </nav>
 

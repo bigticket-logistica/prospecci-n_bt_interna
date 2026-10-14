@@ -143,7 +143,7 @@ export default function Reclamos({ tercero, onIr }) {
       <nav className="ms-ruta">
         {!movil && (
           <>
-            <button className="rc-volver" onClick={() => onIr && onIr('home')}>
+            <button className="rc-volver" onClick={() => window.dispatchEvent(new Event('bt:atras'))}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
                 strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
               Volver
@@ -152,8 +152,8 @@ export default function Reclamos({ tercero, onIr }) {
           </>
         )}
         <a href="#" onClick={e => { e.preventDefault(); onIr && onIr('home') }}>Inicio</a>
-        <span>›</span><span>Mi operación</span>
-        <span>›</span><span className="on" aria-current="page">Reclamos</span>
+        {movil ? <span>›</span> : <svg className="ms-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>}<span>Mi operación</span>
+        {movil ? <span>›</span> : <svg className="ms-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>}<span className="on" aria-current="page">Reclamos</span>
       </nav>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -368,11 +368,16 @@ export default function Reclamos({ tercero, onIr }) {
         </div>
       )}
 
-      <div className="dx-origen">
-        <h2>Paquetes pendientes de devolver</h2>
-      </div>
-
-      <Devoluciones filas={devs} abierto={diaAbierto} setAbierto={setDiaAbierto} />
+      {/* La maqueta 8.9.6 de la web no muestra devoluciones en esta pantalla;
+          en el teléfono siguen aquí. */}
+      {movil && (
+        <>
+          <div className="dx-origen">
+            <h2>Paquetes pendientes de devolver</h2>
+          </div>
+          <Devoluciones filas={devs} abierto={diaAbierto} setAbierto={setDiaAbierto} />
+        </>
+      )}
     </div>
   )
 }

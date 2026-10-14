@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import { abrirUrl } from './archivos'
 import Visor from './Visor'
@@ -123,7 +123,23 @@ function DefinirPassword({ onListo }) {
 
 export default function App() {
   const [session, setSession] = useState(null)
-  const [view, setView] = useState('home')
+  const [view, setViewBase] = useState('home')
+  // Historial de pantallas, para que "← Volver" regrese a la anterior y, si no
+  // hay, al Inicio (Maqueta 8.9.6).
+  const pilaRef = useRef([])
+  const setView = useCallback((v) => {
+    setViewBase(actual => {
+      if (v !== actual) { pilaRef.current.push(actual); if (pilaRef.current.length > 30) pilaRef.current.shift() }
+      return v
+    })
+  }, [])
+  const volver = useCallback(() => {
+    setViewBase(actual => {
+      let prev = pilaRef.current.pop()
+      while (prev === actual && pilaRef.current.length) prev = pilaRef.current.pop()
+      return prev && prev !== actual ? prev : 'home'
+    })
+  }, [])
   // Fecha con la que abrir una pantalla, cuando se llega desde un mensaje que
   // habla de un día concreto. Se limpia al salir para no arrastrarla.
   const [fecha, setFecha] = useState(null)
@@ -150,9 +166,11 @@ export default function App() {
   }, [])
   useEffect(() => {
     const ir = (e) => setView(e.detail)
+    const atras = () => volver()
     window.addEventListener('bt:ir', ir)
-    return () => window.removeEventListener('bt:ir', ir)
-  }, [])
+    window.addEventListener('bt:atras', atras)
+    return () => { window.removeEventListener('bt:ir', ir); window.removeEventListener('bt:atras', atras) }
+  }, [setView, volver])
 
   const [tercero, setTercero] = useState(undefined) // undefined = cargando · null = sin empresa asociada
 

@@ -211,14 +211,6 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
                   {sinLeer > 0 && <button className="bdj-todo" onClick={marcarTodoLeido}>Marcar todo como leído</button>}
                 </div>
                 <div className="bdj-lista">
-                  {total - sinLeer > 0 && (
-                    <button className="bdj-item sin-leer e-azul" onClick={() => ir('consultas')}>
-                      <span className="bdj-dot" aria-hidden="true" />
-                      <span className="bdj-fila">
-                        <span className="bdj-tit">{total - sinLeer} {total - sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket en Consultas</span>
-                      </span>
-                    </button>
-                  )}
                   {avisos === null
                     ? <div className="bt-desp-vacio">Cargando…</div>
                     : [...avisos].sort((x, y) => String(y.evento_at).localeCompare(String(x.evento_at))).slice(0, 5).map(n => (
@@ -302,7 +294,7 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
                       {g.items.map(i => {
                         const n = contadores[i.v] || 0
                         return (
-                          <button key={i.v} className="bt-sub-btn" onClick={() => ir(i.v)}>
+                          <button key={i.v} className={`bt-sub-btn${vista === i.v ? ' on' : ''}`} aria-current={vista === i.v ? 'page' : undefined} onClick={() => ir(i.v)}>
                             <div style={{ minWidth: 0 }}>
                               <div className="bt-sub-t">{i.title}</div>
                               <div className="bt-sub-d">{i.desc}</div>

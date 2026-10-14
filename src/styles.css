@@ -2010,3 +2010,8 @@ tr:last-child td { border-bottom: none; }
   .notices > div { padding: 9px 8px; }
   .notices-th { padding-bottom: 9px !important; }
 }
+/* Ruta de navegación (Maqueta 8.9.6): separador en flecha de 12 px. */
+.ms-ruta { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ms-chev { color: #8B8B8B; flex-shrink: 0; }
+/* Subsección activa del menú: 700 y azul (Maqueta 8.9.6). */
+.bt-sub-btn.on .bt-sub-t, .bt-sub-btn[aria-current="page"] .bt-sub-t { color: #002E5D; font-weight: 700; }
