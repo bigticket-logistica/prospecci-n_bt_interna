@@ -148,6 +148,16 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
     setPanel(panel === 'campana' ? null : 'campana')
   }
 
+  // "Marcar todo como leído" de la bandeja de la campana (Maqueta 8.9.6).
+  const marcarTodoLeido = async () => {
+    const { data } = await supabase.from('notificaciones_tercero').select('id')
+      .eq('tercero_id', tercero.tercero_id).is('leida_at', null)
+    await Promise.all((data || []).map(n => supabase.rpc('fn_portal_marcar_leida', { p_id: n.id })))
+    const ahora = new Date().toISOString()
+    setAvisos(prev => (prev || []).map(x => x.leida_at ? x : { ...x, leida_at: ahora }))
+    window.dispatchEvent(new Event('bt:leido'))
+  }
+
   const abrirAviso = (n) => {
     if (!n.leida_at) {
       marcarLeida(n.id)
@@ -184,36 +194,49 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
 
         <div className="bt-acciones">
           <div className="bt-pos">
-            <button className="bt-campana" aria-label="Notificaciones" onClick={abrirCampana}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F4F3F3" strokeWidth="2"
+            <button className={`bt-campana${panel === 'campana' ? ' on' : ''}`} aria-label="Mis mensajes" aria-expanded={panel === 'campana'} onClick={abrirCampana}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                 strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
               {total > 0 && <span className="bt-campana-n">{total > 99 ? '99+' : total}</span>}
             </button>
             {panel === 'campana' && (
-              <Desplegable onCerrar={() => setPanel(null)} ancho={330}>
-                <div className="bt-desp-titulo">Notificaciones</div>
-                <div className="bt-desp-lista">
-                  {sinLeer > 0 && (
-                    <button className="bt-desp-item" onClick={() => ir('mensajes')}>
-                      <span className="t">{sinLeer} {sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket sin leer</span>
-                      <span className="d">Léelos y respóndelos en Consultas</span>
+              <Desplegable onCerrar={() => setPanel(null)} ancho={382} clase="bdj">
+                <div className="bdj-cab">
+                  <span className="bdj-t">
+                    <span>Mensajes</span>
+                    {sinLeer > 0 && <span className="bdj-pill">{sinLeer} sin leer</span>}
+                  </span>
+                  {sinLeer > 0 && <button className="bdj-todo" onClick={marcarTodoLeido}>Marcar todo como leído</button>}
+                </div>
+                <div className="bdj-lista">
+                  {total - sinLeer > 0 && (
+                    <button className="bdj-item sin-leer e-azul" onClick={() => ir('consultas')}>
+                      <span className="bdj-dot" aria-hidden="true" />
+                      <span className="bdj-fila">
+                        <span className="bdj-tit">{total - sinLeer} {total - sinLeer === 1 ? 'mensaje' : 'mensajes'} de Bigticket en Consultas</span>
+                      </span>
                     </button>
                   )}
                   {avisos === null
                     ? <div className="bt-desp-vacio">Cargando…</div>
-                    : avisos.map(n => (
-                      <button key={n.id} className={`bt-desp-item e-${n.pastilla.estilo}${n.leida_at && n.clase !== 'pendiente' ? ' leida' : ''}`}
+                    : [...avisos].sort((x, y) => String(y.evento_at).localeCompare(String(x.evento_at))).slice(0, 5).map(n => (
+                      <button key={n.id}
+                        className={`bdj-item ${n.leida_at ? 'leido' : 'sin-leer'}${n.destino === 'reclamos' || n.pastilla?.estilo === 'rojo' ? ' e-rojo' : ''}`}
                         onClick={() => abrirAviso(n)}>
-                        <span className="t">{n.titulo}</span>
-                        <span className="d">{n.pastilla.etiqueta}{n.detalle ? ` · ${n.detalle}` : ''}</span>
+                        <span className="bdj-dot" aria-hidden="true" />
+                        <span className="bdj-fila">
+                          <span className="bdj-tit">{n.titulo}</span>
+                          <span className="bdj-hora">{horaBandeja(n.evento_at)}</span>
+                        </span>
                       </button>
                     ))}
-                  {avisos !== null && avisos.length === 0 && sinLeer === 0 && (
-                    <div className="bt-desp-vacio">Estás al día. No tienes pendientes ni novedades.</div>
+                  {avisos !== null && avisos.length === 0 && total === 0 && (
+                    <div className="bt-desp-vacio">Estás al día. No tienes mensajes nuevos.</div>
                   )}
                 </div>
+                <a className="bdj-pie" href="#" onClick={e => { e.preventDefault(); ir('mensajes') }}>Ver todos mis mensajes →</a>
               </Desplegable>
             )}
           </div>
@@ -302,11 +325,22 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
   )
 }
 
-function Desplegable({ onCerrar, ancho, children }) {
+// Hora de la bandeja de la campana: "09:12" si es de hoy, "Ayer" o "29/09".
+function horaBandeja(v) {
+  if (!v) return ''
+  const d = new Date(v), hoy = new Date()
+  const dia = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const dias = Math.round((dia(hoy) - dia(d)) / 864e5)
+  if (dias === 0) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  if (dias === 1) return 'Ayer'
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function Desplegable({ onCerrar, ancho, clase, children }) {
   return (
     <>
       <div onClick={onCerrar} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-      <div className="bt-desp" style={{ width: ancho }}>{children}</div>
+      <div className={`bt-desp${clase ? ' ' + clase : ''}`} style={{ width: ancho }}>{children}</div>
     </>
   )
 }

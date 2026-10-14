@@ -28,9 +28,10 @@ function cuandoCorto(v) {
 }
 
 // A qué pantalla lleva cada mensaje, con el verbo de su categoría.
+// Maqueta 8.9.6: "Ver reclamo", "Ver facturación", "Ver certificación".
 const BOTON = {
-  reclamos: 'Ver reclamos',
-  descuentos: 'Ver reclamo', movimientos: 'Ver movimiento', facturacion: 'Ver prefactura',
+  reclamos: 'Ver reclamo',
+  descuentos: 'Ver reclamo', movimientos: 'Ver movimiento', facturacion: 'Ver facturación',
   facturado: 'Ver factura', pagado: 'Ver pago', estado: 'Ver certificación',
   firma: 'Ver contrato', docs: 'Ver documentos', perfil: 'Ver perfil',
   flota: 'Ver flota', consultas: 'Ver mensaje', postula: 'Ver campañas',
@@ -48,6 +49,42 @@ function cuando(v) {
   return `${DIAS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${MESES2[d.getMonth()]}/${d.getFullYear()} ` +
     `${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ap}`
 }
+
+// Fecha corta estilo Outlook (Maqueta 8.9.6): hoy solo la hora ("9:12"), en
+// los últimos 7 días el día abreviado y la hora ("Mar 16:35"), y antes la
+// fecha ("29/09/2026"). La fecha completa va en el tooltip.
+const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+export function fechaOutlook(v) {
+  if (!v) return ''
+  const d = new Date(v), hoy = new Date()
+  const hh = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  const dia = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const dias = Math.floor((dia(hoy) - dia(d)) / 864e5)
+  if (dias === 0) return hh
+  if (dias < 7) return `${DIAS_CORTOS[d.getDay()]} ${hh}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+// El monto del mensaje va destacado: "$1,600" en 800 y 17 px.
+export function conMonto(texto) {
+  const t = String(texto || '')
+  const m = t.match(/\$\s?[\d.,]+/)
+  if (!m) return t
+  return <>{t.slice(0, m.index)}<strong className="msg-amount">{m[0]}</strong>{t.slice(m.index + m[0].length)}</>
+}
+
+const CATEGORIAS = ['Mi billetera', 'Facturación', 'Mi operación', 'Certificación']
+
+const SobreCerrado = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
+  </svg>
+)
+const SobreAbierto = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 10v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9" /><path d="M3 10l9-7 9 7" /><path d="m3 10 9 6 9-6" />
+  </svg>
+)
 
 export default function Mensajes({ tercero, onIr }) {
   const [filas, setFilas] = useState(null)
@@ -91,6 +128,18 @@ export default function Mensajes({ tercero, onIr }) {
     if (onIr && n.destino) onIr(n.destino, n.ref_id || null)
   }
 
+  // El sobre alterna leído / no leído sin abrir el mensaje.
+  const alternar = async (e, n) => {
+    e.stopPropagation()
+    if (!n.leida_at) {
+      marcarLeida(n.id)
+      setFilas(p => (p || []).map(x => x.id === n.id ? { ...x, leida_at: new Date().toISOString() } : x))
+    } else {
+      setFilas(p => (p || []).map(x => x.id === n.id ? { ...x, leida_at: null } : x))
+      supabase.rpc('fn_portal_marcar_no_leida', { p_id: n.id }).then(() => {}, () => {})
+    }
+  }
+
   const marcarTodo = async () => {
     const pendientes = (filas || []).filter(f => !f.leida_at)
     if (!pendientes.length) return
@@ -106,9 +155,19 @@ export default function Mensajes({ tercero, onIr }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <nav className="ms-ruta">
+        {!movil && (
+          <>
+            <button className="rc-volver" onClick={() => onIr && onIr('home')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+              Volver
+            </button>
+            <span className="rc-sep" aria-hidden="true" />
+          </>
+        )}
         <a href="#" onClick={e => { e.preventDefault(); onIr && onIr('home') }}>Inicio</a>
         <span>›</span>
-        <span className="on">Mis mensajes</span>
+        <span className="on" aria-current="page">Mis mensajes</span>
       </nav>
 
       <h1 className="bt-titulo">Mis mensajes</h1>
@@ -117,17 +176,23 @@ export default function Mensajes({ tercero, onIr }) {
 
       <div className={`ms-filtros${movil ? ' movil' : ''}`}>
         <div className="ms-solapas">
-          {[['todos', 'Todos'], ['nuevos', `No leídos${sinLeer ? ` (${sinLeer})` : ''}`]].map(([k, l]) => (
+          {[['todos', 'Todos'], ['nuevos', movil && sinLeer ? `No leídos (${sinLeer})` : 'No leídos']].map(([k, l]) => (
             <button key={k} className={solapa === k ? 'on' : ''} onClick={() => setSolapa(k)}>{l}</button>
           ))}
         </div>
 
-        <select className="ms-cat" value={categoria} onChange={e => setCategoria(e.target.value)}>
-          <option value="todas">Todas las categorías</option>
-          {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <span className="ms-cat-caja">
+          <select className="ms-cat" value={categoria} onChange={e => setCategoria(e.target.value)}>
+            <option value="todas">Todas las categorías</option>
+            {(movil ? categorias : CATEGORIAS).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {!movil && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="3"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7" /></svg>
+          )}
+        </span>
 
-        {sinLeer > 0 && (
+        {movil && sinLeer > 0 && (
           <button className="ms-todo" onClick={marcarTodo} disabled={trabajando}>
             {trabajando ? 'Marcando…' : 'Marcar todo como leído'}
           </button>
@@ -145,7 +210,7 @@ export default function Mensajes({ tercero, onIr }) {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className={movil ? '' : 'msg-list'} style={movil ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
           {movil ? visibles.map(n => (
             <button key={n.id} className={`ms-tarjeta ${n.leida_at ? 'leido' : 'sin-leer'}`} onClick={() => abrir(n)}>
               <span className={`ms-marca e-${n.pastilla.estilo}`} aria-hidden="true" />
@@ -159,24 +224,27 @@ export default function Mensajes({ tercero, onIr }) {
                 <span className="ms-ir">{BOTON[n.destino] || 'Ver'} ›</span>
               </span>
             </button>
-          )) : visibles.map(n => (
-            <div key={n.id} className={`ms-item ${n.leida_at ? 'leido' : 'sin-leer'}`}>
-              <span className="ms-punto" aria-hidden="true" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="ms-cat-t">{n.categoria || 'Mis mensajes'}</div>
-                <div className="ms-fila">
-                  <div className="ms-texto">
-                    {n.titulo}
-                    {n.detalle && <div className="ms-detalle">{n.detalle}</div>}
+          )) : visibles.map(n => {
+            const sin = !n.leida_at
+            return (
+              <div key={n.id} className={`msg ${sin ? 'is-unread' : 'is-read'}`}>
+                <span className="dot" aria-hidden="true" />
+                <div className="msg-cuerpo">
+                  <span className="msg-category">{n.categoria || 'Mis mensajes'}</span>
+                  <div className="msg-row">
+                    <span className="msg-text">{conMonto(n.titulo)}</span>
+                    <span className="msg-date" title={cuando(n.evento_at)}>{fechaOutlook(n.evento_at)}</span>
                   </div>
-                  <span className="ms-fecha">{cuando(n.evento_at)}</span>
+                  {n.detalle && <span className="msg-body">{n.detalle}</span>}
                 </div>
+                <button className="msg-env" onClick={e => alternar(e, n)}
+                  aria-label={sin ? 'Marcar como leído' : 'Marcar como no leído'} title={sin ? 'Marcar como leído' : 'Marcar como no leído'}>
+                  {sin ? <SobreCerrado /> : <SobreAbierto />}
+                </button>
+                <button className="msg-cta" onClick={() => abrir(n)}>{BOTON[n.destino] || 'Ver'}</button>
               </div>
-              <button className="ms-ver" onClick={() => abrir(n)}>
-                {BOTON[n.destino] || 'Ver'}
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
