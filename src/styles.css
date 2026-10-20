@@ -2031,3 +2031,20 @@ tr:last-child td { border-bottom: none; }
   .msg-cuerpo { gap: 4px; }
 }
 @media (min-width: 821px) { .msg-cuerpo { min-height: 55px; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Maqueta 8.9.8 · Mis mensajes y campana.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.bt-campana-n { top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px;
+  box-sizing: border-box; font: 700 10px var(--font-display); display: flex; align-items: center; justify-content: center; }
+.bt-desp.bdj { top: 46px; width: 380px !important; max-width: calc(100vw - 24px); }
+.bdj-item { border-left-color: transparent; }
+@media (min-width: 821px) {
+  .msg { align-items: flex-start; }
+  .msg .dot { margin-top: 7px; }
+  .msg-cta { align-self: center; }
+  .msg-date-caja { position: relative; display: inline-flex; flex-shrink: 0; }
+  .msg-env { position: absolute; right: -6px; bottom: 100%; margin-bottom: 2px; width: 30px; height: 30px;
+    visibility: visible; }
+  .msg-env svg { width: 20px; height: 20px; stroke-width: 1.9; }
+}

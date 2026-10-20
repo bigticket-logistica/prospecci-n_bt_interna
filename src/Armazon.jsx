@@ -175,9 +175,9 @@ export function Shell({ tercero, email, vista, onNavegar, contadores: fijos = {}
 
   const activo = GRUPO_DE[vista] || 'inicio'
   const grupos = MENU.filter(g => !g.pagos || tercero?.pagosHabilitados)
-  // La campana suma todo lo nuevo: notificaciones sin leer más los mensajes y
-  // solicitudes de Consultas.
-  const total = enCampana
+  // Maqueta 8.9.8: el contador del ícono de mensajes muestra solo los no leídos,
+  // el mismo número que el menú lateral y que "N sin leer" de la bandeja.
+  const total = sinLeer
 
   return (
     <div className="bt-shell">

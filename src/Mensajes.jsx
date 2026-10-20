@@ -65,6 +65,15 @@ export function fechaOutlook(v) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+// Fecha completa del tooltip (Maqueta 8.9.8): "miércoles 30/09/2026 09:12 a. m.".
+const DIAS_LARGOS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+export function fechaCompleta(v) {
+  if (!v) return ''
+  const d = new Date(v), dos = (x) => String(x).padStart(2, '0')
+  const h12 = d.getHours() % 12 || 12
+  return `${DIAS_LARGOS[d.getDay()]} ${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} ${dos(h12)}:${dos(d.getMinutes())} ${d.getHours() < 12 ? 'a. m.' : 'p. m.'}`
+}
+
 // El monto del mensaje va destacado: "$1,600" en 800 y 17 px.
 export function conMonto(texto) {
   const t = String(texto || '')
@@ -203,7 +212,7 @@ export default function Mensajes({ tercero, onIr }) {
         <div className="bt-vacio"><h3>Cargando…</h3></div>
       ) : visibles.length === 0 ? (
         <div className="bt-vacio">
-          <h3>{solapa === 'nuevos' ? 'No tienes mensajes sin leer' : 'Todavía no tienes mensajes'}</h3>
+          <h3>{solapa === 'nuevos' ? 'No tienes mensajes sin leer.' : 'Todavía no tienes mensajes'}</h3>
           <p>
             Aquí llegan los avisos sobre tus pagos, tus facturas, tus descuentos y tus
             certificaciones.
@@ -233,14 +242,17 @@ export default function Mensajes({ tercero, onIr }) {
                   <span className="msg-category">{n.categoria || 'Mis mensajes'}</span>
                   <div className="msg-row">
                     <span className="msg-text">{conMonto(n.titulo)}</span>
-                    <span className="msg-date" title={cuando(n.evento_at)}>{fechaOutlook(n.evento_at)}</span>
+                    {/* Maqueta 8.9.8: el sobre va sobre la fecha y se ve siempre. */}
+                    <span className="msg-date-caja">
+                      <button className="msg-env" onClick={e => alternar(e, n)}
+                        aria-label={sin ? 'Marcar como leído' : 'Marcar como no leído'} title={sin ? 'Marcar como leído' : 'Marcar como no leído'}>
+                        {sin ? <SobreCerrado /> : <SobreAbierto />}
+                      </button>
+                      <span className="msg-date" title={fechaCompleta(n.evento_at)}>{fechaOutlook(n.evento_at)}</span>
+                    </span>
                   </div>
                   {n.detalle && <span className="msg-body">{n.detalle}</span>}
                 </div>
-                <button className="msg-env" onClick={e => alternar(e, n)}
-                  aria-label={sin ? 'Marcar como leído' : 'Marcar como no leído'} title={sin ? 'Marcar como leído' : 'Marcar como no leído'}>
-                  {sin ? <SobreCerrado /> : <SobreAbierto />}
-                </button>
                 <button className="msg-cta" onClick={() => abrir(n)}>{BOTON[n.destino] || 'Ver'}</button>
               </div>
             )
