@@ -105,6 +105,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
   const [scSel, setScSel] = useState('todos')
   const [extras, setExtras] = useState([])
   const [prefs, setPrefs] = useState([])   // la prefactura de la semana, para el IVA y el total
+  const [conFactura, setConFactura] = useState(new Set())  // prefacturas que ya tienen factura
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
@@ -151,10 +152,17 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     // misma plata que Facturación y tienen que dar el mismo número.
     const { data: pf } = await supabase
       .from('vw_portal_prefactura')
-      .select('service_center, total_neto, iva_16, total_bruto, liquido_pago, pagado_at, pago_referencia')
+      .select('id, service_center, total_neto, iva_16, total_bruto, liquido_pago, pagado_at, pago_referencia')
       .eq('tercero_id', tercero.tercero_id)
       .eq('semana', sem)
     setPrefs(pf || [])
+    // Qué prefacturas ya tienen factura: si falta, la web muestra la franja
+    // "Falta tu factura" (Maqueta 8.9.8). Es la misma regla de "Por facturar".
+    const ids = (pf || []).map(x => x.id).filter(Boolean)
+    if (ids.length) {
+      const { data: fx } = await supabase.from('facturas_tercero').select('conciliacion_id').in('conciliacion_id', ids)
+      setConFactura(new Set((fx || []).map(x => x.conciliacion_id)))
+    } else setConFactura(new Set())
 
     setCargando(false)
   }, [tercero, lunes, domingo])
@@ -544,6 +552,18 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     }
     setEnviando(false)
   }
+
+  if (!movil) return (
+    <MovimientosWeb
+      tercero={tercero} email={email} lunes={lunes} setLunes={setLunes} domingo={domingo}
+      cargando={cargando} error={error} filasSC={filasSC} extrasSC={extrasSC} centros={centros}
+      scSel={scSel} setScSel={setScSel} totalPagos={totalPagos} totalCobros={totalCobros}
+      totalAjustes={totalAjustes} totalNeto={totalNeto} iva={iva} totalBruto={totalBruto}
+      hayPrefactura={hayPrefactura} pagada={pagada} pagadoAt={pagadoAt}
+      faltaFactura={hayPrefactura && !pagada && prefSC.some(x => !x.pagado_at && !conFactura.has(x.id))}
+      lineasAjuste={lineasAjuste} descargarPdf={descargarPdf} armandoPdf={armandoPdf}
+      reclamadas={reclamadas} alEnviar={cargarDif} />
+  )
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -1167,3 +1187,556 @@ function Nota({ color, bg, titulo, children }) {
 
 const navBtn = { background: 'var(--navy-line)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontSize: 16, lineHeight: 1 }
 const inp = { border: '1px solid var(--line)', borderRadius: 6, padding: '7px 10px', fontSize: 12.5 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Movimientos en la web · Maqueta 8.9.8
+//
+// Semana, tarjeta de pago, resumen, filtro por site y la tabla por día. El
+// modo "Informar diferencia" marca líneas y abre un formulario por cada una;
+// cada formulario se envía por separado y abre su propia diferencia con folio.
+// En el teléfono sigue la vista de siempre (más arriba).
+// ═══════════════════════════════════════════════════════════════════════════
+const MESES_L = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const DIAS_L = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const aFecha = (s) => (s instanceof Date ? s : new Date(String(s).slice(0, 10) + 'T12:00:00'))
+// "Semana 39 · 14 al 20 de septiembre" (o "28 de septiembre al 4 de octubre")
+const rangoSemana = (a, b) => a.getMonth() === b.getMonth()
+  ? `${a.getDate()} al ${b.getDate()} de ${MESES_L[b.getMonth()]}`
+  : `${a.getDate()} de ${MESES_L[a.getMonth()]} al ${b.getDate()} de ${MESES_L[b.getMonth()]}`
+// "Viernes 2 de octubre"
+const diaLargo = (d) => { const x = aFecha(d); return `${DIAS_L[x.getDay()]} ${x.getDate()} de ${MESES_L[x.getMonth()]}` }
+// "Miércoles 16 sep"
+const diaCorto = (d) => { const x = aFecha(d); return `${DIAS_L[x.getDay()]} ${x.getDate()} ${MESES_C[x.getMonth()]}` }
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
+// Montos de la tabla: "$1,890.00" y los descuentos con "−".
+const pesosT = (n) => (Number(n) < 0 ? '−' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// Descuentos que no llevan selector de motivo (elemento 8 de la maqueta).
+const DESC_FIJO = /paquete perdido|pnr|no devuelto/i
+const MOTIVOS_DESC = ['Ruta pendiente', 'Paquete perdido', 'Paquete no devuelto (PNR)', 'Adicional por ayudante', 'Otro']
+const MOTIVOS_RUTA = ['No pago de ayudante', 'Diferencia por tarifa', 'No reconozco esta ruta', 'Otros']
+const EVIDENCIA_ACEPTA = '.jpg,.jpeg,.png,.pdf'
+
+function MovimientosWeb({
+  tercero, email, lunes, setLunes, domingo, cargando, error, filasSC, extrasSC, centros, scSel, setScSel,
+  totalPagos, totalCobros, totalAjustes, totalNeto, iva, totalBruto, hayPrefactura, pagada, pagadoAt,
+  faltaFactura, lineasAjuste, descargarPdf, armandoPdf, reclamadas, alEnviar,
+}) {
+  const [toggle, setToggle] = useState({})        // fecha -> abierto (lo que eligió el tercero)
+  const [modo, setModo] = useState(false)         // modo informar diferencia
+  const [forms, setForms] = useState({})          // clave de línea -> formulario
+  const [nuevas, setNuevas] = useState({})        // fecha -> [formulario de ruta que no aparece]
+  const [enviando, setEnviando] = useState(null)
+  const [recibida, setRecibida] = useState(null)  // datos del modal de confirmación
+  const ir = (v) => window.dispatchEvent(new CustomEvent('bt:ir', { detail: v }))
+
+  // ── Las líneas de cada día, con el saldo corrido ─────────────────────────
+  const desde = iso(lunes), hasta = iso(domingo)
+  const { grupos, totPagamos, totDescontamos, saldoFinal } = useMemo(() => {
+    const items = []
+    for (const m of filasSC) {
+      const esCobro = m.tipo === 'cobro'
+      const cuenta = m.estado === 'aprobada' || esCobro
+      items.push({
+        key: claveDe(m), fecha: m.fecha, clase: esCobro ? 'cobro' : 'ruta', m,
+        monto: Number(m.monto || 0), cuenta,
+        titulo: esCobro ? (m.concepto || 'Descuento') : [m.sc, m.ref ? `Ruta ${m.ref}` : null].filter(Boolean).join(' · '),
+        sub: esCobro
+          ? [m.sc, m.ref ? `Ruta ${m.ref}` : null, m.placa].filter(Boolean).join(' · ')
+          : [m.driver_name || 'Sin conductor', m.placa].filter(Boolean).join(' · '),
+        estado: m.estado,
+        sc: m.sc || '', idRuta: m.ref || '', placa: m.placa || '', idGuia: m.shipment_id || '',
+      })
+    }
+    extrasSC.forEach((e, i) => {
+      const monto = Number(e.monto || 0)
+      const f = e.fecha && String(e.fecha).slice(0, 10)
+      items.push({
+        key: `extra|${i}`, fecha: f && f >= desde && f <= hasta ? f : null,
+        clase: monto < 0 ? 'cargo' : 'ajuste', e, monto, cuenta: true,
+        titulo: e.concepto || (monto < 0 ? 'Descuento' : 'Ajuste a tu favor'),
+        sub: [e.service_center, e.detalle || e.descripcion].filter(Boolean).join(' · '),
+        sc: e.service_center || '', idRuta: '', placa: '', idGuia: '',
+      })
+    })
+    const porFecha = new Map()
+    for (const it of items) {
+      const k = it.fecha || 'zz'
+      if (!porFecha.has(k)) porFecha.set(k, [])
+      porFecha.get(k).push(it)
+    }
+    let saldo = 0, pag = 0, des = 0
+    const gs = [...porFecha.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([fecha, ls]) => {
+      // Las líneas van en el orden en que llegan, y los ajustes y cargos de la
+      // prefactura al final del día.
+      ls.sort((a, b) => (a.e ? 1 : 0) - (b.e ? 1 : 0))
+      let p = 0, d = 0
+      for (const it of ls) {
+        if (it.cuenta) { saldo += it.monto; if (it.monto >= 0) p += it.monto; else d += it.monto }
+        it.saldo = saldo
+      }
+      pag += p; des += d
+      const nRutas = ls.filter(x => x.clase === 'ruta').length
+      const nDesc = ls.filter(x => x.clase === 'cobro' || x.clase === 'cargo').length
+      const nAj = ls.filter(x => x.clase === 'ajuste').length
+      return {
+        fecha: fecha === 'zz' ? null : fecha, lineas: ls, pagamos: p, descontamos: d, saldo,
+        meta: [nRutas && plural(nRutas, 'ruta', 'rutas'), nDesc && plural(nDesc, 'descuento', 'descuentos'), nAj && plural(nAj, 'ajuste', 'ajustes')].filter(Boolean).join(' · '),
+        destacado: nDesc > 0 || nAj > 0,
+      }
+    })
+    return { grupos: gs, totPagamos: pag, totDescontamos: des, saldoFinal: saldo }
+  }, [filasSC, extrasSC, desde, hasta])
+
+  const abierto = (g) => modo || (toggle[g.fecha || 'zz'] ?? g.destacado)
+
+  // ── Resumen de la semana ─────────────────────────────────────────────────
+  const rutasOk = filasSC.filter(f => f.tipo === 'pago' && f.estado === 'aprobada')
+  const nSites = new Set([...filasSC.map(f => f.sc), ...extrasSC.map(e => e.service_center)].filter(Boolean)).size
+  const infoRutas = `${plural(rutasOk.length, 'ruta', 'rutas')} en ${plural(nSites, 'site', 'sites')}`
+  const infoAjustes = lineasAjuste.map(l => l.concepto).join(', ')
+  // Se paga el viernes de la semana siguiente a la prefactura del lunes.
+  const fechaPago = pagada && pagadoAt ? pagadoAt : iso(sumaDias(domingo, 12))
+
+  // ── Modo informar diferencia ─────────────────────────────────────────────
+  const tipoForm = (it) => {
+    if (it.clase === 'cobro' || it.clase === 'cargo') return DESC_FIJO.test(it.titulo) ? 'desc_fijo' : 'desc_otro'
+    return 'sin_desc'
+  }
+  const nuevoForm = (it, fecha) => ({
+    motivo: it && tipoForm(it) === 'desc_fijo' ? it.titulo : '',
+    sc: it?.sc || '', idRuta: it?.idRuta || '', placa: it?.placa || '', idGuia: it?.idGuia || '',
+    fecha: fecha || it?.fecha || '', comentario: '', archivos: [],
+  })
+  const marcar = (it) => setForms(p => {
+    const n = { ...p }
+    if (n[it.key]) delete n[it.key]; else n[it.key] = nuevoForm(it, it.fecha)
+    return n
+  })
+  const setCampo = (k, campo, v) => setForms(p => ({ ...p, [k]: { ...p[k], [campo]: v } }))
+  const salir = () => { setModo(false); setForms({}); setNuevas({}) }
+  const nMarcadas = Object.keys(forms).length
+
+  const agregarNueva = (g) => {
+    const ultima = [...g.lineas].reverse().find(x => x.clase === 'ruta') || g.lineas[g.lineas.length - 1]
+    setNuevas(p => ({ ...p, [g.fecha]: [...(p[g.fecha] || []), { ...nuevoForm(null, g.fecha), sc: ultima?.sc || '', placa: ultima?.placa || '' }] }))
+  }
+  const setNueva = (fecha, i, campo, v) => setNuevas(p => ({ ...p, [fecha]: p[fecha].map((x, j) => j === i ? { ...x, [campo]: v } : x) }))
+  const quitarNueva = (fecha, i) => setNuevas(p => ({ ...p, [fecha]: p[fecha].filter((_, j) => j !== i) }))
+
+  // Qué falta en un formulario, según su tipo y el motivo elegido.
+  const faltan = (tipo, f) => {
+    const req = ['sc', 'placa', 'comentario']
+    if (tipo === 'desc_fijo') req.push('idRuta', 'idGuia', 'archivos')
+    if (tipo === 'desc_otro') req.push('motivo', 'idRuta', 'idGuia', 'fecha', 'archivos')
+    if (tipo === 'sin_desc') { req.push('motivo', 'fecha'); if (f.motivo !== 'No reconozco esta ruta') req.push('idRuta') }
+    if (tipo === 'nueva') req.push('fecha')
+    return req.filter(c => (c === 'archivos' ? !f.archivos?.length : !String(f[c] || '').trim()))
+  }
+
+  const enviar = async (clave, tipo, f, it) => {
+    if (faltan(tipo, f).length) { alert('Completa los campos marcados con *.'); return }
+    setEnviando(clave)
+    try {
+      const m = it?.m
+      const linea = {
+        tipo: tipo === 'nueva' ? 'faltante' : (it.clase === 'cobro' ? 'cobro' : 'ruta'),
+        fecha: f.fecha || it?.fecha || null,
+        id_ruta: f.idRuta.trim() || null,
+        cobro_id: it?.clase === 'cobro' ? m.cobro_id : null,
+        cobro_origen: it?.clase === 'cobro' ? (m.tipo_cobro || null) : null,
+        concepto: it ? [it.titulo, f.idGuia ? `guía ${f.idGuia}` : null].filter(Boolean).join(' · ') : null,
+        placa: f.placa.trim(), monto_ref: it ? Math.abs(it.monto) : null,
+        comentario: f.comentario.trim(), motivo: f.motivo || null, sc: f.sc.trim() || null, id_guia: f.idGuia.trim() || null,
+      }
+      const { data: dif, error: eDif } = await supabase.from('diferencias').insert({
+        tercero_id: tercero.tercero_id, service_center: linea.sc,
+        monto_reclamado: Number(linea.monto_ref || 0), creada_por: email || tercero.nombre,
+      }).select('id, folio').single()
+      if (eDif) throw eDif
+      const { error: eLin } = await supabase.from('diferencias_lineas').insert({ ...linea, diferencia_id: dif.id })
+      if (eLin) throw eLin
+      for (const file of f.archivos || []) {
+        const path = `diferencias/${dif.id}/${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`
+        const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file)
+        if (!eUp) await supabase.from('diferencias_adjuntos').insert({ diferencia_id: dif.id, storage_path: path, nombre: file.name, subido_por: email || tercero.nombre })
+      }
+      await supabase.from('diferencias_eventos').insert({
+        diferencia_id: dif.id, tipo: 'creada', actor: email || tercero.nombre,
+        detalle: `${linea.motivo || 'Diferencia'}${f.archivos?.length ? ` · ${f.archivos.length} adjunto(s)` : ''}`,
+      })
+      const { error: eAbrir } = await supabase.rpc('fn_abrir_diferencia', { p_dif: dif.id })
+      if (eAbrir) alert(`Tu diferencia #${dif.folio} quedó registrada, pero no se pudo avisar al supervisor.\n\nAvísanos por el chat de consultas citando ese número.`)
+      try {
+        const { data: payload } = await supabase.rpc('fn_payload_aviso_diferencia', { p_dif: dif.id })
+        if (payload) await fetch('https://bigticket2026.app.n8n.cloud/webhook/diferencia-notificar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        })
+      } catch (e) { console.error('No se pudo enviar el aviso por correo:', e) }
+      setRecibida({ linea: it ? it.titulo : 'Ruta que no aparece', site: linea.sc || '—', folio: dif.folio, monto: it ? it.monto : null })
+      if (alEnviar) alEnviar()
+    } catch (e) {
+      alert('No se pudo enviar la diferencia:\n\n' + (e.message || e))
+    }
+    setEnviando(null)
+  }
+
+  const iconoSemana = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  )
+
+  return (
+    <div className="mw">
+      <nav className="ms-ruta">
+        <button className="rc-volver" onClick={() => window.dispatchEvent(new Event('bt:atras'))}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          Volver
+        </button>
+        <span className="rc-sep" aria-hidden="true" />
+        <a href="#" onClick={e => { e.preventDefault(); ir('home') }}>Inicio</a>
+        <Chev12 /><span>Mi billetera</span>
+        <Chev12 /><span aria-current="page">Movimientos</span>
+      </nav>
+      <h1 className="mw-titulo">Movimientos</h1>
+
+      {/* 2 · Semana y descarga */}
+      <div className="week-bar">
+        <div className="week-nav">
+          <button className="week-arrow" aria-label="Semana anterior" onClick={() => setLunes(sumaDias(lunes, -7))}
+            disabled={iso(lunes) <= INICIO_PORTAL}><ChevI dir="izq" /></button>
+          <span className="week-label">{iconoSemana}Semana {semanaBrain(lunes)} · {rangoSemana(lunes, domingo)}</span>
+          <button className="week-arrow" aria-label="Semana siguiente" onClick={() => setLunes(sumaDias(lunes, 7))}><ChevI dir="der" /></button>
+        </div>
+        <button className="btn-download" onClick={() => descargarPdf()}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          {armandoPdf ? 'Generando PDF…' : 'Descargar movimientos'}
+        </button>
+      </div>
+
+      {error && <div className="form-error">No se pudieron cargar tus movimientos: {error}</div>}
+
+      {/* 3 · Tarjeta de pago y factura */}
+      <section className="pay-card">
+        <div className="pay-card__top">
+          <div>
+            <div className="pay-label">{pagada ? 'Pagado el' : 'Fecha de pago'}</div>
+            <div className="pay-date">{diaLargo(fechaPago)}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="pay-amount">{pesosT(hayPrefactura ? totalBruto : totalNeto)}</div>
+            <div className="pay-iva">{hayPrefactura ? `Incluye IVA 16% · Neto ${pesosT(totalNeto)}` : 'Sin IVA: el total se calcula el lunes'}</div>
+          </div>
+        </div>
+        {faltaFactura && (
+          <div className="invoice-strip">
+            <span className="dot-pulse" aria-hidden="true" />
+            <span className="invoice-txt"><b>Falta tu factura.</b> Para pagarte necesitamos que cargues tu factura.</span>
+            <a href="#" className="invoice-link" onClick={e => { e.preventDefault(); ir('facturacion') }}>Ir a Por facturar <ChevI dir="flecha" /></a>
+          </div>
+        )}
+      </section>
+
+      {/* 4 · Resumen de la semana */}
+      <section className="summary">
+        <div className="summary__row">
+          <span className="summary__left"><span className="summary__label">Tus rutas</span><span className="summary__sep">|</span><span className="summary__info">{infoRutas}</span></span>
+          <span className="summary__amount">+ {pesosT(totalPagos)}</span>
+        </div>
+        {totalAjustes !== 0 && (
+          <div className="summary__row">
+            <span className="summary__left"><span className="summary__label">Ajustes a tu favor</span><span className="summary__sep">|</span><span className="summary__info">{infoAjustes}</span></span>
+            <span className="summary__amount">+ {pesosT(totalAjustes)}</span>
+          </div>
+        )}
+        {totalCobros !== 0 && (
+          <div className="summary__row">
+            <span className="summary__left"><span className="summary__label">Descuentos</span><span className="summary__sep">|</span>
+              <a href="#" className="link-desc" onClick={e => { e.preventDefault(); ir('descuentos') }}>Ver descuentos <ChevI dir="flecha" /></a></span>
+            <span className="summary__amount">− {pesosT(Math.abs(totalCobros))}</span>
+          </div>
+        )}
+        <div className="summary__row summary__row--neto">
+          <span className="summary__label">Neto</span>
+          <span className="summary__amount">{pesosT(totalNeto)}</span>
+        </div>
+        {hayPrefactura && (
+          <div className="summary__row summary__row--iva">
+            <span>IVA 16%</span>
+            <span className="summary__amount">+ {pesosT(iva)}</span>
+          </div>
+        )}
+        <div className="summary__row summary__row--total">
+          <span className="summary__total-label">Total</span>
+          <span className="summary__total">{hayPrefactura ? pesosT(totalBruto) : '—'}</span>
+        </div>
+      </section>
+
+      {/* 5 · Filtro de site e Informar diferencia */}
+      <div className="detail-bar">
+        <h2 className="detail-title">Detalle de movimientos por día</h2>
+        {centros.length > 1 && (
+          <div className="site-filter" role="group" aria-label="Filtrar por site">
+            {['todos', ...centros].map(c => (
+              <button key={c} aria-pressed={scSel === c} onClick={() => setScSel(c)}>{c === 'todos' ? 'Todos los sites' : c}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!modo ? (
+        <div className="diff-hint">
+          <span className="diff-hint__t">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" />
+            </svg>
+            ¿Ves algo que no cuadra? Selecciona la línea e informa la diferencia.
+          </span>
+          <span className="diff-btn-caja">
+            <span className="tip" role="tooltip">Selecciona la línea y notifica</span>
+            <button className="btn-diff" onClick={() => setModo(true)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3" /><path d="m8 12 3 3 5-6" />
+              </svg>
+              Informar diferencia
+            </button>
+          </span>
+        </div>
+      ) : (
+        <div className="diff-banner">
+          <div className="diff-banner__t">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+            <div>
+            <div className="diff-banner__count">{nMarcadas === 0 ? 'Marca las líneas que no cuadran' : `Marcaste ${plural(nMarcadas, 'línea', 'líneas')}`}</div>
+            <div className="diff-banner__sub">Abrimos todos los días para que puedas revisar cada línea.</div>
+            </div>
+          </div>
+          <button className="diff-banner__cancel" onClick={salir}>Cancelar</button>
+        </div>
+      )}
+
+      {/* 6 · Tabla por día */}
+      {cargando ? (
+        <div className="msg-empty">Cargando…</div>
+      ) : grupos.length === 0 ? (
+        <div className="msg-empty">Todavía no hay movimientos de esta semana.</div>
+      ) : (
+        <div className="det-scroll">
+          <div className={`det-grid det-head${modo ? ' det-grid--diff' : ''}`}>
+            {modo && <span />}
+            <span style={{ textAlign: 'left' }}>Detalle</span>
+            <span>Te pagamos</span>
+            <span className="det-head__desc">Te descontamos</span>
+            <span>Te quedan</span>
+          </div>
+
+          {grupos.map(g => {
+            const ab = abierto(g)
+            const fkey = g.fecha || 'zz'
+            return (
+              <div key={fkey} className={`day${ab ? ' day--open' : ''}`}>
+                <div className={`det-grid day__head${modo ? ' det-grid--diff' : ''}`} role="button" tabIndex={0} aria-expanded={ab}
+                  onClick={() => !modo && setToggle(p => ({ ...p, [fkey]: !ab }))}
+                  onKeyDown={e => { if (!modo && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setToggle(p => ({ ...p, [fkey]: !ab })) } }}>
+                  {modo && <span />}
+                  <span className="day__t">
+                    <svg className="day__chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                    <span className="day__label">{g.fecha ? diaCorto(g.fecha) : 'Otros movimientos de la semana'}</span>
+                    {g.meta && <span className="day__meta">· {g.meta}</span>}
+                  </span>
+                  <span className="line__amount">{pesosT(g.pagamos)}</span>
+                  <span className="line__amount">{g.descontamos ? pesosT(g.descontamos) : '—'}</span>
+                  <span className="line__amount line__saldo">{pesosT(g.saldo)}</span>
+                </div>
+
+                {ab && g.lineas.map(it => {
+                  const f = forms[it.key]
+                  const marcada = !!f
+                  const rec = it.m ? (it.clase === 'cobro' ? reclamadas[`cobro|${it.m.cobro_id}`] : reclamadas[`pago|${it.m.fecha}|${it.m.ref}`]) : null
+                  // El estado solo se dice en las rutas que no se pagan o están en revisión.
+                  const est = it.clase === 'ruta' && it.estado && it.estado !== 'aprobada' ? (ESTADOS[it.estado] || null) : null
+                  return (
+                    <div key={it.key}>
+                      <div className={`det-grid line${modo ? ' det-grid--diff' : ''}${marcada ? ' line--selected' : ''}`}>
+                        {modo && (
+                          <button className="check" role="checkbox" aria-checked={marcada} aria-label={`Marcar ${it.titulo}`} onClick={() => marcar(it)}>
+                            {marcada && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>}
+                          </button>
+                        )}
+                        <span className="line__title">
+                          {it.titulo}
+                          {(it.sub || est || rec) && (
+                            <span className="line__sub">
+                              {it.sub}
+                              {est && ` · ${est.label}`}
+                              {rec && ` · Diferencia #${rec.folio} en revisión`}
+                            </span>
+                          )}
+                        </span>
+                        {marcada ? <><span /><span /><span /></> : (
+                          <>
+                            <span className="line__amount">{it.cuenta && it.monto > 0 ? pesosT(it.monto) : ''}</span>
+                            <span className="line__amount">{it.cuenta && it.monto < 0 ? pesosT(it.monto) : ''}</span>
+                            <span className="line__amount line__saldo">{it.cuenta ? pesosT(it.saldo) : '—'}</span>
+                          </>
+                        )}
+                      </div>
+                      {marcada && (
+                        <FormDiferencia tipo={tipoForm(it)} f={f} fecha={it.fecha}
+                          set={(c, v) => setCampo(it.key, c, v)} onCerrar={() => marcar(it)}
+                          onEnviar={() => enviar(it.key, tipoForm(it), f, it)} enviando={enviando === it.key} sites={centros} />
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* 10 · Agregar ruta que no aparece (solo en modo diferencia) */}
+                {modo && g.fecha && (
+                  <>
+                    {(nuevas[g.fecha] || []).map((nf, i) => (
+                      <div key={i} className="new-route">
+                        <div className="new-route__cab">
+                          <span className="new-route__title">Ruta que no aparece</span>
+                          <button className="form-close" aria-label="Quitar" onClick={() => quitarNueva(g.fecha, i)}><Equis /></button>
+                        </div>
+                        <Campos tipo="nueva" f={nf} set={(c, v) => setNueva(g.fecha, i, c, v)} sites={centros} />
+                        <div className="form-acciones">
+                          <button className="btn-cancel" onClick={() => quitarNueva(g.fecha, i)}>Cancelar</button>
+                          <button className="btn-send" disabled={enviando === `n|${g.fecha}|${i}`}
+                            onClick={() => enviar(`n|${g.fecha}|${i}`, 'nueva', nf, null).then(() => {})}>
+                            {enviando === `n|${g.fecha}|${i}` ? 'Enviando…' : 'Enviar diferencia'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="add-route-wrap">
+                      <button className="add-route" onClick={() => agregarNueva(g)}>+ Agregar ruta que no aparece</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          <div className={`det-grid week-total${modo ? ' det-grid--diff' : ''}`}>
+            {modo && <span />}
+            <span className="week-total__t">Te quedan esta semana{scSel !== 'todos' ? ` en ${scSel}` : ''} (neto)</span>
+            <span className="line__amount">{pesosT(totPagamos)}</span>
+            <span className="line__amount">{totDescontamos ? pesosT(totDescontamos) : '—'}</span>
+            <span className="line__amount line__saldo">{pesosT(saldoFinal)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 11 · Confirmación de envío */}
+      {recibida && (
+        <div className="overlay" onClick={() => setRecibida(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="mw-modal-t" onClick={e => e.stopPropagation()}>
+            <span className="modal__icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+            </span>
+            <h3 className="modal__title" id="mw-modal-t">Recibimos tu diferencia</h3>
+            <p className="modal__txt">Te respondemos en 48 horas en Mis mensajes. Mientras tanto, la línea queda marcada como En revisión.</p>
+            <div className="modal__summary">
+              <div><span>Línea</span><b>{recibida.linea}</b></div>
+              <div><span>Site</span><b>{recibida.site}</b></div>
+              <div><span>Folio</span><b>#{recibida.folio}</b></div>
+              <div><span>Monto</span><b>{recibida.monto != null ? pesosT(recibida.monto) : '—'}</b></div>
+            </div>
+            <div className="modal__actions">
+              <button className="btn-outline" onClick={() => { setRecibida(null); salir(); ir('mensajes') }}>Ir a Mis mensajes</button>
+              <button className="btn-primary" onClick={() => { setRecibida(null); salir() }}>Volver a Movimientos</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 8 y 9 · Formulario de una línea marcada.
+function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites }) {
+  const sinMotivo = tipo === 'sin_desc' && !f.motivo
+  return (
+    <div className="diff-form">
+      {tipo === 'sin_desc' && (
+        <div className="reason-cab">
+          <label className="reason-select-caja">
+            <span className="reason-select-label">Motivo de la diferencia *</span>
+            <select className="reason-select" value={f.motivo} onChange={e => set('motivo', e.target.value)}>
+              <option value="" disabled>Selecciona un motivo</option>
+              {MOTIVOS_RUTA.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </label>
+          {sinMotivo && <button className="form-close" aria-label="Cerrar" onClick={onCerrar}><Equis /></button>}
+        </div>
+      )}
+      {tipo === 'desc_otro' && (
+        <div className="reasons" role="group" aria-label="Motivo">
+          {MOTIVOS_DESC.map(m => (
+            <button key={m} className="reason" aria-pressed={f.motivo === m} onClick={() => set('motivo', m)}>{m}</button>
+          ))}
+        </div>
+      )}
+      {!sinMotivo && (
+        <>
+          <Campos tipo={tipo} f={f} set={set} sites={sites} />
+          <div className="form-acciones">
+            <button className="btn-cancel" onClick={onCerrar}>Cancelar</button>
+            <button className="btn-send" disabled={enviando} onClick={onEnviar}>{enviando ? 'Enviando…' : 'Enviar diferencia'}</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Los campos de cada formulario, en el orden de la maqueta.
+function Campos({ tipo, f, set, sites = [] }) {
+  const conGuia = tipo === 'desc_fijo' || tipo === 'desc_otro'
+  const conFecha = tipo !== 'desc_fijo'
+  const rutaOpcional = tipo === 'nueva' || (tipo === 'sin_desc' && f.motivo === 'No reconozco esta ruta')
+  const evidenciaObligatoria = conGuia
+  return (
+    <>
+      <div className="fields">
+        <label className="field"><span>Site *</span>
+          <select value={f.sc} onChange={e => set('sc', e.target.value)}>
+            {[...new Set([f.sc, ...sites].filter(Boolean))].map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>{rutaOpcional ? 'ID ruta (opcional)' : 'ID ruta *'}</span>
+          <input value={f.idRuta} onChange={e => set('idRuta', e.target.value)} placeholder={rutaOpcional ? 'Ej: 156342888' : ''} /></label>
+        <label className="field"><span>Placa *</span><input value={f.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></label>
+        {conGuia && <label className="field"><span>ID Guía *</span><input value={f.idGuia} onChange={e => set('idGuia', e.target.value)} /></label>}
+        {conFecha && <label className="field"><span>Fecha de ruta *</span><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></label>}
+      </div>
+      <label className="field"><span>Comentarios *</span><textarea value={f.comentario} onChange={e => set('comentario', e.target.value)}
+        placeholder="Ej: el paquete se entregó al cliente, adjunto la foto de entrega" /></label>
+      <div className="field">
+        <span>{evidenciaObligatoria ? 'Evidencia *' : 'Evidencia (opcional)'}</span>
+        <label className="evidence">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+          {evidenciaObligatoria ? 'Adjuntar foto o comprobante' : 'Adjuntar evidencia (JPG, PNG, PDF)'}
+          <input type="file" accept={EVIDENCIA_ACEPTA} multiple hidden onChange={e => set('archivos', [...e.target.files])} />
+        </label>
+        {f.archivos?.length > 0 && <span className="evidence-n">{f.archivos.length} archivo(s) listo(s)</span>}
+      </div>
+    </>
+  )
+}
+
+const Equis = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+)
+const Chev12 = () => (
+  <svg className="ms-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+)
+function ChevI({ dir }) {
+  const d = dir === 'izq' ? 'm15 18-6-6 6-6' : dir === 'der' ? 'm9 18 6-6-6-6' : 'M5 12h14M13 6l6 6-6 6'
+  return <svg width={dir === 'flecha' ? 14 : 18} height={dir === 'flecha' ? 14 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+}
