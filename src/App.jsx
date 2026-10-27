@@ -283,7 +283,7 @@ export default function App() {
           onBack={() => { setFecha(null); setView('home') }} /></Bloque>}
       {view === 'descuentos' && <Bloque nombre="Descuentos"><Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
-        <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
+        <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} onIr={(v) => setView(v)} /></Bloque>}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}

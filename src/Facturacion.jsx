@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import { esMovil } from './ArmazonMovil'
 import { abrirUrl } from './archivos'
+import FacturacionEsc from './FacturacionEsc'
 
 // El signo va antes del peso: "−$950.00" se lee como descuento; "$-950.00" no.
 const money = (n) => (Number(n) < 0 ? '−' : '') + '$' +
@@ -50,7 +51,7 @@ const VISTAS = {
   },
 }
 
-export default function Facturacion({ tercero, email, onBack, vista = 'facturacion' }) {
+export default function Facturacion({ tercero, email, onBack, onIr, vista = 'facturacion' }) {
   const V = VISTAS[vista] || VISTAS.facturacion
   const [filas, setFilas] = useState(null)
   const [abierta, setAbierta] = useState(null)
@@ -121,8 +122,11 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
     }
   }
 
+  // Devuelve true si la factura quedó guardada (la vista de escritorio muestra
+  // la confirmación solo en ese caso).
   const subirFactura = async (p, file) => {
-    if (!file) return
+    if (!file) return false
+    let ok = false
     setSubiendo(p.id); setError(null); setAviso(null)
     try {
       const cfdi = await leerCfdi(file)
@@ -150,7 +154,7 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
           `Revisa esto antes de subirla:\n\n· ${problemas.join('\n· ')}\n\n` +
           `Puedes subirla igual y un analista la revisa, o cancelar y corregirla.\n\n¿La subes igual?`
         )
-        if (!seguir) { setSubiendo(null); return }
+        if (!seguir) { setSubiendo(null); return false }
       }
 
       const limpio = file.name.replace(/[^\w.\-]/g, '_')
@@ -182,6 +186,7 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
         throw eIns
       }
 
+      ok = true
       setAviso(cfdi
         ? (problemas.length ? 'Factura subida. Un analista la va a revisar.' : 'Factura subida y conciliada con la prefactura.')
         : 'Factura subida. Estamos leyendo el comprobante…')
@@ -209,6 +214,19 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
       }
     } catch (e) { setError('No se pudo subir la factura: ' + (e.message || e)) }
     setSubiendo(null)
+    return ok
+  }
+
+  // Vista de escritorio: puede subir el XML y el PDF juntos contra la misma prefactura.
+  const subirArchivos = async (p, files) => {
+    let alguno = false
+    for (const f of files) alguno = (await subirFactura(p, f)) || alguno
+    return alguno
+  }
+  const urlArchivo = async (path) => {
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 600)
+    if (!data?.signedUrl) { setError('No se pudo abrir el archivo.'); return null }
+    return data.signedUrl
   }
 
   // Las prefacturas en HTML se muestran como página y el resto se abre tal
@@ -257,6 +275,17 @@ export default function Facturacion({ tercero, email, onBack, vista = 'facturaci
       hasta: semanas.length ? Math.max(...semanas.map(s => s.semana)) : null,
     }
   }, [semanas])
+
+  // Computador: maqueta 8.9.9 (tabla Resumen por site). Teléfono: la vista de siempre.
+  if (!movil) {
+    return (
+      <>
+        {error && <div className="form-error" style={{ maxWidth: 1180, margin: '0 auto 10px' }}>{error}</div>}
+        <FacturacionEsc vista={vista} filas={filas} onBack={onBack} onIr={onIr || (() => onBack())}
+          subirArchivos={subirArchivos} abrirArchivo={abrirArchivo} urlArchivo={urlArchivo} />
+      </>
+    )
+  }
 
   return (
     <div className="fx-pantalla" style={{ maxWidth: 900, margin: '0 auto' }}>
