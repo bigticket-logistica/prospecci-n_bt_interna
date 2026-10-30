@@ -2326,3 +2326,44 @@ tr:last-child td { border-bottom: none; }
 /* Facturado y Pagado: selector de período más bajo y sin ícono (maqueta 8.9.9) */
 .fx8-nav.chico .fx8-arrow { width: 38px; height: 38px; }
 .fx8-nav.chico .fx8-label { height: 38px; padding: 0 16px; font: 700 13.5px Poppins, sans-serif; color: #545454; }
+
+/* ═══ Ruta y título comunes de las maquetas 8.9.17 / 8.9.18 ═══ */
+.p8 { max-width: 1180px; margin: 0 auto; }
+.p8-crumbs { display: flex; align-items: center; gap: 10px; font: 400 13px 'Open Sans', sans-serif; color: #545454; }
+.p8-link { border: none; background: none; padding: 0; color: #545454; font: inherit; cursor: pointer; }
+.p8-link:hover { color: #002E5D; text-decoration: underline; }
+.p8-sep { width: 1px; height: 14px; background: #D9D9D9; }
+.p8-chev { color: #9AA1A9; }
+.p8-actual { color: #002E5D; font-weight: 600; }
+.p8-titulo { font: 700 28px Poppins, sans-serif; color: #002E5D; margin: 14px 0 0; }
+.p8-desc { font: 400 14px/1.5 'Open Sans', sans-serif; color: #545454; margin: 6px 0 18px; }
+
+/* ═══ Mi flota (maqueta 8.9.18) ═══ */
+.fleet-box { background: #fff; border: 1px solid #E4E3E3; border-radius: 16px; padding: 18px 22px; display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 1px 3px rgba(0,46,93,.05); transition: box-shadow .2s, border-color .2s; }
+.fleet-box:hover { box-shadow: 0 12px 28px rgba(0,46,93,.14); border-color: #B8C4D3; }
+.fleet-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fleet-seg { display: flex; gap: 4px; height: 46px; padding: 4px; box-sizing: border-box; background: #F4F3F3; border: 1px solid #E4E3E3; border-radius: 12px; }
+.fleet-seg button { height: 36px; padding: 0 18px; border: none; border-radius: 9px; background: transparent; color: #545454; font: 700 14px Poppins, sans-serif; cursor: pointer; }
+.fleet-seg button:hover { color: #002E5D; }
+.fleet-seg button[aria-selected="true"] { background: #002E5D; color: #fff; }
+.fleet-filtros { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.fleet-search { position: relative; display: flex; align-items: center; width: clamp(240px, 26vw, 320px); }
+.fleet-search svg { position: absolute; left: 14px; }
+.fleet-search input { width: 100%; height: 46px; padding: 0 14px 0 42px; border: 1px solid #C9CDD2; border-radius: 10px; font: 400 14px 'Open Sans', sans-serif; color: #545454; box-sizing: border-box; background: #fff; }
+.fleet-filter { height: 46px; padding: 0 40px 0 16px; border: 1px solid #C9CDD2; border-radius: 10px; font: 700 14px Poppins, sans-serif; color: #002E5D;
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23002E5D' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center; }
+.fleet-scroll { overflow-x: auto; }
+.fleet-table { min-width: 760px; }
+.fleet-row { display: grid; gap: 10px; padding: 14px 16px; align-items: center;
+  grid-template-columns: minmax(300px,1.7fr) minmax(190px,1.1fr) minmax(90px,.8fr) minmax(90px,.8fr); }
+.fleet-table.veh .fleet-row { grid-template-columns: minmax(140px,.9fr) minmax(240px,1.4fr) minmax(90px,.8fr) minmax(90px,.8fr); }
+.fleet-th { background: #002E5D; border-radius: 12px; margin-bottom: 14px; font: 700 15px Poppins, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #fff; }
+.fleet-td-main { font: 700 15px Poppins, sans-serif; color: #002E5D; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fleet-td { font: 400 14px 'Open Sans', sans-serif; color: #545454; }
+.fleet-tr { border-top: 1px solid #EFEDED; transition: background .15s, opacity .15s; }
+.fleet-tr:hover { background: #FAFBFD; }
+.fleet-tr.is-baja { background: #F7F7F7; opacity: .5; }
+.fleet-tr.is-baja:hover { opacity: .75; }
+.fleet-vacio { text-align: center; padding: 40px; font: 400 14px 'Open Sans', sans-serif; color: #545454; }

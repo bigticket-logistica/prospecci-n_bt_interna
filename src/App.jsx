@@ -10,6 +10,7 @@ import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing, { AccesoApp, CampoClave } from './Landing'
 import Descuentos from './Descuentos'
 import Reclamos from './Reclamos'
+import MiFlota from './MiFlota'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
 import { ShellMovil, esMovil } from './ArmazonMovil'
@@ -631,6 +632,9 @@ function FlotaPersonal({ tercero, onBack }) {
     if (error || !data?.signedUrl) { alert('No se pudo abrir el documento.'); return }
     abrirUrl(data.signedUrl)
   }
+
+  // Computador: maqueta 8.9.18 (tabla con selector y filtros). Teléfono: la vista de siempre.
+  if (!esMovil()) return <MiFlota rows={rows} err={err} onBack={onBack} />
 
   const personas = (rows || []).filter(r => r.tipo !== 'vehiculo')
   const vehiculos = (rows || []).filter(r => r.tipo === 'vehiculo')
