@@ -120,6 +120,8 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
       rfc_emisor: emisor?.getAttribute('Rfc') || null,
       rfc_receptor: receptor?.getAttribute('Rfc') || null,
       total: Number(compro.getAttribute('Total') || 0) || null,
+      // El neto antes de IVA y retenciones: es lo que se compara con la prefactura.
+      subtotal: compro.getAttribute('SubTotal') != null ? Number(compro.getAttribute('SubTotal')) : null,
       fecha_emision: compro.getAttribute('Fecha') || null,
       serie_folio: [compro.getAttribute('Serie'), compro.getAttribute('Folio')].filter(Boolean).join('-') || null,
     }
@@ -142,12 +144,12 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
             cfdi.rfc_emisor.toUpperCase().trim() !== String(tercero.rfc).toUpperCase().trim()) {
           problemas.push(`El RFC del emisor (${cfdi.rfc_emisor}) no es el de tu empresa (${tercero.rfc}).`)
         }
-        if (cfdi.total != null) {
-          const dif = Number((cfdi.total - Number(p.liquido_pago || 0)).toFixed(2))
-          // Tolerancia de $1: el líquido puede diferir en centavos por el
-          // redondeo del IVA, y bloquear por eso sería ruido.
+        // Se compara el neto (subtotal antes de IVA y retenciones) con el neto
+        // de la prefactura. Tolerancia de $1 por redondeos.
+        if (cfdi.subtotal != null && p.total_neto != null) {
+          const dif = Number((cfdi.subtotal - Number(p.total_neto)).toFixed(2))
           if (Math.abs(dif) > 1) {
-            problemas.push(`La factura es de ${money(cfdi.total)} y la prefactura de ${money(p.liquido_pago)}: ${dif > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(dif))}.`)
+            problemas.push(`El subtotal de la factura es de ${money(cfdi.subtotal)} y el neto de la prefactura de ${money(p.total_neto)}: ${dif > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(dif))}.`)
           }
         }
       }
@@ -171,6 +173,7 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
         storage_path: path, nombre_archivo: file.name,
         monto_prefactura: p.liquido_pago, subido_por: email || tercero.nombre,
         monto_factura: cfdi?.total ?? null,
+        subtotal_factura: cfdi?.subtotal ?? null,
         uuid: cfdi?.uuid ?? null,
         rfc_emisor: cfdi?.rfc_emisor ?? null,
         rfc_receptor: cfdi?.rfc_receptor ?? null,
@@ -479,7 +482,11 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Tu factura</div>
                       {p.facturas.length > 0 ? (
                         p.facturas.map(f => {
-                          const cuadra = f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
+                          // El neto manda; si la factura no tiene subtotal leído, se usan los totales.
+                          const difNeto = f.subtotal_factura != null && p.total_neto != null
+                            ? Number(f.subtotal_factura) - Number(p.total_neto) : null
+                          const cuadra = difNeto != null ? Math.abs(difNeto) <= 1
+                            : f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
                           const revisar = f.monto_factura != null && !cuadra
                           // Rechazada por el analista: en rojo y con el motivo.
                           if (f.estado === 'rechazada') return (
