@@ -82,7 +82,10 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
     ])
     if (pref.error) { setError(pref.error.message); setFilas([]); return }
     const porPref = {}
-    for (const f of (fact.data || [])) {
+    // La más reciente primero: si el analista rechazó una y el tercero subió
+    // otra, lo que manda es la nueva.
+    const facts = [...(fact.data || [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    for (const f of facts) {
       (porPref[f.conciliacion_id] = porPref[f.conciliacion_id] || []).push(f)
     }
     const porConc = {}
@@ -478,6 +481,25 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
                         p.facturas.map(f => {
                           const cuadra = f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
                           const revisar = f.monto_factura != null && !cuadra
+                          // Rechazada por el analista: en rojo y con el motivo.
+                          if (f.estado === 'rechazada') return (
+                            <div key={f.id} style={{ background: 'var(--red-soft)', border: '1px solid var(--red)',
+                              borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5, color: 'var(--red)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ flex: 1 }}>
+                                  <b>Factura rechazada</b>
+                                  <span style={{ color: 'var(--muted)' }}> · {f.nombre_archivo}</span>
+                                </span>
+                                <button onClick={() => abrirArchivo(f.storage_path)}
+                                  style={{ border: '1px solid var(--red)', background: '#fff', color: 'var(--red)',
+                                    borderRadius: 6, padding: '5px 12px', fontSize: 12 }}>
+                                  Ver
+                                </button>
+                              </div>
+                              {f.revision_motivo && <div style={{ marginTop: 6 }}>Motivo: {f.revision_motivo}</div>}
+                              <div style={{ marginTop: 5, color: 'var(--muted)' }}>Sube una factura corregida para esta prefactura.</div>
+                            </div>
+                          )
                           return (
                             <div key={f.id} style={{
                               background: revisar ? 'var(--amber-soft)' : 'var(--green-soft)',

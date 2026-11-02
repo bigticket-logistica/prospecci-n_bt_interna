@@ -35,6 +35,8 @@ const montos = (p) => {
   return { total, subtotal, iva: Math.round((total - subtotal) * 100) / 100 }
 }
 const aprobada = (f) => ['conciliada', 'aprobada', 'validada'].includes(String(f.estado || '').toLowerCase())
+// La última factura subida define si la prefactura quedó rechazada.
+const rechazada = (p) => (p.facturas || [])[0]?.estado === 'rechazada'
 const numFactura = (f) => f?.serie_folio || (f?.uuid ? String(f.uuid).slice(-6).toUpperCase() : 'Ver')
 
 const IcoDoc = () => (
@@ -101,7 +103,7 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
   const etiquetaPer = !per ? '—' : modo === 'mensual' ? nombreMes(per) : `Semana ${per} · ${rangoSemana(ref?.semana_inicio, ref?.semana_fin)}`
 
   // Recuadro ATENCIÓN (Por facturar): lo que falta subir, de todas las semanas
-  const porSubir = (filas || []).filter(p => !p.pagado_at && (p.facturas || []).length === 0)
+  const porSubir = (filas || []).filter(p => !p.pagado_at && ((p.facturas || []).length === 0 || rechazada(p)))
   const montoPorSubir = porSubir.reduce((t, p) => t + Number(p.liquido_pago || 0), 0)
 
   const [cargaAbierta, setCargaAbierta] = useState(null)   // id de la prefactura con la carga abierta
@@ -150,6 +152,9 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
             <span className="fx8-attn-monto">{money(montoPorSubir)} por facturar</span>
           </div>
           <div className="fx8-attn-row"><b>{porSubir.length}</b><span>{porSubir.length === 1 ? 'Factura por subir' : 'Facturas por subir'}</span></div>
+          {porSubir.some(rechazada) && (
+            <div className="fx8-attn-row" style={{ color: 'var(--red)' }}><b>{porSubir.filter(rechazada).length}</b><span>{porSubir.filter(rechazada).length === 1 ? 'Factura rechazada' : 'Facturas rechazadas'}</span></div>
+          )}
         </div>
       )}
 
@@ -182,7 +187,9 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
               const f = (p.facturas || []).find(aprobada) || (p.facturas || [])[0]
               const estado = vista === 'pagado' ? fechaDdMm(p.pagado_at)
                 : vista === 'facturado' ? 'Facturado'
+                : rechazada(p) ? 'Rechazada'
                 : (p.facturas || []).length ? 'En validación' : 'Subir factura'
+              const motivo = vista === 'facturacion' && rechazada(p) ? p.facturas[0].revision_motivo : null
               const abierta = cargaAbierta === p.id
               return (
                 <div key={p.id}>
@@ -200,9 +207,15 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
                         </button>
                       ) : f ? <button className="fx8-doc" onClick={() => abrirVisor(p, f)}><IcoDoc />{numFactura(f)}</button> : <span className="fx8-dato">—</span>}
                     </span>
-                    <span className="fx8-dato fx8-ultima">{estado}</span>
+                    <span className="fx8-dato fx8-ultima" style={estado === 'Rechazada' ? { color: 'var(--red)', fontWeight: 700 } : undefined}>{estado}</span>
                   </div>
-                  <div className="fx8-meta">{cabUltima}: {estado}</div>
+                  <div className="fx8-meta" style={estado === 'Rechazada' ? { color: 'var(--red)' } : undefined}>{cabUltima}: {estado}</div>
+                  {estado === 'Rechazada' && (
+                    <div style={{ background: 'var(--red-soft)', color: 'var(--red)', borderRadius: 8,
+                      padding: '9px 12px', margin: '0 0 10px', fontSize: 13 }}>
+                      <b>Rechazamos tu factura.</b>{motivo ? ` Motivo: ${motivo}` : ''} Sube una factura corregida.
+                    </div>
+                  )}
                   {abierta && (
                     <div className="fx8-panel">
                       <div className="fx8-panel-top">
