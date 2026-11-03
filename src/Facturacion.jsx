@@ -51,6 +51,32 @@ const VISTAS = {
   },
 }
 
+
+// ── Subida con mala señal ──────────────────────────────────────────────────
+// "Failed to fetch" es un corte de conexión (o un archivo que el teléfono no
+// entrega, típico al elegirlo directo desde Drive o WhatsApp sin descargarlo).
+class ArchivoIlegible extends Error {}
+const esCorte = (e) => e instanceof TypeError || /failed to fetch|network|load failed|fetch/i.test(String(e?.message || e || ''))
+async function conReintento(fn, alReintentar) {
+  let r
+  try { r = await fn() } catch (e) { r = { error: e } }
+  if (r?.error && esCorte(r.error)) {
+    await new Promise(ok => setTimeout(ok, 1500))
+    alReintentar && alReintentar()
+    try { r = await fn() } catch (e) { r = { error: e } }
+  }
+  return r
+}
+function mensajeSubida(e) {
+  if (e instanceof ArchivoIlegible) {
+    return 'No pudimos leer el archivo. Si está en Drive o WhatsApp, descárgalo primero al teléfono y vuelve a intentarlo.'
+  }
+  if (esCorte(e)) {
+    return 'No pudimos subir la factura por la conexión. Revisa tu señal (mejor con WiFi) y vuelve a intentarlo. Si el archivo está en Drive o WhatsApp, descárgalo primero al teléfono.'
+  }
+  return 'No se pudo subir la factura: ' + (e?.message || e)
+}
+
 export default function Facturacion({ tercero, email, onBack, onIr, vista = 'facturacion' }) {
   const V = VISTAS[vista] || VISTAS.facturacion
   const [filas, setFilas] = useState(null)
@@ -82,10 +108,7 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
     ])
     if (pref.error) { setError(pref.error.message); setFilas([]); return }
     const porPref = {}
-    // La más reciente primero: si el analista rechazó una y el tercero subió
-    // otra, lo que manda es la nueva.
-    const facts = [...(fact.data || [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-    for (const f of facts) {
+    for (const f of (fact.data || [])) {
       (porPref[f.conciliacion_id] = porPref[f.conciliacion_id] || []).push(f)
     }
     const porConc = {}
@@ -103,7 +126,8 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
   // acá y no tres días después cuando alguien lo revise a mano.
   const leerCfdi = async (file) => {
     if (!/\.xml$/i.test(file.name)) return null   // un PDF suelto no se puede leer
-    const texto = await file.text()
+    let texto
+    try { texto = await file.text() } catch { throw new ArchivoIlegible() }
     const doc = new DOMParser().parseFromString(texto, 'application/xml')
     if (doc.querySelector('parsererror')) return null
     const compro = doc.documentElement
@@ -120,8 +144,6 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
       rfc_emisor: emisor?.getAttribute('Rfc') || null,
       rfc_receptor: receptor?.getAttribute('Rfc') || null,
       total: Number(compro.getAttribute('Total') || 0) || null,
-      // El neto antes de IVA y retenciones: es lo que se compara con la prefactura.
-      subtotal: compro.getAttribute('SubTotal') != null ? Number(compro.getAttribute('SubTotal')) : null,
       fecha_emision: compro.getAttribute('Fecha') || null,
       serie_folio: [compro.getAttribute('Serie'), compro.getAttribute('Folio')].filter(Boolean).join('-') || null,
     }
@@ -144,12 +166,12 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
             cfdi.rfc_emisor.toUpperCase().trim() !== String(tercero.rfc).toUpperCase().trim()) {
           problemas.push(`El RFC del emisor (${cfdi.rfc_emisor}) no es el de tu empresa (${tercero.rfc}).`)
         }
-        // Se compara el neto (subtotal antes de IVA y retenciones) con el neto
-        // de la prefactura. Tolerancia de $1 por redondeos.
-        if (cfdi.subtotal != null && p.total_neto != null) {
-          const dif = Number((cfdi.subtotal - Number(p.total_neto)).toFixed(2))
+        if (cfdi.total != null) {
+          const dif = Number((cfdi.total - Number(p.liquido_pago || 0)).toFixed(2))
+          // Tolerancia de $1: el líquido puede diferir en centavos por el
+          // redondeo del IVA, y bloquear por eso sería ruido.
           if (Math.abs(dif) > 1) {
-            problemas.push(`El subtotal de la factura es de ${money(cfdi.subtotal)} y el neto de la prefactura de ${money(p.total_neto)}: ${dif > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(dif))}.`)
+            problemas.push(`La factura es de ${money(cfdi.total)} y la prefactura de ${money(p.liquido_pago)}: ${dif > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(dif))}.`)
           }
         }
       }
@@ -164,16 +186,17 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
 
       const limpio = file.name.replace(/[^\w.\-]/g, '_')
       const path = `facturas/${tercero.tercero_id}/${p.semana}_${p.service_center}_${Date.now()}_${limpio}`
-      const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file)
-      if (eUp) throw eUp
+      // Con mala señal la subida se corta: se reintenta una vez. Si el primer
+      // intento sí llegó y se perdió la respuesta, el archivo ya existe y se sigue.
+      const { error: eUp } = await conReintento(() => supabase.storage.from(BUCKET).upload(path, file))
+      if (eUp && !/already exists|duplicate/i.test(String(eUp.message || ''))) throw eUp
 
-      const { error: eIns } = await supabase.from('facturas_tercero').insert({
+      const registro = {
         tercero_id: tercero.tercero_id, conciliacion_id: p.id,
         semana: p.semana, service_center: p.service_center,
         storage_path: path, nombre_archivo: file.name,
         monto_prefactura: p.liquido_pago, subido_por: email || tercero.nombre,
         monto_factura: cfdi?.total ?? null,
-        subtotal_factura: cfdi?.subtotal ?? null,
         uuid: cfdi?.uuid ?? null,
         rfc_emisor: cfdi?.rfc_emisor ?? null,
         rfc_receptor: cfdi?.rfc_receptor ?? null,
@@ -183,13 +206,17 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
           ? Number((cfdi.total - Number(p.liquido_pago || 0)).toFixed(2)) : null,
         estado: problemas.length ? 'recibida' : (cfdi ? 'conciliada' : 'recibida'),
         validaciones: cfdi ? { problemas, leido: true } : { problemas: [], leido: false },
-      })
+      }
+      let reintentado = false
+      const { error: eIns } = await conReintento(() => supabase.from('facturas_tercero').insert(registro), () => { reintentado = true })
       if (eIns) {
-        // El folio fiscal es único: si ya está, es la misma factura otra vez.
-        if (String(eIns.message || '').includes('ux_factura_uuid')) {
-          throw new Error('Esa factura ya está cargada. Revisa si la subiste antes.')
+        const dup = String(eIns.message || '').includes('ux_factura_uuid')
+        if (!(dup && reintentado)) {
+          // El folio fiscal es único: si ya está, es la misma factura otra vez
+          // (salvo que el primer intento sí haya guardado y se perdiera la respuesta).
+          if (dup) throw new Error('Esa factura ya está cargada. Revisa si la subiste antes.')
+          throw eIns
         }
-        throw eIns
       }
 
       ok = true
@@ -218,7 +245,7 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
           }
         } catch (e) { console.error('No se pudo validar con el SAT:', e) }
       }
-    } catch (e) { setError('No se pudo subir la factura: ' + (e.message || e)) }
+    } catch (e) { setError(mensajeSubida(e)) }
     setSubiendo(null)
     return ok
   }
@@ -482,31 +509,8 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Tu factura</div>
                       {p.facturas.length > 0 ? (
                         p.facturas.map(f => {
-                          // El neto manda; si la factura no tiene subtotal leído, se usan los totales.
-                          const difNeto = f.subtotal_factura != null && p.total_neto != null
-                            ? Number(f.subtotal_factura) - Number(p.total_neto) : null
-                          const cuadra = difNeto != null ? Math.abs(difNeto) <= 1
-                            : f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
+                          const cuadra = f.diferencia != null && Math.abs(Number(f.diferencia)) <= 1
                           const revisar = f.monto_factura != null && !cuadra
-                          // Rechazada por el analista: en rojo y con el motivo.
-                          if (f.estado === 'rechazada') return (
-                            <div key={f.id} style={{ background: 'var(--red-soft)', border: '1px solid var(--red)',
-                              borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5, color: 'var(--red)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ flex: 1 }}>
-                                  <b>Factura rechazada</b>
-                                  <span style={{ color: 'var(--muted)' }}> · {f.nombre_archivo}</span>
-                                </span>
-                                <button onClick={() => abrirArchivo(f.storage_path)}
-                                  style={{ border: '1px solid var(--red)', background: '#fff', color: 'var(--red)',
-                                    borderRadius: 6, padding: '5px 12px', fontSize: 12 }}>
-                                  Ver
-                                </button>
-                              </div>
-                              {f.revision_motivo && <div style={{ marginTop: 6 }}>Motivo: {f.revision_motivo}</div>}
-                              <div style={{ marginTop: 5, color: 'var(--muted)' }}>Sube una factura corregida para esta prefactura.</div>
-                            </div>
-                          )
                           return (
                             <div key={f.id} style={{
                               background: revisar ? 'var(--amber-soft)' : 'var(--green-soft)',
