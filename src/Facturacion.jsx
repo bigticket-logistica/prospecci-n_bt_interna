@@ -315,7 +315,7 @@ export default function Facturacion({ tercero, email, onBack, onIr, vista = 'fac
       <>
         {error && <div className="form-error" style={{ maxWidth: 1180, margin: '0 auto 10px' }}>{error}</div>}
         <FacturacionEsc vista={vista} filas={filas} onBack={onBack} onIr={onIr || (() => onBack())}
-          subirArchivos={subirArchivos} abrirArchivo={abrirArchivo} urlArchivo={urlArchivo} />
+          subirArchivos={subirArchivos} abrirArchivo={abrirArchivo} urlArchivo={urlArchivo} error={error} />
       </>
     )
   }

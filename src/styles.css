@@ -2367,3 +2367,7 @@ tr:last-child td { border-bottom: none; }
 .fleet-tr.is-baja { background: #F7F7F7; opacity: .5; }
 .fleet-tr.is-baja:hover { opacity: .75; }
 .fleet-vacio { text-align: center; padding: 40px; font: 400 14px 'Open Sans', sans-serif; color: #545454; }
+
+/* Mensajes bajo "Enviar factura" (computador) */
+.fx8-err { background: #FBEAE8; color: #B42318; border-radius: 10px; padding: 10px 14px; font: 600 13px 'Open Sans', sans-serif; }
+.fx8-enviar:disabled { opacity: .7; }

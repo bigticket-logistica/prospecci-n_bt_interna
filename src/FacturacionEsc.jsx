@@ -74,7 +74,7 @@ const Flecha = ({ izq }) => (
   </svg>
 )
 
-export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchivos, abrirArchivo, urlArchivo }) {
+export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchivos, abrirArchivo, urlArchivo, error }) {
   const TIT = { facturacion: 'Por facturar', facturado: 'Facturado', pagado: 'Pagado' }
   const titulo = TIT[vista] || TIT.facturacion
 
@@ -109,12 +109,13 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
   const [cargaAbierta, setCargaAbierta] = useState(null)   // id de la prefactura con la carga abierta
   const [archivos, setArchivos] = useState([])
   const [enviando, setEnviando] = useState(false)
+  const [faltaArchivo, setFaltaArchivo] = useState(false)
   const [recibido, setRecibido] = useState(null)           // prefactura enviada → modal
   const [visor, setVisor] = useState(null)                 // { titulo, url, path }
 
-  const abrirCarga = (p) => { setCargaAbierta(cargaAbierta === p.id ? null : p.id); setArchivos([]) }
+  const abrirCarga = (p) => { setCargaAbierta(cargaAbierta === p.id ? null : p.id); setArchivos([]); setFaltaArchivo(false) }
   const enviar = async (p) => {
-    if (!archivos.length) return
+    if (!archivos.length) { setFaltaArchivo(true); return }
     setEnviando(true)
     const ok = await subirArchivos(p, archivos)
     setEnviando(false)
@@ -230,14 +231,22 @@ export default function FacturacionEsc({ vista, filas, onBack, onIr, subirArchiv
                       <div className="fx8-nota">{notaDescuentos(p)}</div>
                       <label className="fx8-drop">
                         <input type="file" accept=".xml,.pdf,application/pdf" multiple hidden
-                          onChange={e => { setArchivos(a => [...a, ...[...(e.target.files || [])].filter(x => /\.(xml|pdf)$/i.test(x.name))]); e.target.value = '' }} />
+                          onChange={e => {
+                            // Copiar los archivos ANTES de limpiar el campo: la lista del input se vacía
+                            // con value = '' y el estado quedaba sin archivos (Enviar no hacía nada).
+                            const elegidos = [...(e.target.files || [])].filter(x => /\.(xml|pdf)$/i.test(x.name))
+                            e.target.value = ''
+                            if (elegidos.length) { setFaltaArchivo(false); setArchivos(a => [...a, ...elegidos]) }
+                          }} />
                         <IcoSubir />Archivo XML o archivo pdf de tu factura
                       </label>
                       {archivos.map((x, i) => (
                         <div key={i} className="fx8-ok"><span>{x.name}</span><em>Listo para enviar</em>
                           <button className="fx8-x" aria-label="Quitar" onClick={() => setArchivos(a => a.filter((_, j) => j !== i))}>✕</button></div>
                       ))}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="fx8-enviar" disabled={!archivos.length || enviando} onClick={() => enviar(p)}>{enviando ? 'Enviando…' : 'Enviar factura'}</button></div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="fx8-enviar" disabled={enviando} onClick={() => enviar(p)}>{enviando ? 'Enviando…' : 'Enviar factura'}</button></div>
+                      {faltaArchivo && <div className="fx8-err">Elige primero el archivo XML o PDF de tu factura.</div>}
+                      {error && <div className="fx8-err">{error}</div>}
                     </div>
                   )}
                 </div>

@@ -28,7 +28,7 @@ const MENU = [
   ] },
   { key: 'facturacion', label: 'Facturación', pagos: true, items: [
     { v: 'facturacion', title: 'Por facturar', desc: 'Prefacturas, carga de facturas' },
-    { v: 'facturado', title: 'Facturado', desc: 'Facturas cargadas en validación' },
+    { v: 'facturado', title: 'Facturado', desc: 'Facturas aprobadas' },
     { v: 'pagado', title: 'Pagado', desc: 'Facturas pagadas y depósitos' },
   ] },
   { key: 'operacion', label: 'Mi operación', items: [
