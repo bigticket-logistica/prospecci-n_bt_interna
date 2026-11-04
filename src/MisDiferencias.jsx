@@ -14,7 +14,7 @@ import { HistorialDiferencia, EST_DIF } from './Movimientos'
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const dia = (v) => { if (!v) return '—'; const d = new Date(String(v).length <= 10 ? v + 'T12:00:00' : v); return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}` }
-const TIPO = { ruta: 'Ruta', cobro: 'Cobro', faltante: 'Ruta que falta' }
+const TIPO = { ruta: 'Ruta', cobro: 'Cobro', faltante: 'Ruta que falta', concepto: 'Falta' }
 
 const enCurso = (d) => !['aceptada', 'parcial', 'rechazada', 'retirada', 'vencida'].includes(d.estado) && d.fase !== 'cerrada'
 
@@ -131,7 +131,7 @@ export default function MisDiferencias({ tercero, onBack }) {
                       <div key={l.id} style={{ background: 'var(--page)', borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 600 }}>
-                            {TIPO[l.tipo] || 'Línea'}{l.placa ? ` · ${l.placa}` : ''}{l.id_ruta ? ` · ${l.id_ruta}` : ''}
+                            {TIPO[l.tipo] || 'Línea'}{l.tipo === 'concepto' && l.concepto ? `: ${l.concepto}` : ''}{l.placa ? ` · ${l.placa}` : ''}{l.id_ruta ? ` · ${l.id_ruta}` : ''}{l.tipo === 'concepto' && l.monto_ref ? ` · ${money(l.monto_ref)}` : ''}
                           </span>
                           <span style={{ color: 'var(--muted)' }}>{l.fecha || ''}</span>
                         </div>

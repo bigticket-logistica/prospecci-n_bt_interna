@@ -115,6 +115,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
   const [reclamando, setReclamando] = useState(false)
   const [sel, setSel] = useState({})          // clave -> comentario
   const [faltantes, setFaltantes] = useState([])
+  const [conceptos, setConceptos] = useState([])   // otro concepto que falta (ayudante, tarifa, bono…)
   const [fotos, setFotos] = useState([])
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(null) // folio
@@ -443,7 +444,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     setArmandoPdf(false)
   }
 
-  const nSel = Object.keys(sel).length + faltantes.length
+  const nSel = Object.keys(sel).length + faltantes.length + conceptos.length
   const hayInapelables = useMemo(() => filas.some(esInapelable), [filas])
 
   const toggleSel = (m) => {
@@ -465,6 +466,9 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     if (sinComentario.length) { alert('Escribe qué reclamas en cada línea marcada.'); return }
     if (faltantes.some(f => !f.placa.trim() || !f.comentario.trim())) {
       alert('En lo que falta, indica al menos la placa y qué ocurrió.'); return
+    }
+    if (conceptos.some(c => !c.concepto || !(Number(c.monto) > 0) || !c.comentario.trim() || !c.fecha)) {
+      alert('En cada concepto que falta, indica qué es, la fecha, el monto y explica qué pasó.'); return
     }
     setEnviando(true)
     try {
@@ -492,7 +496,12 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
         cobro_id: null, cobro_origen: null, concepto: null,
         placa: f.placa.trim(), monto_ref: null, comentario: f.comentario.trim(),
       }))
-      const lineas = [...lineasSel, ...lineasFalt]
+      const lineasConc = conceptos.map(c => ({
+        tipo: 'concepto', fecha: c.fecha || null, id_ruta: null,
+        cobro_id: null, cobro_origen: null, concepto: c.concepto,
+        placa: c.placa.trim() || null, monto_ref: Number(c.monto), comentario: c.comentario.trim(),
+      }))
+      const lineas = [...lineasSel, ...lineasFalt, ...lineasConc]
       const scs = [...new Set(Object.keys(sel).map(k => porClave[k]?.sc).filter(Boolean))]
 
       const { data: dif, error: eDif } = await supabase.from('diferencias').insert({
@@ -546,7 +555,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
       } catch (e) { console.error('No se pudo enviar el aviso por correo:', e) }
 
       setEnviado(dif.folio)
-      setSel({}); setFaltantes([]); setFotos([]); setReclamando(false)
+      setSel({}); setFaltantes([]); setConceptos([]); setFotos([]); setReclamando(false)
     } catch (e) {
       alert('No se pudo enviar la diferencia:\n\n' + (e.message || e))
     }
@@ -693,7 +702,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
               {hayInapelables && <span style={{ color: 'var(--muted)' }}> Los cobros por PNR no se pueden marcar: MELI rechaza sus respaldos y ya pasaron a facturación.</span>}
             </span>
             <span style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setReclamando(false); setSel({}); setFaltantes([]); setFotos([]) }}
+              <button onClick={() => { setReclamando(false); setSel({}); setFaltantes([]); setConceptos([]); setFotos([]) }}
                 style={{ background: '#fff', color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: 8, padding: '9px 14px', fontSize: 13 }}>
                 Cancelar
               </button>
@@ -740,7 +749,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
                       <div key={l.id} style={{ background: 'var(--page)', borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 12.5 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 600 }}>
-                            {l.tipo === 'cobro' ? 'Cobro' : l.tipo === 'faltante' ? 'Ruta que falta' : 'Ruta'}
+                            {l.tipo === 'cobro' ? 'Cobro' : l.tipo === 'faltante' ? 'Ruta que falta' : l.tipo === 'concepto' ? `Falta: ${l.concepto || 'concepto'}` : 'Ruta'}
                             {l.placa ? ` · ${l.placa}` : ''}{l.id_ruta ? ` · ${l.id_ruta}` : ''}
                           </span>
                           <span style={{ color: 'var(--muted)' }}>{l.fecha || ''}</span>
@@ -909,9 +918,9 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
       {/* Lo que falta: no hay línea que marcar */}
       {reclamando && (
         <div style={{ background: 'var(--card)', border: '1px dashed var(--orange)', borderRadius: 14, padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>¿Falta algo que operaste?</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: 'var(--navy)' }}>¿Te falta una ruta o un pago?</div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
-            Si una ruta que hiciste no aparece arriba, decláralas acá con su placa y fecha.
+            Si una ruta que hiciste no aparece arriba, o te falta un pago (ayudante, tarifa, km extra, bono), agrégalo aquí.
           </div>
           {faltantes.map((f, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -927,10 +936,35 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
                 style={{ border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)', borderRadius: 6, padding: '0 12px' }}>×</button>
             </div>
           ))}
-          <button onClick={() => setFaltantes(p => [...p, { placa: '', fecha: iso(lunes), id_ruta: '', comentario: '' }])}
-            style={{ border: '1px solid var(--orange)', background: '#fff', color: 'var(--orange)', borderRadius: 8, padding: '7px 14px', fontSize: 12.5, fontWeight: 600 }}>
-            + Agregar una ruta que falta
-          </button>
+          {conceptos.map((c, i) => (
+            <div key={'c' + i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, paddingTop: 8, borderTop: '1px dashed var(--line)' }}>
+              <select value={c.concepto} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, concepto: e.target.value } : x))}
+                className="bm-campo" style={{ ...inp, minWidth: 200, flex: 1 }}>
+                <option value="">¿Qué te falta?</option>
+                {CONCEPTOS_FALTA.map(m => <option key={m}>{m}</option>)}
+              </select>
+              <input type="date" value={c.fecha} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, fecha: e.target.value } : x))}
+                className="bm-campo" style={{ ...inp, width: 150 }} />
+              <input type="number" min="0" step="0.01" value={c.monto} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))}
+                placeholder="Monto $" className="bm-campo" style={{ ...inp, width: 110 }} />
+              <input value={c.placa} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value.toUpperCase() } : x))}
+                placeholder="Placa (opcional)" className="bm-campo" style={{ ...inp, width: 140 }} />
+              <input value={c.comentario} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, comentario: e.target.value } : x))}
+                placeholder="Explica qué te falta" className="bm-campo" style={{ ...inp, flex: 2, minWidth: 200 }} />
+              <button onClick={() => setConceptos(p => p.filter((_, j) => j !== i))}
+                style={{ border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)', borderRadius: 6, padding: '0 12px' }}>×</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => setFaltantes(p => [...p, { placa: '', fecha: iso(lunes), id_ruta: '', comentario: '' }])}
+              style={{ flex: 1, minWidth: 220, minHeight: 48, border: '2px solid var(--orange)', background: '#FFF7F1', color: 'var(--orange)', borderRadius: 12, padding: '10px 14px', fontSize: 14.5, fontWeight: 700 }}>
+              + Agregar una ruta que falta
+            </button>
+            <button onClick={() => setConceptos(p => [...p, { concepto: '', fecha: iso(lunes), monto: '', placa: '', comentario: '' }])}
+              style={{ flex: 1, minWidth: 220, minHeight: 48, border: '2px solid var(--orange)', background: '#FFF7F1', color: 'var(--orange)', borderRadius: 12, padding: '10px 14px', fontSize: 14.5, fontWeight: 700 }}>
+              + Agregar otro concepto que falta
+            </button>
+          </div>
 
           <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Evidencia (opcional)</div>
@@ -1217,6 +1251,8 @@ const pesosT = (n) => (Number(n) < 0 ? '−' : '') + '$' + Math.abs(Number(n || 
 const DESC_FIJO = /paquete perdido|pnr|no devuelto/i
 const MOTIVOS_DESC = ['Ruta pendiente', 'Paquete perdido', 'Paquete no devuelto (PNR)', 'Adicional por ayudante', 'Otro']
 const MOTIVOS_RUTA = ['No pago de ayudante', 'Diferencia por tarifa', 'No reconozco esta ruta', 'Otros']
+// "Otro concepto que falta": algo que no es una ruta completa (línea tipo 'concepto').
+export const CONCEPTOS_FALTA = ['Pago del ayudante / auxiliar', 'Diferencia de tarifa', 'Kilómetros o zona extra', 'Bono o incentivo', 'Otro']
 const EVIDENCIA_ACEPTA = '.jpg,.jpeg,.png,.pdf'
 
 function MovimientosWeb({
@@ -1319,15 +1355,22 @@ function MovimientosWeb({
   const salir = () => { setModo(false); setForms({}); setNuevas({}) }
   const nMarcadas = Object.keys(forms).length
 
-  const agregarNueva = (g) => {
+  // clase 'ruta' = ruta que no aparece · 'concepto' = otro concepto que falta (ayudante, tarifa, bono…)
+  const agregarNueva = (g, clase = 'ruta') => {
     const ultima = [...g.lineas].reverse().find(x => x.clase === 'ruta') || g.lineas[g.lineas.length - 1]
-    setNuevas(p => ({ ...p, [g.fecha]: [...(p[g.fecha] || []), { ...nuevoForm(null, g.fecha), sc: ultima?.sc || '', placa: ultima?.placa || '' }] }))
+    setNuevas(p => ({ ...p, [g.fecha]: [...(p[g.fecha] || []), { ...nuevoForm(null, g.fecha), clase, monto: '', sc: ultima?.sc || '', placa: ultima?.placa || '' }] }))
   }
   const setNueva = (fecha, i, campo, v) => setNuevas(p => ({ ...p, [fecha]: p[fecha].map((x, j) => j === i ? { ...x, [campo]: v } : x) }))
   const quitarNueva = (fecha, i) => setNuevas(p => ({ ...p, [fecha]: p[fecha].filter((_, j) => j !== i) }))
 
   // Qué falta en un formulario, según su tipo y el motivo elegido.
   const faltan = (tipo, f) => {
+    if (tipo === 'concepto') {
+      const req = ['motivo', 'sc', 'fecha', 'comentario']
+      const fx = req.filter(c => !String(f[c] || '').trim())
+      if (!(Number(f.monto) > 0)) fx.push('monto')
+      return fx
+    }
     const req = ['sc', 'placa', 'comentario']
     if (tipo === 'desc_fijo') req.push('idRuta', 'idGuia', 'archivos')
     if (tipo === 'desc_otro') req.push('motivo', 'idRuta', 'idGuia', 'fecha', 'archivos')
@@ -1342,13 +1385,13 @@ function MovimientosWeb({
     try {
       const m = it?.m
       const linea = {
-        tipo: tipo === 'nueva' ? 'faltante' : (it.clase === 'cobro' ? 'cobro' : 'ruta'),
+        tipo: tipo === 'concepto' ? 'concepto' : tipo === 'nueva' ? 'faltante' : (it.clase === 'cobro' ? 'cobro' : 'ruta'),
         fecha: f.fecha || it?.fecha || null,
         id_ruta: f.idRuta.trim() || null,
         cobro_id: it?.clase === 'cobro' ? m.cobro_id : null,
         cobro_origen: it?.clase === 'cobro' ? (m.tipo_cobro || null) : null,
-        concepto: it ? [it.titulo, f.idGuia ? `guía ${f.idGuia}` : null].filter(Boolean).join(' · ') : null,
-        placa: f.placa.trim(), monto_ref: it ? Math.abs(it.monto) : null,
+        concepto: tipo === 'concepto' ? f.motivo : it ? [it.titulo, f.idGuia ? `guía ${f.idGuia}` : null].filter(Boolean).join(' · ') : null,
+        placa: f.placa.trim() || null, monto_ref: tipo === 'concepto' ? Number(f.monto) : it ? Math.abs(it.monto) : null,
         comentario: f.comentario.trim(), motivo: f.motivo || null, sc: f.sc.trim() || null, id_guia: f.idGuia.trim() || null,
       }
       const { data: dif, error: eDif } = await supabase.from('diferencias').insert({
@@ -1375,7 +1418,7 @@ function MovimientosWeb({
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         })
       } catch (e) { console.error('No se pudo enviar el aviso por correo:', e) }
-      setRecibida({ linea: it ? it.titulo : 'Ruta que no aparece', site: linea.sc || '—', folio: dif.folio, monto: it ? it.monto : null })
+      setRecibida({ linea: tipo === 'concepto' ? `Falta: ${f.motivo}` : it ? it.titulo : 'Ruta que no aparece', site: linea.sc || '—', folio: dif.folio, monto: tipo === 'concepto' ? Number(f.monto) : it ? it.monto : null })
       if (alEnviar) alEnviar()
     } catch (e) {
       alert('No se pudo enviar la diferencia:\n\n' + (e.message || e))
@@ -1513,7 +1556,7 @@ function MovimientosWeb({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
             <div>
             <div className="diff-banner__count">{nMarcadas === 0 ? 'Marca las líneas que no cuadran' : `Marcaste ${plural(nMarcadas, 'línea', 'líneas')}`}</div>
-            <div className="diff-banner__sub">Abrimos todos los días para que puedas revisar cada línea.</div>
+            <div className="diff-banner__sub">Abrimos todos los días para que puedas revisar cada línea. ¿Te falta una ruta o un pago? Usa los botones naranjos al final de cada día.</div>
             </div>
           </div>
           <button className="diff-banner__cancel" onClick={salir}>Cancelar</button>
@@ -1598,24 +1641,34 @@ function MovimientosWeb({
                 {/* 10 · Agregar ruta que no aparece (solo en modo diferencia) */}
                 {modo && g.fecha && (
                   <>
-                    {(nuevas[g.fecha] || []).map((nf, i) => (
-                      <div key={i} className="new-route">
-                        <div className="new-route__cab">
-                          <span className="new-route__title">Ruta que no aparece</span>
-                          <button className="form-close" aria-label="Quitar" onClick={() => quitarNueva(g.fecha, i)}><Equis /></button>
+                    {(nuevas[g.fecha] || []).map((nf, i) => {
+                      const tipoN = nf.clase === 'concepto' ? 'concepto' : 'nueva'
+                      return (
+                        <div key={i} className="new-route">
+                          <div className="new-route__cab">
+                            <span className="new-route__title">{tipoN === 'concepto' ? 'Otro concepto que falta' : 'Ruta que no aparece'}</span>
+                            <button className="form-close" aria-label="Quitar" onClick={() => quitarNueva(g.fecha, i)}><Equis /></button>
+                          </div>
+                          <Campos tipo={tipoN} f={nf} set={(c, v) => setNueva(g.fecha, i, c, v)} sites={centros} />
+                          <div className="form-acciones">
+                            <button className="btn-cancel" onClick={() => quitarNueva(g.fecha, i)}>Cancelar</button>
+                            <button className="btn-send" disabled={enviando === `n|${g.fecha}|${i}`}
+                              onClick={() => enviar(`n|${g.fecha}|${i}`, tipoN, nf, null).then(() => {})}>
+                              {enviando === `n|${g.fecha}|${i}` ? 'Enviando…' : 'Enviar diferencia'}
+                            </button>
+                          </div>
                         </div>
-                        <Campos tipo="nueva" f={nf} set={(c, v) => setNueva(g.fecha, i, c, v)} sites={centros} />
-                        <div className="form-acciones">
-                          <button className="btn-cancel" onClick={() => quitarNueva(g.fecha, i)}>Cancelar</button>
-                          <button className="btn-send" disabled={enviando === `n|${g.fecha}|${i}`}
-                            onClick={() => enviar(`n|${g.fecha}|${i}`, 'nueva', nf, null).then(() => {})}>
-                            {enviando === `n|${g.fecha}|${i}` ? 'Enviando…' : 'Enviar diferencia'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="add-route-wrap">
-                      <button className="add-route" onClick={() => agregarNueva(g)}>+ Agregar ruta que no aparece</button>
+                      )
+                    })}
+                    <div className="add-route-wrap add-big-wrap">
+                      <button className="add-big" onClick={() => agregarNueva(g, 'ruta')}>
+                        <span className="add-big__mas">+</span>
+                        <span><b>Agregar ruta que no aparece</b><small>Hiciste una ruta este día y no está en la lista</small></span>
+                      </button>
+                      <button className="add-big" onClick={() => agregarNueva(g, 'concepto')}>
+                        <span className="add-big__mas">+</span>
+                        <span><b>Agregar otro concepto que falta</b><small>Ayudante, diferencia de tarifa, km extra, bono u otro</small></span>
+                      </button>
                     </div>
                   </>
                 )}
@@ -1698,6 +1751,7 @@ function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites }) {
 
 // Los campos de cada formulario, en el orden de la maqueta.
 function Campos({ tipo, f, set, sites = [] }) {
+  if (tipo === 'concepto') return <CamposConcepto f={f} set={set} sites={sites} />
   const conGuia = tipo === 'desc_fijo' || tipo === 'desc_otro'
   const conFecha = tipo !== 'desc_fijo'
   const rutaOpcional = tipo === 'nueva' || (tipo === 'sin_desc' && f.motivo === 'No reconozco esta ruta')
@@ -1723,6 +1777,43 @@ function Campos({ tipo, f, set, sites = [] }) {
         <label className="evidence">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
           {evidenciaObligatoria ? 'Adjuntar foto o comprobante' : 'Adjuntar evidencia (JPG, PNG, PDF)'}
+          <input type="file" accept={EVIDENCIA_ACEPTA} multiple hidden onChange={e => set('archivos', [...e.target.files])} />
+        </label>
+        {f.archivos?.length > 0 && <span className="evidence-n">{f.archivos.length} archivo(s) listo(s)</span>}
+      </div>
+    </>
+  )
+}
+
+// Formulario de "otro concepto que falta" (computador).
+function CamposConcepto({ f, set, sites = [] }) {
+  return (
+    <>
+      <div className="fields">
+        <label className="field"><span>¿Qué te falta? *</span>
+          <select value={f.motivo} onChange={e => set('motivo', e.target.value)}>
+            <option value="" disabled>Elige una opción</option>
+            {CONCEPTOS_FALTA.map(m => <option key={m}>{m}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>Monto que reclamas *</span>
+          <input type="number" min="0" step="0.01" value={f.monto} onChange={e => set('monto', e.target.value)} placeholder="Ej: 350" /></label>
+        <label className="field"><span>Site *</span>
+          <select value={f.sc} onChange={e => set('sc', e.target.value)}>
+            {[...new Set([f.sc, ...sites].filter(Boolean))].map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>Fecha *</span><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></label>
+        <label className="field"><span>Placa (opcional)</span><input value={f.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></label>
+        <label className="field"><span>ID ruta (opcional)</span><input value={f.idRuta} onChange={e => set('idRuta', e.target.value)} placeholder="Si aplica a una ruta" /></label>
+      </div>
+      <label className="field"><span>Explica qué te falta *</span><textarea value={f.comentario} onChange={e => set('comentario', e.target.value)}
+        placeholder="Ej: el lunes salí con auxiliar en la ruta 162278615 y no se me pagó" /></label>
+      <div className="field">
+        <span>Evidencia (opcional)</span>
+        <label className="evidence">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+          Adjuntar evidencia (JPG, PNG, PDF)
           <input type="file" accept={EVIDENCIA_ACEPTA} multiple hidden onChange={e => set('archivos', [...e.target.files])} />
         </label>
         {f.archivos?.length > 0 && <span className="evidence-n">{f.archivos.length} archivo(s) listo(s)</span>}

@@ -2371,3 +2371,13 @@ tr:last-child td { border-bottom: none; }
 /* Mensajes bajo "Enviar factura" (computador) */
 .fx8-err { background: #FBEAE8; color: #B42318; border-radius: 10px; padding: 10px 14px; font: 600 13px 'Open Sans', sans-serif; }
 .fx8-enviar:disabled { opacity: .7; }
+
+/* Botones grandes para agregar lo que falta (ruta o concepto) en Informar diferencia */
+.mw .add-big-wrap { display: flex; gap: 12px; flex-wrap: wrap; padding: 14px 22px 16px 74px; }
+.mw .add-big { flex: 1; min-width: 260px; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 10px 16px; text-align: left;
+  border: 2px dashed #FF6600; border-radius: 12px; background: #FFF7F1; color: #002E5D; cursor: pointer; transition: background .15s, border-style .15s; }
+.mw .add-big:hover { background: #FFEBDC; border-style: solid; }
+.mw .add-big__mas { width: 32px; height: 32px; border-radius: 50%; background: #FF6600; color: #fff; display: grid; place-items: center; font: 700 20px/1 var(--font-display); flex: none; }
+.mw .add-big b { display: block; font: 700 14.5px var(--font-display); color: #002E5D; }
+.mw .add-big small { display: block; font: 400 12.5px 'Open Sans', sans-serif; color: #545454; margin-top: 2px; }
+@media (max-width: 760px) { .mw .add-big-wrap { padding-left: 22px; } }
