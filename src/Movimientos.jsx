@@ -754,6 +754,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
                         )}
                       </div>
                     ))}
+                    <HistorialDiferencia difId={d.id} />
                     {puedeRetirar && (
                       <button onClick={() => retirar(d)}
                         style={{ background: '#fff', color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', fontSize: 12.5 }}>
@@ -1739,4 +1740,53 @@ const Chev12 = () => (
 function ChevI({ dir }) {
   const d = dir === 'izq' ? 'm15 18-6-6 6-6' : dir === 'der' ? 'm9 18 6-6-6-6' : 'M5 12h14M13 6l6 6-6 6'
   return <svg width={dir === 'flecha' ? 14 : 18} height={dir === 'flecha' ? 14 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+}
+
+
+// ── Historial de una diferencia (fn_portal_historial_diferencia) ─────────────
+// Todo lo que pasó con el reclamo, en orden: cuándo se levantó, qué respondió el
+// supervisor, qué resolvió el analista en cada línea, el cierre y los correos
+// enviados. Las notas internas de BigTicket no aparecen.
+const HIST_TIPOS = {
+  creada: ['Levantaste el reclamo', 'var(--navy)'],
+  supervisor_aprueba: ['El supervisor respaldó tu reclamo', 'var(--green)'],
+  supervisor_rechaza: ['El supervisor no respaldó tu reclamo', 'var(--red)'],
+  supervisor_sin_respuesta: ['El supervisor no respondió en 48 h: pasó directo al analista', 'var(--muted)'],
+  linea_aceptada: ['El analista aceptó', 'var(--green)'],
+  linea_rechazada: ['El analista rechazó', 'var(--red)'],
+  ajuste_generado: ['Se generó el ajuste en tu prefactura', 'var(--green)'],
+  cerrada: ['Caso cerrado', 'var(--navy)'],
+  aviso_correo: ['Te enviamos el resultado por correo', 'var(--muted)'],
+  retirada: ['Retiraste el reclamo', 'var(--muted)'],
+  comentario: ['Comentario de BigTicket', 'var(--navy)'],
+}
+function HistorialDiferencia({ difId }) {
+  const [ev, setEv] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    supabase.rpc('fn_portal_historial_diferencia', { p_dif: difId }).then(({ data }) => { if (vivo) setEv(data || []) })
+    return () => { vivo = false }
+  }, [difId])
+  if (ev === null) return <div style={{ fontSize: 12.5, color: 'var(--muted)', margin: '8px 0' }}>Cargando historial…</div>
+  if (!ev.length) return null
+  return (
+    <div style={{ margin: '12px 0 10px' }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 8 }}>Historial del reclamo</div>
+      <div style={{ borderLeft: '2px solid var(--line)', marginLeft: 6, paddingLeft: 14 }}>
+        {ev.map((e, i) => {
+          const [t, c] = HIST_TIPOS[e.tipo] || [String(e.tipo || '').replace(/_/g, ' '), 'var(--muted)']
+          return (
+            <div key={i} style={{ position: 'relative', marginBottom: 10, fontSize: 12.5 }}>
+              <span style={{ position: 'absolute', left: -21, top: 4, width: 10, height: 10, borderRadius: '50%', background: c }} />
+              <div style={{ color: 'var(--muted)', fontSize: 11.5 }}>
+                {new Date(e.created_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {e.quien}
+              </div>
+              <div style={{ fontWeight: 600, color: c }}>{t}</div>
+              {e.detalle && <div style={{ color: 'var(--text, #363739)', whiteSpace: 'pre-wrap' }}>{e.detalle}</div>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
