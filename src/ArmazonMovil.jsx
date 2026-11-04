@@ -33,7 +33,7 @@ const TABS = [
 // cualquier parte: una notificación puede llevar directo a Descuentos.
 const TAB_DE = {
   home: 'home',
-  movimientos: 'billetera', descuentos: 'billetera',
+  movimientos: 'billetera', descuentos: 'billetera', diferencias: 'billetera',
   facturacion: 'facturacion', facturado: 'facturacion', pagado: 'facturacion',
   reclamos: 'reclamos',
 }
@@ -58,11 +58,11 @@ const MAS = [
 
 // Lo que vive dentro de cada pestaña cuando tiene más de una pantalla.
 const SOLAPAS = {
-  billetera: [['movimientos', 'Movimientos'], ['descuentos', 'Descuentos']],
+  billetera: [['movimientos', 'Movimientos'], ['descuentos', 'Descuentos'], ['diferencias', 'Diferencias']],
   facturacion: [['facturacion', 'Por facturar'], ['facturado', 'Facturado'], ['pagado', 'Pagado']],
 }
 
-const SOLO_PAGOS = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
+const SOLO_PAGOS = ['movimientos', 'descuentos', 'diferencias', 'facturacion', 'facturado', 'pagado']
 
 export function esMovil() {
   if (typeof window === 'undefined') return false

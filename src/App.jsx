@@ -9,6 +9,7 @@ import Biggy from './Biggy'
 import { Shell, Inicio, EnConstruccion } from './Armazon'
 import Landing, { AccesoApp, CampoClave } from './Landing'
 import Descuentos from './Descuentos'
+import MisDiferencias from './MisDiferencias'
 import Reclamos from './Reclamos'
 import MiFlota from './MiFlota'
 import Mensajes from './Mensajes'
@@ -243,7 +244,7 @@ export default function App() {
     let destino = null
     try { destino = sessionStorage.getItem('bt_destino'); sessionStorage.removeItem('bt_destino') } catch { /* sin sessionStorage */ }
     if (!destino) return
-    const dePagos = ['movimientos', 'descuentos', 'facturacion', 'facturado', 'pagado']
+    const dePagos = ['movimientos', 'descuentos', 'diferencias', 'facturacion', 'facturado', 'pagado']
     const permitidas = ['postula', 'flota', 'consultas', 'docs', 'perfil', 'estado', 'firma', 'baja', 'certificar', 'reclamos', 'mensajes',
       ...(tercero.pagosHabilitados ? dePagos : [])]
     if (permitidas.includes(destino)) setView(destino)
@@ -283,6 +284,7 @@ export default function App() {
         <Movimientos key={fecha || 'hoy'} tercero={tercero} email={email} fecha={fecha}
           onBack={() => { setFecha(null); setView('home') }} /></Bloque>}
       {view === 'descuentos' && <Bloque nombre="Descuentos"><Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
+      {view === 'diferencias' && <Bloque nombre="Mis diferencias"><MisDiferencias tercero={tercero} onBack={() => setView('home')} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} onIr={(v) => setView(v)} /></Bloque>}
       {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}

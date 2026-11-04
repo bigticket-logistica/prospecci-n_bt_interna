@@ -88,7 +88,7 @@ const esInapelable = (m) => m.tipo === 'cobro'
 // publicaciones, así que retroceder solo mostraría semanas vacías.
 const INICIO_PORTAL = '2026-09-14'
 
-const EST_DIF = {
+export const EST_DIF = {
   abierta:     { l: 'Recibida',    bg: 'var(--amber-soft)', fg: 'var(--amber)', ayuda: 'La recibimos. Un analista la va a revisar.' },
   en_revision: { l: 'En revisión', bg: '#dbeafe',           fg: '#1e40af',      ayuda: 'Un analista la está revisando.' },
   aceptada:    { l: 'Aceptada',    bg: 'var(--green-soft)', fg: 'var(--green)', ayuda: 'Se te reconoce lo reclamado. Entra en tu prefactura.' },
@@ -1760,7 +1760,7 @@ const HIST_TIPOS = {
   retirada: ['Retiraste el reclamo', 'var(--muted)'],
   comentario: ['Comentario de BigTicket', 'var(--navy)'],
 }
-function HistorialDiferencia({ difId }) {
+export function HistorialDiferencia({ difId }) {
   const [ev, setEv] = useState(null)
   useEffect(() => {
     let vivo = true

@@ -25,6 +25,7 @@ const MENU = [
   { key: 'billetera', label: 'Mi billetera', pagos: true, items: [
     { v: 'movimientos', title: 'Movimientos', desc: 'Detalle diario de rutas' },
     { v: 'descuentos', title: 'Descuentos', desc: 'Paquete no devuelto, multas, No Show' },
+    { v: 'diferencias', title: 'Mis diferencias', desc: 'Tus reclamos, su estado e historial' },
   ] },
   { key: 'facturacion', label: 'Facturación', pagos: true, items: [
     { v: 'facturacion', title: 'Por facturar', desc: 'Prefacturas, carga de facturas' },
