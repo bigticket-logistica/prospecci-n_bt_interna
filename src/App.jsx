@@ -1,3 +1,5 @@
+import { supabaseCL } from './supabaseChile'
+import PortalChile from './PortalChile'
 import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { supabase, BUCKET } from './supabaseClient'
 import { abrirUrl } from './archivos'
@@ -123,7 +125,18 @@ function DefinirPassword({ onListo }) {
   )
 }
 
+// Chile entra con RUT + clave a su propia base (supabaseChile.js). Si hay una
+// sesión de Chile abierta, se abre el portal de Chile; si no, el de México.
 export default function App() {
+  const [chile, setChile] = useState(undefined)   // undefined = revisando
+  useEffect(() => {
+    supabaseCL.auth.getSession().then(({ data }) => setChile(!!data.session))
+  }, [])
+  if (chile === undefined) return null
+  return chile ? <PortalChile /> : <AppMexico />
+}
+
+function AppMexico() {
   const [session, setSession] = useState(null)
   const [view, setViewBase] = useState('home')
   // Historial de pantallas, para que "← Volver" regrese a la anterior y, si no

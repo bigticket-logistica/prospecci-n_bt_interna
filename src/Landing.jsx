@@ -11,6 +11,7 @@
 //   · El panel lleva el error de acceso y el enlace para recuperar la clave,
 //     que la maqueta dibuja pero no conecta.
 // ═══════════════════════════════════════════════════════════════════════════
+import { supabaseCL, esRut, correoDeRut } from './supabaseChile'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
@@ -204,6 +205,14 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
     e?.preventDefault()
     if (!puede) return
     setErr(''); setAviso(''); setBusy(true)
+    // Chile: si escribió un RUT, entra a la base de Chile con su clave.
+    if (esRut(correo)) {
+      const { error } = await supabaseCL.auth.signInWithPassword({ email: correoDeRut(correo), password: clave.trim().toUpperCase() })
+      setBusy(false)
+      if (error) { setErr('RUT o clave incorrectos. Revísalos e inténtalo de nuevo.'); return }
+      window.location.reload()   // App detecta la sesión de Chile y abre el portal de Chile
+      return
+    }
     const { error } = await supabase.auth.signInWithPassword({ email: correo.trim().toLowerCase(), password: clave })
     if (error) setErr('Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo.')
     setBusy(false)
@@ -214,6 +223,10 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
   const pedirCodigo = async (e) => {
     e?.preventDefault()
     const c = correo.trim().toLowerCase()
+    if (esRut(c)) {
+      setErr('En Chile la clave la entrega Bigticket: pídele una nueva a tu supervisor.')
+      return
+    }
     if (!c) {
       setErr('Escribe arriba el correo de tu empresa y vuelve a pulsar aquí.')
       primero.current?.focus()
@@ -262,7 +275,7 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
             <form onSubmit={entrar}>
               {err && <div className="lp-error">{err}</div>}
               {aviso && <div className="lp-aviso">{aviso}</div>}
-              <input ref={primero} type="email" autoComplete="username" placeholder={incrustado ? 'Correo de tu empresa' : 'Correo electrónico'}
+              <input ref={primero} type="text" inputMode="email" autoComplete="username" placeholder={incrustado ? 'Correo o RUT de tu empresa' : 'Correo electrónico o RUT (Chile)'}
                 value={correo} onChange={e => setCorreo(e.target.value)} />
               <CampoClave autoComplete="current-password" placeholder={incrustado ? 'Clave' : 'Contraseña'}
                 value={clave} onChange={setClave} />
