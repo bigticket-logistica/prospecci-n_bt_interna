@@ -158,7 +158,7 @@ export default function EstadoCertificacion({ tercero, email, onBack, onIr }) {
     <div className="ec">
       <style>{CSS_EC}</style>
       <nav className="ec-ruta" aria-label="Ruta">
-        <button className="ec-volver" onClick={onBack}>← Volver</button>
+        <button className="ec-volver" onClick={onBack}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button>
         <span className="ec-sep" />
         <button className="ec-miga" onClick={onBack}>Inicio</button><span className="ec-gt">›</span>
         <span>Certificación</span><span className="ec-gt">›</span>
@@ -301,9 +301,8 @@ function Visor({ v, onCerrar }) {
 const CSS_EC = `
 .ec { font-family:"Open Sans",system-ui,sans-serif; }
 .ec-ruta { display:flex; align-items:center; gap:10px; font:400 13px "Open Sans",sans-serif; color:#545454; margin-bottom:14px; flex-wrap:wrap; }
-.ec-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; }
-.ec-volver { font-weight:600 !important; color:#002E5D !important; }
-.ec-miga { text-decoration:underline; text-underline-offset:3px; }
+.ec-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.ec-ruta button:hover { color:#002E5D; text-decoration:underline; }
 .ec-sep { width:1px; height:14px; background:#D9D9D9; }
 .ec-gt { color:#9AA3AE; }
 .ec-ruta [aria-current] { color:#002E5D; font-weight:600; }

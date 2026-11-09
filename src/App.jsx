@@ -1,6 +1,6 @@
 import SolicitudBajaNueva from './SolicitudBaja'
 import FirmaContrato from './FirmaContrato'
-import Certificar, { useBorradores, ToastCertificar } from './Certificar'
+import Certificar, { useBorradores, ToastCertificar, ElegirCertificar } from './Certificar'
 import EstadoCertificacion from './EstadoCertificacion'
 import { supabaseCL } from './supabaseChile'
 import PortalChile from './PortalChile'
@@ -307,7 +307,7 @@ function AppMexico() {
       {view === 'diferencias' && <Bloque nombre="Mis diferencias"><MisDiferencias tercero={tercero} onBack={() => setView('home')} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} onIr={(v) => setView(v)} /></Bloque>}
-      {view === 'certificar' && <ElegirCertificacion tercero={tercero} onPick={setView} onBack={() => setView('home')} />}
+      {view === 'certificar' && <Bloque nombre="Certificar"><ElegirCertificar tercero={tercero} onPick={setView} onBack={() => setView('home')} /></Bloque>}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}

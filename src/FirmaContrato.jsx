@@ -115,7 +115,7 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
     <div className="fc">
       <style>{CSS_FC}</style>
       <nav className="fc-ruta" aria-label="Ruta">
-        <button className="fc-volver" onClick={onBack}>← Volver</button><span className="fc-sep" />
+        <button className="fc-volver" onClick={onBack}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button><span className="fc-sep" />
         <button className="fc-miga" onClick={onBack}>Inicio</button><span className="fc-gt">›</span>
         <span>Certificación</span><span className="fc-gt">›</span>
         <span aria-current="page">Firma de contrato</span>
@@ -173,9 +173,8 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
 const CSS_FC = `
 .fc { font-family:"Open Sans",system-ui,sans-serif; display:flex; flex-direction:column; }
 .fc-ruta { display:flex; align-items:center; gap:10px; font:400 13px "Open Sans",sans-serif; color:#545454; margin-bottom:14px; flex-wrap:wrap; }
-.fc-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; }
-.fc-miga { text-decoration:underline; text-underline-offset:3px; }
-.fc-volver { font-weight:600 !important; color:#002E5D !important; }
+.fc-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.fc-ruta button:hover { color:#002E5D; text-decoration:underline; }
 .fc-sep { width:1px; height:14px; background:#D9D9D9; }
 .fc-gt { color:#9AA3AE; }
 .fc-ruta [aria-current] { color:#002E5D; font-weight:600; }

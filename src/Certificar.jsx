@@ -228,7 +228,7 @@ export default function Certificar({ tipo, tercero, email, onBack, onEstado, onC
     <div className="cf">
       <style>{CSS_CF}</style>
       <nav className="cf-ruta" aria-label="Ruta">
-        <button className="cf-volver" onClick={onCertificar}>← Volver</button><span className="cf-sep" />
+        <button className="cf-volver" onClick={onCertificar}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button><span className="cf-sep" />
         <button className="cf-miga" onClick={onBack}>Inicio</button><span className="cf-gt">›</span>
         <span>Certificación</span><span className="cf-gt">›</span>
         <button className="cf-miga" onClick={onCertificar}>Certificar</button><span className="cf-gt">›</span>
@@ -369,6 +369,65 @@ function Campo({ k, label, req = true, full, error, children, nota }) {
 // Lista de centros (la misma del portal)
 const SC_LIST = ['AMX7','ECH4','ECH5','EGD0','EGD9','EHM4','EHM5','EHP5','EHP6','ELP2','ELP3','EPB3','EQR2','ERX6','ETA4','ETG4','ETL1','ETL2','EVM2','EVR3','EZL1','SAG1','SBJ1','SCC1','SCD1','SCG1','SCH1','SCJ1','SCM1','SCN1','SCP1','SCQ1','SCT1','SCU1','SCV1','SCX1','SCY1','SDC1','SDG1','SEN1','SGD1','SGD2','SGD3','SGD4','SHM1','SHP1','SHP2','SJA1','SJD1','SLE1','SLP1','SLV1','SLW1','SLZ1','SMA1','SMD1','SML1','SMO1','SMT1','SMT2','SMT3','SMX1','SMX10','SMX2','SMX3','SMX4','SMX5','SMX6','SMX7','SMX8','SMX9','SMZ1','SNG1','SNL1','SOX1','SPB1','SPD1','SPV1','SPY1','SPZ1','SQR1','SQR2','SRX1','SSL1','STA1','STG1','STJ1','STL1','STL2','STN1','STP1','STR1','STT1','STX1','SUR1','SVH1','SVM1','SVR1','SXL1','SZC1','SZL1','SZM1','XSM11']
 
+// ── Certificación › Certificar: "¿Qué vas a certificar?" (maqueta 8.9.20) ──
+const ICO_ELEGIR = {
+  conductor: <><circle cx="12" cy="6.5" r="3.5" /><path d="M5 21v-1.5A5.5 5.5 0 0 1 10.5 14h3a5.5 5.5 0 0 1 5.5 5.5V21" /><circle cx="12" cy="17.5" r="2.6" /><path d="M12 14.9v1M9.6 18.6l.9-.4M14.4 18.6l-.9-.4" /></>,
+  ayudante: <><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20v-1a5 5 0 0 1 5-5h1a5 5 0 0 1 5 5v1" /><path d="M15 5.2a3.2 3.2 0 0 1 0 5.6" /><path d="M17.5 14.3A5 5 0 0 1 20.5 19v1" /></>,
+  vehiculo: <><path d="M14 17V7a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1" /><path d="M10 17h4.5" /><path d="M14 9.5h4l3.5 4V16a1 1 0 0 1-1 1H20" /><circle cx="7" cy="17.5" r="2" /><circle cx="17.5" cy="17.5" r="2" /></>,
+}
+const TARJETAS = [
+  ['conductor', 'Conductor', 'Ten a mano el CURP, RFC, INE y licencia de conducir.'],
+  ['ayudante', 'Ayudante', 'Ten a mano tu CURP, RFC e INE.'],
+  ['vehiculo', 'Vehículo', 'Ten a mano la tarjeta de circulación y póliza de seguro.'],
+]
+const Flecha = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+
+export function ElegirCertificar({ tercero, onPick, onBack }) {
+  const borradores = useBorradores(tercero)
+  // "Nueva solicitud" con borrador: se descarta el borrador y se empieza de cero
+  const nueva = async (t) => {
+    if (borradores.some((b) => b.tipo === t)) {
+      if (!window.confirm('Tienes una solicitud guardada de este tipo. ¿Empezar una nueva? Se descarta lo que habías cargado.')) return
+      await supabase.from('certificacion_borradores').delete().eq('tercero_id', tercero.tercero_id).eq('tipo', t)
+    }
+    onPick(t)
+  }
+  return (
+    <div className="cf">
+      <style>{CSS_CF}</style>
+      <ToastCertificar />
+      <nav className="cf-ruta" aria-label="Ruta">
+        <button className="cf-volver" onClick={onBack}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button><span className="cf-sep" />
+        <button className="cf-miga" onClick={onBack}>Inicio</button><span className="cf-gt">›</span>
+        <span>Certificación</span><span className="cf-gt">›</span>
+        <span aria-current="page">Certificar</span>
+      </nav>
+      <h1 className="cf-titulo">¿Qué vas a certificar?</h1>
+      <p className="cf-desc">Selecciona el perfil o activo que deseas validar para gestionar su documentación.</p>
+      <div className="ce-grid">
+        {TARJETAS.map(([k, t, d]) => {
+          const bor = borradores.some((b) => b.tipo === k)
+          return (
+            <div key={k} className="ce-card" role="button" tabIndex={0} onClick={() => onPick(k)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPick(k)}>
+              <span className="ce-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round">{ICO_ELEGIR[k]}</svg></span>
+              <h2 className="ce-t">{t}</h2>
+              <p className="ce-d">{d}</p>
+              <div className="ce-links">
+                <button type="button" className="ce-link" onClick={(e) => { e.stopPropagation(); nueva(k) }}>Nueva solicitud <Flecha /></button>
+                {bor && (
+                  <button type="button" className="ce-link ce-cont" onClick={(e) => { e.stopPropagation(); onPick(k) }}>
+                    <span className="u">Continuar solicitud</span> <Flecha /><span className="ce-badge">1</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // Mensaje "Registro guardado…" al volver a Certificar
 export function ToastCertificar() {
   const [t, setT] = useState(() => avisoPendiente())
@@ -380,13 +439,25 @@ export function ToastCertificar() {
 const CSS_CF = `
 .cf { font-family:"Open Sans",system-ui,sans-serif; }
 .cf-ruta { display:flex; align-items:center; gap:10px; font:400 13px "Open Sans",sans-serif; color:#545454; margin-bottom:14px; flex-wrap:wrap; }
-.cf-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; }
-.cf-ruta .cf-miga:hover { color:#002E5D; text-decoration:underline; }
-.cf-volver { font-weight:600 !important; color:#002E5D !important; }
+.cf-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.cf-ruta button:hover { color:#002E5D; text-decoration:underline; }
 .cf-sep { width:1px; height:14px; background:#D9D9D9; }
 .cf-gt { color:#9AA3AE; }
 .cf-ruta [aria-current] { color:#002E5D; font-weight:600; }
 .cf-titulo { font:700 28px Poppins,sans-serif; color:#002E5D; margin:0; }
+.ce-grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); }
+.ce-card { background:#fff; border:1px solid #E4E3E3; border-radius:16px; padding:26px 28px; box-shadow:0 1px 3px rgba(0,46,93,.05); transition:box-shadow .2s, transform .2s, border-color .2s; cursor:pointer; display:flex; flex-direction:column; min-height:250px; box-sizing:border-box; text-align:left; }
+.ce-card:hover { box-shadow:0 12px 28px rgba(0,46,93,.14); transform:translateY(-2px); border-color:#B8C4D3; }
+.ce-ico { width:48px; height:48px; border-radius:12px; background:#fff; border:1px solid #FFC9A6; color:#FF6600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(255,102,0,.12); transition:transform .2s, box-shadow .2s, border-color .2s; }
+.ce-card:hover .ce-ico { border-color:#FF6600; transform:translateY(-2px) scale(1.08); box-shadow:0 6px 14px rgba(255,102,0,.22); }
+.ce-t { font:700 18px Poppins,sans-serif; color:#002E5D; margin:16px 0 8px; }
+.ce-d { font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin:0; }
+.ce-links { margin-top:auto; padding-top:18px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+.ce-link { border:none; background:none; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font:700 13.5px Poppins,sans-serif; color:#002E5D; }
+.ce-link:hover { text-decoration:underline; text-underline-offset:3px; }
+.ce-cont { color:#FF6600; }
+.ce-cont .u { text-decoration:underline; text-underline-offset:3px; }
+.ce-badge { min-width:20px; height:20px; border-radius:10px; background:#FF6600; color:#fff; font:700 12px Poppins,sans-serif; display:inline-flex; align-items:center; justify-content:center; padding:0 6px; box-sizing:border-box; margin-left:2px; }
 .cf-desc { font:400 14px "Open Sans",sans-serif; color:#545454; margin:6px 0 18px; }
 .cf-note { display:flex; align-items:flex-start; gap:12px; padding:14px 18px; background:#fff; border:1px solid #E4E3E3; border-radius:12px; box-shadow:0 1px 3px rgba(0,46,93,.05); font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin-bottom:14px; }
 .cf-note svg { flex:none; }

@@ -117,7 +117,7 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
     <div className="sb">
       <style>{CSS_SB}</style>
       <nav className="sb-ruta" aria-label="Ruta">
-        <button className="sb-volver" onClick={onBack}>← Volver</button><span className="sb-sep" />
+        <button className="sb-volver" onClick={onBack}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button><span className="sb-sep" />
         <button className="sb-miga" onClick={onBack}>Inicio</button><span className="sb-gt">›</span>
         <span>Certificación</span><span className="sb-gt">›</span>
         <span aria-current="page">Solicitud de baja</span>
@@ -237,9 +237,8 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
 const CSS_SB = `
 .sb { font-family:"Open Sans",system-ui,sans-serif; display:flex; flex-direction:column; gap:20px; }
 .sb-ruta { display:flex; align-items:center; gap:10px; font:400 13px "Open Sans",sans-serif; color:#545454; flex-wrap:wrap; margin-bottom:-6px; }
-.sb-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; }
-.sb-miga { text-decoration:underline; text-underline-offset:3px; }
-.sb-volver { font-weight:600 !important; color:#002E5D !important; }
+.sb-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.sb-ruta button:hover { color:#002E5D; text-decoration:underline; }
 .sb-sep { width:1px; height:14px; background:#D9D9D9; }
 .sb-gt { color:#9AA3AE; }
 .sb-ruta [aria-current] { color:#002E5D; font-weight:600; }
