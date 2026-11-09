@@ -184,6 +184,10 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
   const [paso, setPaso] = useState('acceso')   // 'acceso' | 'codigo'
   const [correo, setCorreo] = useState('')
   const [clave, setClave] = useState('')
+  // País de ingreso: México (correo + contraseña) o Chile (RUT + clave). Se recuerda.
+  const [pais, setPaisBase] = useState(() => { try { return localStorage.getItem('bt_pais_ingreso') === 'cl' ? 'cl' : 'mx' } catch { return 'mx' } })
+  const setPais = (p) => { setPaisBase(p); setErr(''); setAviso(''); setCorreo(''); setClave(''); try { localStorage.setItem('bt_pais_ingreso', p) } catch { /* sin storage */ } }
+  const chile = pais === 'cl'
   const [codigo, setCodigo] = useState('')
   const [err, setErr] = useState('')
   const [aviso, setAviso] = useState('')
@@ -205,8 +209,9 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
     e?.preventDefault()
     if (!puede) return
     setErr(''); setAviso(''); setBusy(true)
-    // Chile: si escribió un RUT, entra a la base de Chile con su clave.
-    if (esRut(correo)) {
+    // Chile: RUT + clave contra la base de Chile.
+    if (chile) {
+      if (!esRut(correo)) { setBusy(false); setErr('Escribe el RUT de tu empresa con su dígito verificador, por ejemplo 76.273.379-K.'); return }
       const { error } = await supabaseCL.auth.signInWithPassword({ email: correoDeRut(correo), password: clave.trim().toUpperCase() })
       setBusy(false)
       if (error) { setErr('RUT o clave incorrectos. Revísalos e inténtalo de nuevo.'); return }
@@ -223,7 +228,7 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
   const pedirCodigo = async (e) => {
     e?.preventDefault()
     const c = correo.trim().toLowerCase()
-    if (esRut(c)) {
+    if (chile || esRut(c)) {
       setErr('En Chile la clave la entrega Bigticket: pídele una nueva a tu supervisor.')
       return
     }
@@ -266,18 +271,26 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
     <>
         <p className="lp-panel-titulo">
           {paso === 'acceso'
-            ? (incrustado ? 'Ingresa con el correo de tu empresa' : 'Ingresa al Portal del Transportista')
+            ? (incrustado ? 'Ingresa a tu portal' : 'Ingresa al Portal del Transportista')
             : 'Escribe el código que te enviamos'}
         </p>
 
         {paso === 'acceso' ? (
           <>
+            <div className="lp-paises" role="tablist" aria-label="País">
+              {[['mx', 'México', 'https://flagcdn.com/w40/mx.png'], ['cl', 'Chile', 'https://flagcdn.com/w40/cl.png']].map(([k, t, f]) => (
+                <button key={k} type="button" role="tab" aria-selected={pais === k} className={`lp-pais${pais === k ? ' on' : ''}`} onClick={() => setPais(k)}>
+                  <img src={f} alt="" /><span>{t}</span>
+                </button>
+              ))}
+            </div>
             <form onSubmit={entrar}>
               {err && <div className="lp-error">{err}</div>}
               {aviso && <div className="lp-aviso">{aviso}</div>}
-              <input ref={primero} type="text" inputMode="email" autoComplete="username" placeholder={incrustado ? 'Correo o RUT de tu empresa' : 'Correo electrónico o RUT (Chile)'}
+              <input ref={primero} type={chile ? 'text' : 'email'} inputMode={chile ? 'text' : 'email'} autoComplete="username"
+                placeholder={chile ? 'RUT de tu empresa (ej: 76.273.379-K)' : (incrustado ? 'Correo de tu empresa' : 'Correo electrónico')}
                 value={correo} onChange={e => setCorreo(e.target.value)} />
-              <CampoClave autoComplete="current-password" placeholder={incrustado ? 'Clave' : 'Contraseña'}
+              <CampoClave autoComplete="current-password" placeholder={chile ? 'Clave (te la entrega Bigticket)' : (incrustado ? 'Clave' : 'Contraseña')}
                 value={clave} onChange={setClave} />
               <button type="submit" disabled={!puede}
                 style={{ background: puede ? ORANGE : '#e6e5e5', color: puede ? '#fff' : GRIS }}>
@@ -285,6 +298,9 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
               </button>
             </form>
 
+            {chile ? (
+              <div className="lp-recuperar"><span>¿Perdiste tu clave? Pídele una nueva a tu supervisor de Bigticket.</span></div>
+            ) : (
             <div className="lp-recuperar">
               <span>{incrustado ? '¿Olvidaste tu clave?' : '¿Olvidaste tu contraseña?'}</span>
               <button type="button" className="lp-link" onClick={pedirCodigo} disabled={busy}>
@@ -297,6 +313,7 @@ function PanelAcceso({ onCerrar, incrustado = false }) {
                 </svg>
               </button>
             </div>
+            )}
           </>
         ) : (
           <>

@@ -534,6 +534,12 @@ tr:last-child td { border-bottom: none; }
 .lp-panel input:focus { border-bottom-color: var(--orange); }
 .lp-panel form button { height: 44px; border: 0; border-radius: 999px; font-family: var(--font-display); font-size: 16px; }
 .lp-panel form button:disabled { cursor: default; }
+/* Ingreso: México (correo) o Chile (RUT) */
+.lp-paises { display: flex; gap: 6px; background: #F4F3F3; border-radius: 999px; padding: 4px; margin: 4px 0 14px; }
+.lp-pais { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; background: transparent; border-radius: 999px; padding: 8px 10px; cursor: pointer; font-family: Poppins, sans-serif; font-weight: 600; font-size: 13.5px; color: #8B8B8B; }
+.lp-pais img { width: 20px; height: 14px; object-fit: cover; border-radius: 2px; opacity: .75; }
+.lp-pais.on { background: #fff; color: #002E5D; box-shadow: 0 1px 4px rgba(0,46,93,.15); }
+.lp-pais.on img { opacity: 1; }
 .lp-error, .lp-aviso { font-size: 13.5px; line-height: 1.45; border-radius: 8px; padding: 10px 12px; }
 .lp-error { background: #FBE3E0; color: #C43D2F; }
 .lp-aviso { background: #E2F1E7; color: var(--green); }
