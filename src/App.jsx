@@ -1,3 +1,5 @@
+import Certificar, { useBorradores, ToastCertificar } from './Certificar'
+import EstadoCertificacion from './EstadoCertificacion'
 import { supabaseCL } from './supabaseChile'
 import PortalChile from './PortalChile'
 import React, { useCallback, useEffect, useState, useRef } from 'react'
@@ -263,6 +265,9 @@ function AppMexico() {
     if (permitidas.includes(destino)) setView(destino)
   }, [tercero])
 
+  // Borradores de certificación: globo en el menú (se relee al cambiar de pantalla).
+  // Va antes de los return condicionales: un hook después de ellos rompe React.
+  const borradoresMenu = useBorradores(tercero, view)
   if (modoRecovery) return <DefinirPassword onListo={() => {
     setModoRecovery(false)
     try { sessionStorage.removeItem('bt_recovery') } catch { /* sin sessionStorage */ }
@@ -284,11 +289,11 @@ function AppMexico() {
   const Armazon = esMovil() ? ShellMovil : Shell
   return (
     <Red>
-    <Armazon tercero={tercero} email={email} onNavegar={setView} vista={view}>
+    <Armazon tercero={tercero} email={email} onNavegar={setView} vista={view} contadores={borradoresMenu.length ? { certificar: borradoresMenu.length } : undefined}>
       {/* Cada pantalla va en su propia red: si una falla, muestra el error en
           vez de dejar el portal en blanco, y el resto sigue funcionando. */}
       {view === 'home' && <Bloque nombre="el inicio"><Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} /></Bloque>}
-      {view === 'estado' && <MisCertificaciones tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'estado' && <Bloque nombre="Estado de certificación"><EstadoCertificacion tercero={tercero} email={email} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {view === 'firma' && <Firma tercero={tercero} email={email} onBack={() => setView('home')} />}
       {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
@@ -300,7 +305,7 @@ function AppMexico() {
       {view === 'diferencias' && <Bloque nombre="Mis diferencias"><MisDiferencias tercero={tercero} onBack={() => setView('home')} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} onIr={(v) => setView(v)} /></Bloque>}
-      {view === 'certificar' && <ElegirCertificacion onPick={setView} onBack={() => setView('home')} />}
+      {view === 'certificar' && <ElegirCertificacion tercero={tercero} onPick={setView} onBack={() => setView('home')} />}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}
       {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
@@ -310,10 +315,9 @@ function AppMexico() {
       {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
       {view === 'perfil' && <PerfilEmpresa tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} />}
-      {(view === 'conductor' || view === 'ayudante') &&
-        <FormPersona tipo={view} tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
-      {view === 'vehiculo' &&
-        <FormVehiculo tercero={tercero} email={email} onBack={() => setView('home')} onDone={() => setView('estado')} />}
+      {(view === 'conductor' || view === 'ayudante' || view === 'vehiculo') && <Bloque nombre="Certificar">
+        <Certificar key={view} tipo={view} tercero={tercero} email={email} onBack={() => setView('home')}
+          onEstado={() => setView('estado')} onCertificar={() => setView('certificar')} /></Bloque>}
 
       {/* Fuera del switch de vistas: el botón sigue al tercero por todo el portal. */}
       <Biggy tercero={tercero} />
@@ -372,22 +376,32 @@ function PantallaCentro({ titulo, texto, accion }) {
 
 // Las tres certificaciones son el mismo trámite con distintos campos. Tenerlas
 // como tres tarjetas obligaba a leer tres títulos para elegir una.
-function ElegirCertificacion({ onPick, onBack }) {
+function ElegirCertificacion({ tercero, onPick, onBack }) {
+  // Borradores (maqueta 8.9.20): la tarjeta muestra "Continuar solicitud →" y un globo
+  const borradores = useBorradores(tercero)
+  const conBorrador = (t) => borradores.some((b) => b.tipo === t)
+  const continuar = (t) => conBorrador(t) && (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+      <span style={{ font: "700 13.5px Poppins, sans-serif", color: '#FF6600', textDecoration: 'underline', textUnderlineOffset: 3 }}>Continuar solicitud →</span>
+      <span style={{ minWidth: 20, height: 20, borderRadius: 10, background: '#FF6600', color: '#fff', font: '700 12px Poppins, sans-serif', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>1</span>
+    </span>
+  )
   return (
     <>
+      <ToastCertificar />
       <button className="back-link" onClick={onBack}>← Volver</button>
       <div className="page-head"><div><h2>¿Qué vas a certificar?</h2>
         <div className="lede">Elige el tipo y te pedimos solo los documentos que corresponden.</div></div></div>
       <div className="type-grid">
         <button className="type-card" onClick={() => onPick('conductor')}>
           <div className="ic">🧍</div><h3>Conductor</h3>
-          <p>Valida identidad (CURP, RFC, INE), antecedentes y licencia.</p></button>
+          <p>Valida identidad (CURP, RFC, INE), antecedentes y licencia.</p>{continuar('conductor')}</button>
         <button className="type-card" onClick={() => onPick('ayudante')}>
           <div className="ic">🧑‍🤝‍🧑</div><h3>Ayudante</h3>
-          <p>Valida identidad (CURP, RFC, INE) y antecedentes.</p></button>
+          <p>Valida identidad (CURP, RFC, INE) y antecedentes.</p>{continuar('ayudante')}</button>
         <button className="type-card" onClick={() => onPick('vehiculo')}>
           <div className="ic">🚚</div><h3>Vehículo</h3>
-          <p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p></button>
+          <p>Valida la placa contra REPUVE y confirma sus datos oficiales.</p>{continuar('vehiculo')}</button>
       </div>
     </>
   )
