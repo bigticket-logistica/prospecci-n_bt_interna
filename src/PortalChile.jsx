@@ -10,11 +10,14 @@ import { useEffect, useState } from 'react'
 import { supabaseCL } from './supabaseChile'
 
 const LOGO = '/logo-bigticket-blanco.png'
+// El dueño (RUT de la empresa) ve todo; el delegado (RUT personal), solo
+// Cuidado de Activo: Auditorías e Interrupciones de ruta.
 const MENU = [
-  { k: 'inicio', t: 'Inicio', d: 'Tu empresa en Bigticket' },
-  { k: 'flota', t: 'Mi flota', d: 'Tus vehículos certificados' },
+  { k: 'inicio', t: 'Inicio', d: 'Tu empresa en Bigticket', solo: 'dueno' },
+  { k: 'flota', t: 'Mi flota', d: 'Tus vehículos certificados', solo: 'dueno' },
   { k: 'auditorias', t: 'Auditorías', d: 'Vehículo (días 1 a 5) y limpieza (lunes)', grupo: 'Cuidado de Activo' },
   { k: 'interrupciones', t: 'Interrupciones de ruta', d: 'Colación, baño, carga eléctrica', grupo: 'Cuidado de Activo' },
+  { k: 'equipo', t: 'Mi equipo', d: 'Personas que pueden usar el portal', grupo: 'Administración', solo: 'dueno' },
 ]
 
 function hora() {
@@ -32,7 +35,11 @@ export default function PortalChile() {
   const [reloj, setReloj] = useState(hora())
   useEffect(() => { const t = setInterval(() => setReloj(hora()), 30000); return () => clearInterval(t) }, [])
   useEffect(() => {
-    supabaseCL.rpc('fn_portal_cl_yo').then(({ data, error }) => setYo(error ? null : data || null))
+    supabaseCL.rpc('fn_portal_cl_yo').then(({ data, error }) => {
+      const r = error ? null : data || null
+      setYo(r)
+      if (r && r.rol === 'delegado') setVista('auditorias')
+    })
   }, [])
   const salir = async () => { await supabaseCL.auth.signOut(); window.location.reload() }
   const ir = (k) => { setVista(k); setMenu(false); window.scrollTo(0, 0) }
@@ -46,6 +53,8 @@ export default function PortalChile() {
   )
 
   let grupoAnterior = null
+  const dueno = yo.rol !== 'delegado'
+  const menuVisible = MENU.filter((m) => !m.solo || (m.solo === 'dueno' && dueno))
   return (
     <div className="pc-shell">
       <style>{CSS}</style>
@@ -59,13 +68,13 @@ export default function PortalChile() {
         </div>
         <div className="pc-pos">
           <button className="pc-empresa" onClick={() => setPanel(!panel)}>
-            <span>{yo.empresa}</span>
+            <span>{dueno ? yo.empresa : `${yo.contacto} · ${yo.empresa}`}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
           </button>
           {panel && (<>
             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setPanel(false)} />
             <div className="pc-desp">
-              <div className="pc-desp-item"><span className="t">{yo.empresa}</span><span className="d">RUT {yo.rut}</span></div>
+              <div className="pc-desp-item"><span className="t">{dueno ? yo.empresa : yo.contacto}</span><span className="d">{dueno ? `RUT ${yo.rut} · administrador` : `RUT ${yo.rut_persona} · ${yo.empresa}`}</span></div>
               <button className="pc-desp-item" onClick={salir}><span className="t">Cerrar sesión</span></button>
             </div>
           </>)}
@@ -76,7 +85,7 @@ export default function PortalChile() {
         {menu && <div className="pc-velo" onClick={() => setMenu(false)} />}
         <aside className={`pc-lateral${menu ? ' abierto' : ''}`}>
           <nav>
-            {MENU.map((m) => {
+            {menuVisible.map((m) => {
               const cabecera = m.grupo && m.grupo !== grupoAnterior ? m.grupo : null
               grupoAnterior = m.grupo || null
               return (
@@ -91,8 +100,9 @@ export default function PortalChile() {
           </nav>
         </aside>
         <main className="pc-main">
-          {vista === 'inicio' && <Inicio yo={yo} onIr={ir} />}
-          {vista === 'flota' && <MiFlota />}
+          {vista === 'inicio' && dueno && <Inicio yo={yo} onIr={ir} />}
+          {vista === 'flota' && dueno && <MiFlota />}
+          {vista === 'equipo' && dueno && <MiEquipo />}
           {vista === 'auditorias' && <Pronto titulo="Auditorías" texto="Aquí vas a registrar la auditoría del vehículo (días 1 a 5 de cada mes) y la de limpieza (cada lunes), con su checklist y fotos. Reemplaza las tarjetas de Pipefy." />}
           {vista === 'interrupciones' && <Pronto titulo="Interrupciones de ruta" texto="Aquí vas a registrar cada pausa de la ruta (colación, baño, carga eléctrica) con su hora de inicio y de fin. Reemplaza las tarjetas de Pipefy." />}
         </main>
@@ -145,6 +155,101 @@ function MiFlota() {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Mi equipo (solo el dueño) ──────────────────────────────────────────────
+function MiEquipo() {
+  const [lista, setLista] = useState(null)
+  const [flota, setFlota] = useState([])
+  const [form, setForm] = useState(null)        // null = cerrado · { rut, nombre, telefono, patentes, editando }
+  const [res, setRes] = useState(null)          // { rut, nombre, clave }
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const cargar = async () => {
+    const [a, b] = await Promise.all([supabaseCL.rpc('fn_portal_cl_equipo'), supabaseCL.rpc('fn_portal_cl_mi_flota')])
+    setLista(a.data || []); setFlota((b.data || []).filter((v) => v.estado === 'ACTIVA'))
+  }
+  useEffect(() => { cargar() }, [])
+  const guardar = async (datos) => {
+    setErr(''); setBusy(true)
+    const { data, error } = await supabaseCL.rpc('fn_portal_cl_equipo_guardar', { p_rut: datos.rut, p_nombre: datos.nombre, p_telefono: datos.telefono || null, p_patentes: datos.patentes || [] })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setRes(data); setForm(null); cargar()
+  }
+  const activar = async (d, activo) => {
+    if (!activo && !window.confirm(`¿Bloquear a ${d.nombre}? No podrá entrar al portal hasta que lo reactives.`)) return
+    const { error } = await supabaseCL.rpc('fn_portal_cl_equipo_activo', { p_rut: d.rut, p_activo: activo })
+    if (error) setErr(error.message); else cargar()
+  }
+  const textoClave = res ? `Portal Transportista Bigticket\nhttps://app.fleetbiggy.com\nElige Chile e ingresa con:\nRUT: ${res.rut}\nClave: ${res.clave}` : ''
+  return (
+    <div>
+      <h1 className="pc-h1">Mi equipo</h1>
+      <div className="pc-sub">Personas que pueden entrar al portal con su RUT para hacer las <b>auditorías</b> y avisar las <b>interrupciones de ruta</b>. No ven nada más de tu empresa.</div>
+      {res && (
+        <div className="pc-card" style={{ borderColor: '#1A7A3C', background: '#F1F8F3' }}>
+          <div style={{ fontWeight: 700, color: '#1A7A3C' }}>Acceso listo para {res.nombre}</div>
+          <div style={{ marginTop: 8 }}>RUT: <b>{res.rut}</b> · Clave: <b style={{ fontFamily: 'monospace', fontSize: 18 }}>{res.clave}</b></div>
+          <div className="pc-mini" style={{ marginTop: 4 }}>Pásasela ahora: esta clave no se vuelve a mostrar.</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button className="pc-btn" onClick={() => navigator.clipboard?.writeText(textoClave)}>Copiar</button>
+            <a className="pc-btn" style={{ background: '#25D366', textDecoration: 'none' }} href={`https://wa.me/?text=${encodeURIComponent(textoClave)}`} target="_blank" rel="noreferrer">Enviar por WhatsApp</a>
+            <button className="pc-btn" style={{ background: '#fff', color: '#002E5D', border: '1px solid #E4E3E3' }} onClick={() => setRes(null)}>Listo</button>
+          </div>
+        </div>
+      )}
+      {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F', borderColor: '#F3C4BE' }}>{err}</div>}
+      {form ? <FormPersona inicial={form} flota={flota} busy={busy} onGuardar={guardar} onCancelar={() => { setForm(null); setErr('') }} />
+        : <button className="pc-btn" style={{ marginBottom: 16 }} onClick={() => { setRes(null); setForm({ rut: '', nombre: '', telefono: '', patentes: [] }) }}>+ Agregar persona</button>}
+      {lista === null ? <div className="pc-card">Cargando…</div> : lista.length === 0 ? <div className="pc-card">Todavía no agregas a nadie. Si tú mismo haces las auditorías, no necesitas agregar a nadie.</div> : (
+        <div className="pc-card" style={{ padding: 0, overflowX: 'auto' }}>
+          <table className="pc-tabla">
+            <thead><tr><th>Persona</th><th>Patentes</th><th>Último ingreso</th><th></th></tr></thead>
+            <tbody>{lista.map((d) => (
+              <tr key={d.rut} style={{ opacity: d.activo ? 1 : 0.55 }}>
+                <td><b>{d.nombre}</b><div className="pc-mini">RUT {d.rut}{d.telefono ? ` · ${d.telefono}` : ''}</div></td>
+                <td>{(d.patentes || []).length ? d.patentes.join(', ') : <span className="pc-mini">Todas</span>}</td>
+                <td className="pc-mini">{d.ultimo_ingreso_at ? new Date(d.ultimo_ingreso_at).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Nunca'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {d.activo ? <>
+                    <button className="pc-btn-sec" onClick={() => { setRes(null); setForm({ ...d, editando: true }) }}>Editar</button>
+                    <button className="pc-btn-sec" onClick={() => { if (window.confirm(`¿Darle una clave nueva a ${d.nombre}? La anterior deja de funcionar.`)) guardar(d) }}>Clave nueva</button>
+                    <button className="pc-btn-sec" style={{ color: '#C43D2F' }} onClick={() => activar(d, false)}>Bloquear</button>
+                  </> : <button className="pc-btn-sec" onClick={() => activar(d, true)}>Reactivar</button>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormPersona({ inicial, flota, busy, onGuardar, onCancelar }) {
+  const [d, setD] = useState({ ...inicial, patentes: inicial.patentes || [] })
+  const marcar = (p) => setD({ ...d, patentes: d.patentes.includes(p) ? d.patentes.filter((x) => x !== p) : [...d.patentes, p] })
+  return (
+    <div className="pc-card">
+      <div style={{ fontFamily: 'Poppins,sans-serif', fontWeight: 700, color: '#002E5D', marginBottom: 10 }}>{d.editando ? `Editar a ${inicial.nombre}` : 'Agregar persona'}</div>
+      <div className="pc-form">
+        <label>Nombre completo<input value={d.nombre} onChange={(e) => setD({ ...d, nombre: e.target.value })} placeholder="Juan Pérez" /></label>
+        <label>RUT personal<input value={d.rut} disabled={d.editando} onChange={(e) => setD({ ...d, rut: e.target.value })} placeholder="12.345.678-9" /></label>
+        <label>Teléfono (opcional)<input value={d.telefono || ''} onChange={(e) => setD({ ...d, telefono: e.target.value })} placeholder="+56 9 1234 5678" /></label>
+      </div>
+      <div style={{ marginTop: 12, fontSize: 13, color: '#545454' }}>Patentes que puede usar <span className="pc-mini">(si no marcas ninguna, puede usar todas)</span></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+        {flota.map((v) => (
+          <button key={v.patente} type="button" className={`pc-pat${d.patentes.includes(v.patente) ? ' on' : ''}`} onClick={() => marcar(v.patente)}>{v.patente}</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+        <button className="pc-btn" disabled={busy} onClick={() => onGuardar(d)}>{busy ? 'Guardando…' : d.editando ? 'Guardar y dar clave nueva' : 'Agregar y crear clave'}</button>
+        <button className="pc-btn" style={{ background: '#fff', color: '#002E5D', border: '1px solid #E4E3E3' }} onClick={onCancelar}>Cancelar</button>
+      </div>
     </div>
   )
 }
@@ -209,6 +314,14 @@ const CSS = `
 .pc-mini { font-size:11.5px; color:var(--muted); }
 .pc-chip { font-size:11.5px; font-weight:700; border-radius:999px; padding:3px 10px; background:#EFEDED; color:var(--muted); }
 .pc-chip.ok { background:#E8F4EC; color:#1A7A3C; }
+.pc-btn-sec { background:#fff; color:#002E5D; border:1px solid #E4E3E3; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; cursor:pointer; margin-left:6px; }
+.pc-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.pc-form label { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:#545454; }
+.pc-form input { border:1px solid #E4E3E3; border-radius:10px; padding:10px 12px; font-size:14px; font-family:inherit; }
+.pc-form input:disabled { background:#F4F3F3; }
+.pc-pat { border:1px solid #E4E3E3; background:#fff; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; color:#545454; cursor:pointer; }
+.pc-pat.on { background:#002E5D; border-color:#002E5D; color:#fff; }
+a.pc-btn { display:inline-block; }
 @media (max-width: 860px) {
   .pc-header { padding:0 16px; }
   .pc-hamb { display:flex; }
