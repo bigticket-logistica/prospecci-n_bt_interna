@@ -15,7 +15,8 @@ const MOTIVOS = {
   personal: ['Renuncia voluntaria', 'Término de la relación laboral', 'Rechazo en revalidación de antecedentes', 'Cambio de empresa transportista', 'Otro'],
   empresa: ['Término de relación comercial', 'Cierre de operaciones de la empresa', 'Incumplimiento contractual', 'Otro'],
 }
-const ESTADO = { en_revision: 'En revisión', en_proceso: 'En proceso', completada: 'Completada', rechazada: 'Rechazada' }
+// Solo dos estados (maqueta 8.9.20): En revisión → Completada (lo marca BigTicket). No existe rechazo.
+const estadoTxt = (e) => e === 'completada' ? 'Completada' : 'En revisión'
 const fDia = (x) => x ? new Date(x).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
 
 const ICONOS = {
@@ -74,7 +75,7 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
   const lista = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}` : xs[0]
   const textoModal = tipo === 'vehiculo' ? `Estás a punto de solicitar la baja de ${elegidos.length > 1 ? 'las placas' : 'la placa'} ${lista(elegidos.map((v) => v.placa))}. ¿Deseas continuar?`
     : tipo === 'personal' ? `Estás a punto de solicitar la baja de ${lista(elegidos.map((p) => p.nombre.toUpperCase()))}. ¿Deseas continuar?`
-    : `Estás a punto de solicitar la baja de ${tercero.nombre}, con todos sus vehículos y personal. ¿Deseas continuar?`
+    : `Estás a punto de solicitar la baja de ${tercero.nombre}, incluidos sus ${(vehiculos || []).length} vehículos y ${(personal || []).length} personas registradas. ¿Deseas continuar?`
 
   async function enviar() {
     if (!habilitado || busy) return
@@ -123,7 +124,9 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
         <span aria-current="page">Solicitud de baja</span>
       </nav>
       <h1 className="sb-titulo">Solicitud de baja</h1>
-      <p className="sb-desc">¿Necesitas dar de baja un conductor, ayudante o vehículo? Elige qué retirar y el motivo. Revisaremos tu caso antes de aplicar el cambio.</p>
+      <p className="sb-desc">{tipo === 'empresa'
+        ? 'Selecciona el conductor, ayudante o vehículo que desees dar de baja e indica el motivo. Tu solicitud pasará por revisión antes de aplicarse.'
+        : '¿Necesitas dar de baja un conductor, ayudante o vehículo? Elige qué retirar y el motivo. Revisaremos tu caso antes de aplicar el cambio.'}</p>
       {err && <div className="sb-error">{err}</div>}
 
       <div className="sb-box">
@@ -162,13 +165,19 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
             </div>
           </>)}
           {tipo === 'empresa' && (<>
-            <h2>Datos de la empresa</h2>
-            <p className="sb-sub">{tercero.nombre} · {(vehiculos || []).length} vehículos y {(personal || []).length} personas registradas.</p>
-            <div className="sb-aviso">La baja de empresa da de baja también <b>todos sus vehículos y personal</b>. La solicitud pasa a revisión de BigTicket antes de hacerse efectiva.</div>
-            {empresaEnCurso ? <div className="sb-aviso">Ya existe una solicitud de baja de empresa en curso ({empresaEnCurso.folio}). Espera su resolución antes de crear otra.</div> : (
-              <button type="button" role="checkbox" aria-checked={chkEmpresa} className="sb-fila" onClick={() => setChkEmpresa(!chkEmpresa)}>
+            <h2 style={{ marginBottom: 16 }}>Datos de la empresa</h2>
+            <div className="sb-emp">
+              <span className="sb-emp-n">{tercero.nombre}</span>
+              <span className="sb-emp-c">{(vehiculos || []).length} vehículos<br />{(personal || []).length} personas registradas</span>
+            </div>
+            <div className="sb-note">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6600" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              <span><strong>Atención:</strong> la baja de empresa da de baja también <strong>todos sus vehículos y personal certificado asociados</strong>. Esta acción pasa a revisión de BigTicket antes de hacerse efectiva.</span>
+            </div>
+            {empresaEnCurso ? <div className="sb-aviso" style={{ marginTop: 14 }}>Ya existe una solicitud de baja de empresa en curso ({empresaEnCurso.folio}).</div> : (
+              <button type="button" role="checkbox" aria-checked={chkEmpresa} className="sb-ack" onClick={() => setChkEmpresa(!chkEmpresa)}>
                 <span className="sb-check">{chkEmpresa && <IcoCheck />}</span>
-                <span className="sb-meta" style={{ fontSize: 14 }}>Entiendo que esta solicitud incluye la baja de todos los vehículos y el personal de la empresa.</span>
+                Entiendo que esta solicitud incluye la baja de todos los vehículos y el personal de la empresa.
               </button>
             )}
           </>)}
@@ -209,7 +218,7 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
                   <span className="sb-dato">{tipoTxt}</span>
                   <span className="sb-dato sb-elip" title={selTxt}>{selTxt}</span>
                   <span className="sb-dato sb-elip" title={mot}>{mot}</span>
-                  <span className={`sb-dato${r.estado === 'rechazada' ? ' rojo' : ''}`}>{ESTADO[r.estado] || 'En revisión'}</span>
+                  <span className="sb-dato">{estadoTxt(r.estado)}</span>
                   <span className="sb-dato">{fDia(r.created_at)}</span>
                 </div>
               )
@@ -267,6 +276,13 @@ const CSS_SB = `
 .sb-placa { display:block; font:700 15px Poppins,sans-serif; color:#002E5D; }
 .sb-meta { display:block; font:400 12.5px "Open Sans",sans-serif; color:#545454; margin-top:2px; }
 .sb-origen { display:flex; align-items:center; gap:6px; font:400 14px "Open Sans",sans-serif; color:#545454; white-space:nowrap; }
+.sb-emp { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 18px; background:#fff; border:1px solid #E4E3E3; border-radius:12px; box-shadow:0 1px 3px rgba(0,46,93,.05); }
+.sb-emp-n { font:700 15px Poppins,sans-serif; color:#002E5D; }
+.sb-emp-c { font:400 12.5px "Open Sans",sans-serif; color:#545454; text-align:right; }
+.sb-note { display:flex; gap:12px; padding:14px 18px; background:#fff; border:1px solid #E4E3E3; border-radius:12px; font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin-top:14px; }
+.sb-note svg { flex:none; }
+.sb-note strong { font-family:Poppins,sans-serif; font-weight:700; color:#002E5D; }
+.sb-ack { display:flex; align-items:center; gap:12px; padding:0; border:none; background:none; cursor:pointer; text-align:left; font:400 14px/1.4 "Open Sans",sans-serif; color:#545454; margin-top:16px; }
 .sb-aviso { background:#FFF4EC; border:1px solid #FBD9C0; border-radius:12px; padding:12px 14px; font-size:13.5px; color:#7c3a12; margin-bottom:12px; }
 .sb-motivo { margin-top:22px; padding-top:22px; border-top:1px solid #E4E3E3; display:flex; flex-direction:column; gap:18px; }
 .sb-grid { display:grid; gap:18px 20px; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); }
