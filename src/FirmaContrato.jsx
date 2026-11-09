@@ -32,11 +32,14 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
   }, [])
 
   async function cargar() {
-    const [mx, ce, ge] = await Promise.all([
+    const [mx, ce, ge, ar] = await Promise.all([
       supabase.from('certificaciones_mx').select('*').ilike('email', email || '').not('mifiel_documento_id', 'is', null).order('contrato_enviado_at', { ascending: false }),
       supabase.from('certificaciones').select('*, certificacion_conductor(nombre,curp)').eq('tercero_id', tercero.tercero_id).not('mifiel_documento_id', 'is', null).order('contrato_enviado_at', { ascending: false }),
       supabase.from('contratos_gestion').select('*').eq('tercero_id', tercero.tercero_id).in('estado', ['enviado', 'firmado']).order('enviado_at', { ascending: false }),
+      // El archivador de la empresa: ahí deja el Brain los contratos firmados por ambos
+      supabase.from('documentos_empresa').select('*').eq('tercero_id', tercero.tercero_id).order('created_at', { ascending: false }),
     ])
+    const archivo = (ar.data || []).filter((d) => d.confidencial !== true && d.categoria !== 'rhcheck')
     const items = []
     for (const c of mx.data || []) items.push({
       key: `mx-${c.id}`, origen: 'mx', fila: c, titulo: `Contrato · ${c.nombre || 'Transportista'}`,
@@ -66,6 +69,16 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
         widget: d.mifiel_widget_tercero, doc: primera(d, COLS_DOC), docFirmado: primera(d, COLS_FIRMADO), mifiel: d.mifiel_documento_id,
       })
     }
+    // Cada contrato con su documento firmado del archivador: por id del contrato, por id de Mi Fiel o por título
+    const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    for (const it of items) {
+      const ids = [String(it.fila.id), String(it.mifiel || '')].filter((x) => x && x !== 'undefined')
+      const porId = archivo.find((d) => Object.values(d).some((v) => v != null && ids.includes(String(v))) || ids.some((x) => x.length > 6 && String(d.storage_path || '').includes(x)))
+      const t = norm(it.titulo.replace(/^contrato · /i, ''))
+      const porTitulo = archivo.find((d) => /contrat|anexo|firmad/i.test(`${d.categoria} ${d.nombre || d.titulo || ''}`) && t.length > 3 && norm(`${d.nombre || ''} ${d.titulo || ''} ${d.storage_path || ''}`).includes(t))
+      const doc = porId || porTitulo
+      if (doc) it.archivo = { bucket: doc.bucket || 'archivador_empresas', path: doc.storage_path }
+    }
     items.sort((a, b) => new Date(b.enviado || 0) - new Date(a.enviado || 0))
     setLista(items)
   }
@@ -85,12 +98,12 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
     setAbierto(null); cargar()
   }
 
-  const abrirDoc = async (ref, descargar) => {
+  const abrirDoc = async (ref, descargar, bucket) => {
     setAviso('')
-    if (!ref) { setAviso('El documento todavía no está disponible para descargar. Si lo necesitas ahora, escríbenos en Consultas.'); return }
+    if (!ref) { setAviso('El contrato firmado por ambas partes todavía se está archivando. Vuelve a intentarlo en unos minutos o búscalo en Mi empresa › Documentos.'); return }
     let url = ref
     if (!/^https?:\/\//.test(ref)) {
-      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(ref, 600, descargar ? { download: true } : undefined)
+      const { data } = await supabase.storage.from(bucket || BUCKET).createSignedUrl(ref, 600, descargar ? { download: true } : undefined)
       url = data?.signedUrl
     }
     if (!url) { setAviso('No se pudo abrir el documento. Inténtalo de nuevo en un momento.'); return }
@@ -140,12 +153,14 @@ export default function FirmaContrato({ tercero, email, onBack, Widget }) {
                   <button className="fc-btn is-sign" disabled={!it.widget} title={it.widget ? '' : 'El enlace de firma aún no está listo'}
                     onClick={() => setAbierto(abierto === it.key ? null : it.key)}>{abierto === it.key ? 'Cerrar firma' : 'Firma tu contrato'}</button>
                 ) : !it.btFirma ? (
-                  <button className="fc-btn is-outline" onClick={() => abrirDoc(it.doc || it.docFirmado, false)}>Ver documento</button>
+                  // Firmado por el transportista, falta BigTicket: se ve en el visor de Mi Fiel (o el archivo, si ya está)
+                  <button className="fc-btn is-outline" onClick={() => it.archivo ? abrirDoc(it.archivo.path, false, it.archivo.bucket)
+                    : it.widget ? setAbierto(abierto === it.key ? null : it.key) : abrirDoc(it.doc, false)}>{abierto === it.key ? 'Cerrar documento' : 'Ver documento'}</button>
                 ) : (
-                  <button className="fc-btn is-outline" onClick={() => abrirDoc(it.docFirmado || it.doc, true)}>Descargar contrato</button>
+                  <button className="fc-btn is-outline" onClick={() => it.archivo ? abrirDoc(it.archivo.path, true, it.archivo.bucket) : abrirDoc(it.docFirmado || it.doc, true)}>Descargar contrato</button>
                 )}
               </div>
-              {abierto === it.key && !it.tuFirma && it.widget && Widget && (
+              {abierto === it.key && it.widget && Widget && !it.btFirma && (
                 <div className="fc-widget"><Widget widgetId={it.widget} onSuccess={() => firmado(it)} /></div>
               )}
             </div>

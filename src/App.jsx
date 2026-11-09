@@ -1,3 +1,4 @@
+import SolicitudBajaNueva from './SolicitudBaja'
 import FirmaContrato from './FirmaContrato'
 import Certificar, { useBorradores, ToastCertificar } from './Certificar'
 import EstadoCertificacion from './EstadoCertificacion'
@@ -296,7 +297,7 @@ function AppMexico() {
       {view === 'home' && <Bloque nombre="el inicio"><Inicio tercero={tercero} perfilOk={perfilOk} onPick={setView} /></Bloque>}
       {view === 'estado' && <Bloque nombre="Estado de certificación"><EstadoCertificacion tercero={tercero} email={email} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {view === 'firma' && <Bloque nombre="Firma de contrato"><FirmaContrato tercero={tercero} email={email} onBack={() => setView('home')} Widget={FirmaWidget} /></Bloque>}
-      {view === 'baja' && <SolicitudBaja tercero={tercero} email={email} onBack={() => setView('home')} />}
+      {view === 'baja' && <Bloque nombre="Solicitud de baja"><SolicitudBajaNueva tercero={tercero} email={email} onBack={() => setView('home')} /></Bloque>}
       {/* Descuentos, Facturado y Pagado tienen entrada propia en el menú de la
           maqueta, pero mientras no se repliquen esas pantallas abren la actual. */}
       {view === 'movimientos' && <Bloque nombre="Movimientos">
