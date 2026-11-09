@@ -371,16 +371,16 @@ const SC_LIST = ['AMX7','ECH4','ECH5','EGD0','EGD9','EHM4','EHM5','EHP5','EHP6',
 
 // ── Certificación › Certificar: "¿Qué vas a certificar?" (maqueta 8.9.20) ──
 const ICO_ELEGIR = {
-  conductor: <><circle cx="12" cy="6.5" r="3.5" /><path d="M5 21v-1.5A5.5 5.5 0 0 1 10.5 14h3a5.5 5.5 0 0 1 5.5 5.5V21" /><circle cx="12" cy="17.5" r="2.6" /><path d="M12 14.9v1M9.6 18.6l.9-.4M14.4 18.6l-.9-.4" /></>,
-  ayudante: <><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20v-1a5 5 0 0 1 5-5h1a5 5 0 0 1 5 5v1" /><path d="M15 5.2a3.2 3.2 0 0 1 0 5.6" /><path d="M17.5 14.3A5 5 0 0 1 20.5 19v1" /></>,
-  vehiculo: <><path d="M14 17V7a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1" /><path d="M10 17h4.5" /><path d="M14 9.5h4l3.5 4V16a1 1 0 0 1-1 1H20" /><circle cx="7" cy="17.5" r="2" /><circle cx="17.5" cy="17.5" r="2" /></>,
+  conductor: <><circle cx="12" cy="6" r="3.6" /><path d="M4.4 21.6V16C4.4 12.9 7.7 11 12 11s7.6 1.9 7.6 5v5.6" /><circle cx="12" cy="17.8" r="4.2" /><circle cx="12" cy="17.8" r="1.1" /><path d="M7.9 17 10.9 17.6M16.1 17 13.1 17.6M12 18.9V22" /></>,
+  ayudante: <><path d="M16 20a5 5 0 0 0-10 0" /><circle cx="11" cy="8" r="3.5" /><path d="M21 20a5 5 0 0 0-3.5-4.8" /><path d="M15.5 4.6a3.5 3.5 0 0 1 0 6.8" /></>,
+  vehiculo: <><path d="M13 6v5a1 1 0 0 0 1 1h6.102a1 1 0 0 1 .712.298l.898.91a1 1 0 0 1 .288.702V17a1 1 0 0 1-1 1h-3" /><path d="M5 18H3a1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h12c1.1 0 2.1.8 2.4 1.8l1.176 4.2" /><path d="M9 18h5" /><circle cx="16" cy="18" r="2" /><circle cx="7" cy="18" r="2" /></>,
 }
 const TARJETAS = [
   ['conductor', 'Conductor', 'Ten a mano el CURP, RFC, INE y licencia de conducir.'],
   ['ayudante', 'Ayudante', 'Ten a mano tu CURP, RFC e INE.'],
   ['vehiculo', 'Vehículo', 'Ten a mano la tarjeta de circulación y póliza de seguro.'],
 ]
-const Flecha = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+const Flecha = () => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
 
 export function ElegirCertificar({ tercero, onPick, onBack }) {
   const borradores = useBorradores(tercero)
@@ -408,18 +408,15 @@ export function ElegirCertificar({ tercero, onPick, onBack }) {
         {TARJETAS.map(([k, t, d]) => {
           const bor = borradores.some((b) => b.tipo === k)
           return (
-            <div key={k} className="ce-card" role="button" tabIndex={0} onClick={() => onPick(k)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPick(k)}>
-              <span className="ce-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round">{ICO_ELEGIR[k]}</svg></span>
-              <h2 className="ce-t">{t}</h2>
-              <p className="ce-d">{d}</p>
-              <div className="ce-links">
-                <button type="button" className="ce-link" onClick={(e) => { e.stopPropagation(); nueva(k) }}>Nueva solicitud <Flecha /></button>
-                {bor && (
-                  <button type="button" className="ce-link ce-cont" onClick={(e) => { e.stopPropagation(); onPick(k) }}>
-                    <span className="u">Continuar solicitud</span> <Flecha /><span className="ce-badge">1</span>
-                  </button>
-                )}
-              </div>
+            <div key={k} className="ce-card" role="button" tabIndex={0} onClick={() => nueva(k)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && nueva(k)}>
+              <span className="ce-ico"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FF6600" strokeWidth="0.83" strokeLinecap="round" strokeLinejoin="round">{ICO_ELEGIR[k]}</svg></span>
+              <span className="ce-txt"><span className="ce-t">{t}</span><span className="ce-d">{d}</span></span>
+              <span className="ce-link">Nueva solicitud <Flecha /></span>
+              {bor && (
+                <button type="button" className="ce-cont" onClick={(e) => { e.stopPropagation(); onPick(k) }}>
+                  Continuar solicitud<Flecha /><span className="ce-badge" aria-label="1 formulario incompleto">1</span>
+                </button>
+              )}
             </div>
           )
         })}
@@ -445,19 +442,19 @@ const CSS_CF = `
 .cf-gt { color:#9AA3AE; }
 .cf-ruta [aria-current] { color:#002E5D; font-weight:600; }
 .cf-titulo { font:700 28px Poppins,sans-serif; color:#002E5D; margin:0; }
-.ce-grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); }
-.ce-card { background:#fff; border:1px solid #E4E3E3; border-radius:16px; padding:26px 28px; box-shadow:0 1px 3px rgba(0,46,93,.05); transition:box-shadow .2s, transform .2s, border-color .2s; cursor:pointer; display:flex; flex-direction:column; min-height:250px; box-sizing:border-box; text-align:left; }
-.ce-card:hover { box-shadow:0 12px 28px rgba(0,46,93,.14); transform:translateY(-2px); border-color:#B8C4D3; }
-.ce-ico { width:48px; height:48px; border-radius:12px; background:#fff; border:1px solid #FFC9A6; color:#FF6600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(255,102,0,.12); transition:transform .2s, box-shadow .2s, border-color .2s; }
+.ce-grid { display:grid; gap:18px; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:24px; }
+@media (max-width: 900px) { .ce-grid { grid-template-columns:1fr; } }
+.ce-card { text-align:left; background:#fff; border:1px solid #E4E3E3; border-radius:18px; padding:26px 28px; display:flex; flex-direction:column; gap:14px; cursor:pointer; box-shadow:0 1px 3px rgba(0,46,93,.05); transition:box-shadow .2s, transform .2s; min-height:250px; box-sizing:border-box; }
+.ce-card:hover { box-shadow:0 12px 28px rgba(0,46,93,.14); transform:translateY(-2px); }
+.ce-ico { width:48px; height:48px; border-radius:12px; box-sizing:border-box; background:#fff; border:1px solid #FFC7A3; box-shadow:0 2px 8px rgba(255,102,0,.16); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .18s ease-out, box-shadow .18s ease-out, transform .18s ease-out; }
 .ce-card:hover .ce-ico { border-color:#FF6600; transform:translateY(-2px) scale(1.08); box-shadow:0 6px 14px rgba(255,102,0,.22); }
-.ce-t { font:700 18px Poppins,sans-serif; color:#002E5D; margin:16px 0 8px; }
-.ce-d { font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin:0; }
-.ce-links { margin-top:auto; padding-top:18px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
-.ce-link { border:none; background:none; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font:700 13.5px Poppins,sans-serif; color:#002E5D; }
-.ce-link:hover { text-decoration:underline; text-underline-offset:3px; }
-.ce-cont { color:#FF6600; }
-.ce-cont .u { text-decoration:underline; text-underline-offset:3px; }
-.ce-badge { min-width:20px; height:20px; border-radius:10px; background:#FF6600; color:#fff; font:700 12px Poppins,sans-serif; display:inline-flex; align-items:center; justify-content:center; padding:0 6px; box-sizing:border-box; margin-left:2px; }
+.ce-txt { display:flex; flex-direction:column; gap:6px; }
+.ce-t { font:700 18px Poppins,sans-serif; color:#002E5D; }
+.ce-d { font-size:14px; color:#545454; line-height:1.45; }
+.ce-link { display:flex; align-items:center; gap:6px; margin-top:auto; font:700 13.5px Poppins,sans-serif; color:#002E5D; }
+.ce-cont { white-space:nowrap; align-self:flex-start; margin-top:-6px; padding:0; border:none; background:transparent; display:inline-flex; align-items:center; gap:6px; font:700 13.5px Poppins,sans-serif; color:#FF6600; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.ce-cont:hover { filter:brightness(.9); }
+.ce-badge { background:#FF6600; color:#fff; font:700 12px Poppins,sans-serif; min-width:20px; height:20px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; padding:0 5px; box-sizing:border-box; flex-shrink:0; text-decoration:none; }
 .cf-desc { font:400 14px "Open Sans",sans-serif; color:#545454; margin:6px 0 18px; }
 .cf-note { display:flex; align-items:flex-start; gap:12px; padding:14px 18px; background:#fff; border:1px solid #E4E3E3; border-radius:12px; box-shadow:0 1px 3px rgba(0,46,93,.05); font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin-bottom:14px; }
 .cf-note svg { flex:none; }
