@@ -4,6 +4,10 @@
 //  · Auditoría guiada: una foto a la vez, solo con la cámara, con la
 //    instrucción de cada vista. Cada foto se sube apenas se toma (si se corta
 //    la señal, al volver se retoma donde quedó) y guarda hora y ubicación.
+//  · La foto de % de batería se pide solo en vehículos eléctricos y la selfie
+//    abre la cámara frontal.
+//  · Vehículo: al final, checklist sí/no (cada "No" es hallazgo) y
+//    "¿Amerita reparación?" con observación.
 // Vehículo: del día 1 al 5 de cada mes. Limpieza: cada lunes.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from 'react'
@@ -107,6 +111,10 @@ function HacerAuditoria({ a, yo, onSalir }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [listo, setListo] = useState(false)
+  const [check, setCheck] = useState([])          // preguntas del checklist
+  const [resp, setResp] = useState({})            // codigo → true / false
+  const [amerita, setAmerita] = useState(null)    // true / false / null
+  const [obs, setObs] = useState('')
   const ubic = useRef(null)
   const input = useRef(null)
 
@@ -118,10 +126,18 @@ function HacerAuditoria({ a, yo, onSalir }) {
       if (error) { setErr(error.message); return }
       aid = data; setId(aid)
     }
-    const [it, ft] = await Promise.all([
+    const [it0, ft, ck] = await Promise.all([
       supabaseCL.from('ca_auditoria_items_cl').select('*').eq('tipo', a.tipo).eq('activo', true).order('orden'),
       supabaseCL.rpc('fn_portal_cl_auditoria_fotos', { p_id: aid }),
+      supabaseCL.rpc('fn_portal_cl_auditoria_checklist', { p_id: aid }),
     ])
+    // La foto de batería va solo en eléctricos
+    const it = { data: (it0.data || []).filter((x) => !x.solo_electrico || a.electrico) }
+    const preg = ck.data || []
+    setCheck(preg)
+    const rr = {}; for (const q of preg) if (q.cumple !== null && q.cumple !== undefined) rr[q.codigo] = q.cumple
+    setResp(rr)
+    if (preg[0]) { setAmerita(preg[0].amerita_reparacion ?? null); setObs(preg[0].reparacion_obs || '') }
     const m = {}
     for (const f of ft.data || []) {
       const { data: u } = await supabaseCL.storage.from(BUCKET).createSignedUrl(f.path, 3600)
@@ -154,7 +170,17 @@ function HacerAuditoria({ a, yo, onSalir }) {
     finally { setBusy(false) }
   }
   const enviar = async () => {
-    setBusy(true); setErr('')
+    setErr('')
+    if (a.tipo === 'vehiculo') {
+      if (check.some((q) => resp[q.codigo] === undefined)) return setErr('Responde todas las preguntas del checklist.')
+      if (amerita === null) return setErr('Responde si el vehículo amerita reparación.')
+      if (amerita && !obs.trim()) return setErr('Escribe qué hay que reparar.')
+    }
+    setBusy(true)
+    if (a.tipo === 'vehiculo') {
+      const g = await supabaseCL.rpc('fn_portal_cl_auditoria_checklist_guardar', { p_id: id, p_respuestas: resp, p_amerita: amerita, p_obs: obs })
+      if (g.error) { setBusy(false); return setErr(g.error.message) }
+    }
     const { error } = await supabaseCL.rpc('fn_portal_cl_auditoria_enviar', { p_id: id, p_km: a.tipo === 'vehiculo' ? Number(String(km).replace(/\D/g, '')) || 0 : null })
     setBusy(false)
     if (error) setErr(error.message); else setListo(true)
@@ -195,7 +221,7 @@ function HacerAuditoria({ a, yo, onSalir }) {
           {fotos[item.codigo]?.biggy_estado === 'rehacer' && <div className="au-rehacer">Biggy pide repetirla: {fotos[item.codigo].biggy_nota}</div>}
           {fotos[item.codigo]?.url ? <img src={fotos[item.codigo].url} alt={item.nombre} className="au-foto" /> : <div className="au-vacio">📷</div>}
           {err && <div className="au-error">{err}</div>}
-          <input ref={input} type="file" accept="image/*" capture="environment" hidden onChange={tomar} />
+          <input ref={input} type="file" accept="image/*" capture={item.codigo === 'selfie' ? 'user' : 'environment'} hidden onChange={tomar} />
           <div className="au-botones">
             <button className="pc-btn au-grande" disabled={busy} onClick={() => input.current?.click()}>
               {busy ? 'Guardando foto…' : fotos[item.codigo] ? '📷 Repetir foto' : '📷 Tomar foto'}
@@ -210,6 +236,32 @@ function HacerAuditoria({ a, yo, onSalir }) {
             <label className="au-km">Kilometraje del tablero
               <input inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 45230" />
             </label>
+          )}
+          {a.tipo === 'vehiculo' && check.length > 0 && (
+            <div className="au-check">
+              <div className="au-check-tit">Checklist</div>
+              {check.map((q) => (
+                <div key={q.codigo} className="au-preg">
+                  <span>{q.pregunta}</span>
+                  <div className="au-sino">
+                    <button className={resp[q.codigo] === true ? 'si' : ''} onClick={() => setResp((r) => ({ ...r, [q.codigo]: true }))}>Sí</button>
+                    <button className={resp[q.codigo] === false ? 'no' : ''} onClick={() => setResp((r) => ({ ...r, [q.codigo]: false }))}>No</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {a.tipo === 'vehiculo' && (
+            <div className="au-check">
+              <div className="au-preg">
+                <span><b>¿Amerita reparación?</b></span>
+                <div className="au-sino">
+                  <button className={amerita === true ? 'no' : ''} onClick={() => setAmerita(true)}>Sí</button>
+                  <button className={amerita === false ? 'si' : ''} onClick={() => setAmerita(false)}>No</button>
+                </div>
+              </div>
+              {amerita && <textarea className="au-obs" rows={3} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Describe qué hay que reparar" />}
+            </div>
           )}
           <div className="au-galeria">
             {items.map((it, i) => (
@@ -232,6 +284,15 @@ const CSS_AU = `
 .au-resumen div { background:#fff; border:1px solid #E4E3E3; border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; }
 .au-resumen b { font-family:Poppins,sans-serif; font-size:24px; }
 .au-resumen span { font-size:12.5px; color:#545454; }
+.au-check { border:1px solid #E4E3E3; border-radius:12px; padding:10px 12px; margin:12px 0; }
+.au-check-tit { font-family:Poppins,sans-serif; font-weight:600; color:#002E5D; margin-bottom:6px; }
+.au-preg { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #F1F1F1; flex-wrap:wrap; }
+.au-preg:last-child { border-bottom:none; }
+.au-sino { display:flex; gap:6px; }
+.au-sino button { min-width:56px; padding:8px 12px; border-radius:10px; border:1px solid #C9C9C9; background:#fff; font-weight:600; cursor:pointer; }
+.au-sino button.si { background:#1A7A3C; border-color:#1A7A3C; color:#fff; }
+.au-sino button.no { background:#C43D2F; border-color:#C43D2F; color:#fff; }
+.au-obs { width:100%; box-sizing:border-box; margin-top:8px; padding:10px; border:1px solid #C9C9C9; border-radius:10px; font:inherit; }
 .naranja { color:#FF6600; } .rojo { color:#C43D2F; } .verde { color:#1A7A3C; }
 .au-titulo { font-family:Poppins,sans-serif; font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#8B8B8B; margin:16px 4px 8px; }
 .au-fila { background:#fff; border:1px solid #E4E3E3; border-radius:14px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; flex-wrap:wrap; }
