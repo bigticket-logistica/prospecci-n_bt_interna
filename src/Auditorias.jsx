@@ -4,6 +4,9 @@
 //  · Auditoría guiada: una foto a la vez, solo con la cámara, con la
 //    instrucción de cada vista. Cada foto se sube apenas se toma (si se corta
 //    la señal, al volver se retoma donde quedó) y guarda hora y ubicación.
+//  · Cada foto tiene "¿Cómo tomarla?": cuándo cumple y cuándo no (criterios de
+//    la guía de Bigticket, en ca_auditoria_items_cl). Se abre sola si la foto
+//    todavía no se toma o hay que repetirla.
 //  · La foto de % de batería se pide solo en vehículos eléctricos y la selfie
 //    abre la cámara frontal.
 //  · Vehículo: al final, checklist sí/no (cada "No" es hallazgo) y
@@ -107,6 +110,7 @@ function HacerAuditoria({ a, yo, onSalir }) {
   const [items, setItems] = useState(null)
   const [fotos, setFotos] = useState({})          // item → { path, url, biggy_estado, biggy_nota }
   const [paso, setPaso] = useState(0)
+  const [ayuda, setAyuda] = useState({})          // codigo → abierta / cerrada (si no se tocó: abierta cuando falta la foto)
   const [km, setKm] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -218,7 +222,28 @@ function HacerAuditoria({ a, yo, onSalir }) {
           <div className="pc-mini">Foto {paso + 1} de {total}</div>
           <div className="au-item">{item.nombre}</div>
           <div className="au-inst">{item.instruccion}</div>
-          {fotos[item.codigo]?.biggy_estado === 'rehacer' && <div className="au-rehacer">Biggy pide repetirla: {fotos[item.codigo].biggy_nota}</div>}
+          {(() => {
+            const abierta = ayuda[item.codigo] ?? (!fotos[item.codigo] || fotos[item.codigo].biggy_estado === 'rehacer')
+            return (
+              <div className="au-ayuda">
+                <button className="au-ayuda-btn" onClick={() => setAyuda((x) => ({ ...x, [item.codigo]: !abierta }))}>
+                  {abierta ? '▾' : '▸'} ¿Cómo tomarla?
+                </button>
+                {abierta && (
+                  <div className="au-ayuda-caja">
+                    {item.cumple_si && <div className="au-ayuda-ok"><b>✅ Está bien si:</b> {item.cumple_si}.</div>}
+                    {item.no_cumple_si && <div className="au-ayuda-mal"><b>❌ Hay que repetirla si:</b> {item.no_cumple_si}.</div>}
+                    <div className="au-ayuda-tip">
+                      {item.codigo === 'selfie'
+                        ? 'Se abre la cámara de adelante. Mira al teléfono, con buena luz y sin lentes de sol.'
+                        : 'Toma la foto junto al vehículo, con buena luz, sin el dedo en el lente y sin moverte. No sirven capturas de pantalla ni fotos de otra foto.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+          {fotos[item.codigo]?.biggy_estado === 'rehacer' && <div className="au-rehacer"><b>Hay que repetirla:</b> {fotos[item.codigo].biggy_nota}</div>}
           {fotos[item.codigo]?.url ? <img src={fotos[item.codigo].url} alt={item.nombre} className="au-foto" /> : <div className="au-vacio">📷</div>}
           {err && <div className="au-error">{err}</div>}
           <input ref={input} type="file" accept="image/*" capture={item.codigo === 'selfie' ? 'user' : 'environment'} hidden onChange={tomar} />
@@ -312,6 +337,11 @@ const CSS_AU = `
 .au-punto.on { outline:2px solid #FF6600; outline-offset:1px; }
 .au-item { font-family:Poppins,sans-serif; font-weight:700; font-size:20px; color:#002E5D; margin:2px 0 4px; }
 .au-inst { color:#545454; font-size:14px; margin-bottom:12px; }
+.au-ayuda { margin:-4px 0 12px; }
+.au-ayuda-btn { background:none; border:none; padding:4px 0; color:#002E5D; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
+.au-ayuda-caja { background:#F4F7FB; border:1px solid #DCE4EF; border-radius:10px; padding:10px 12px; font-size:13.5px; line-height:1.45; display:flex; flex-direction:column; gap:6px; }
+.au-ayuda-ok b { color:#1A7A3C; } .au-ayuda-mal b { color:#C43D2F; }
+.au-ayuda-tip { color:#545454; font-size:12.5px; }
 .au-rehacer { background:#FBE3E0; color:#C43D2F; border-radius:10px; padding:8px 12px; font-size:13px; margin-bottom:10px; }
 .au-foto { width:100%; max-height:52vh; object-fit:contain; border-radius:12px; background:#F4F3F3; display:block; }
 .au-vacio { height:200px; border:2px dashed #E4E3E3; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:48px; color:#C9C9C9; }
