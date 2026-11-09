@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react'
 import { supabaseCL } from './supabaseChile'
+import Auditorias from './Auditorias'
 
 const LOGO = '/logo-bigticket-blanco.png'
 // El dueño (RUT de la empresa) ve todo; el delegado (RUT personal), solo
@@ -103,7 +104,7 @@ export default function PortalChile() {
           {vista === 'inicio' && dueno && <Inicio yo={yo} onIr={ir} />}
           {vista === 'flota' && dueno && <MiFlota />}
           {vista === 'equipo' && dueno && <MiEquipo />}
-          {vista === 'auditorias' && <Pronto titulo="Auditorías" texto="Aquí vas a registrar la auditoría del vehículo (días 1 a 5 de cada mes) y la de limpieza (cada lunes), con su checklist y fotos. Reemplaza las tarjetas de Pipefy." />}
+          {vista === 'auditorias' && <Auditorias yo={yo} />}
           {vista === 'interrupciones' && <Pronto titulo="Interrupciones de ruta" texto="Aquí vas a registrar cada pausa de la ruta (colación, baño, carga eléctrica) con su hora de inicio y de fin. Reemplaza las tarjetas de Pipefy." />}
         </main>
       </div>
