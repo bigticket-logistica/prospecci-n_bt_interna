@@ -4,6 +4,9 @@
 //  · Auditoría guiada: una foto a la vez, solo con la cámara, con la
 //    instrucción de cada vista. Cada foto se sube apenas se toma (si se corta
 //    la señal, al volver se retoma donde quedó) y guarda hora y ubicación.
+//  · Auditorías por evento (vehículo nuevo, traspaso, taller, no programada):
+//    las pide Bigticket y salen arriba en "Por hacer" con su motivo y plazo.
+//  · Los plazos salen de la configuración del Brain (fn_ca_plazos_cl).
 //  · Cada foto tiene "¿Cómo tomarla?": cuándo cumple y cuándo no (criterios de
 //    la guía de Bigticket, en ca_auditoria_items_cl). Se abre sola si la foto
 //    todavía no se toma o hay que repetirla.
@@ -18,6 +21,9 @@ import { supabaseCL } from './supabaseChile'
 
 const BUCKET = 'ca-auditorias-cl'
 const NOMBRE_TIPO = { vehiculo: 'Auditoría de vehículo', limpieza: 'Auditoría de limpieza' }
+const nombreDe = (f) => f.subtipo_nombre ? `Auditoría · ${f.subtipo_nombre}` : NOMBRE_TIPO[f.tipo]
+const claveDe = (f) => f.solicitud_id || f.tipo + f.patente
+const fdia = (s) => s ? new Date(s).toLocaleString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 const fh = (s) => s ? new Date(s).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
 
 // Reduce la foto a 1600 px de lado mayor, en JPEG (sube rápido con poca señal)
@@ -47,9 +53,11 @@ export default function Auditorias({ yo }) {
   const [filas, setFilas] = useState(null)
   const [abierta, setAbierta] = useState(null)     // { tipo, patente, auditoria_id }
   const [err, setErr] = useState('')
+  const [plazos, setPlazos] = useState({})
   const cargar = async () => {
-    const { data, error } = await supabaseCL.rpc('fn_portal_cl_auditorias')
+    const [{ data, error }, pz] = await Promise.all([supabaseCL.rpc('fn_portal_cl_auditorias'), supabaseCL.rpc('fn_ca_plazos_cl')])
     if (error) { setErr(error.message); setFilas([]) } else setFilas(data || [])
+    setPlazos(Object.fromEntries((pz.data || []).map((x) => [x.tipo, x.vence])))
   }
   useEffect(() => { cargar() }, [])
 
@@ -62,7 +70,9 @@ export default function Auditorias({ yo }) {
     <div>
       <style>{CSS_AU}</style>
       <h1 className="pc-h1">Auditorías</h1>
-      <div className="pc-sub">La de <b>vehículo</b> se hace del día 1 al 5 de cada mes y la de <b>limpieza</b> cada lunes. Toma las fotos con la cámara del teléfono, junto al vehículo.</div>
+      <div className="pc-sub">
+        La de <b>vehículo</b> se hace a comienzo de cada mes{plazos.vehiculo ? <> (este mes, hasta el {fdia(plazos.vehiculo)})</> : ''} y la de <b>limpieza</b> cada semana{plazos.limpieza ? <> (esta semana, hasta el {fdia(plazos.limpieza)})</> : ''}. Bigticket también puede pedirte otras, por ejemplo en un traspaso o al ir al taller. Toma las fotos con la cámara del teléfono, junto al vehículo.
+      </div>
       {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F' }}>{err}</div>}
       <div className="au-resumen">
         <div><b className="naranja">{n((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado) && !f.atrasada)}</b><span>Por hacer</span></div>
@@ -73,10 +83,11 @@ export default function Auditorias({ yo }) {
         <>
           {pend.length > 0 && <div className="au-titulo">Por hacer</div>}
           {pend.map((f) => (
-            <div key={f.tipo + f.patente} className={`au-fila${f.atrasada ? ' atrasada' : ''}`}>
+            <div key={claveDe(f)} className={`au-fila${f.atrasada ? ' atrasada' : ''}`}>
               <div style={{ minWidth: 0 }}>
                 <div className="au-pat">{f.patente}</div>
-                <div className="pc-mini">{NOMBRE_TIPO[f.tipo]}{f.estado === 'borrador' ? ` · en curso (${f.fotos} de ${f.total} fotos)` : ''}{f.estado === 'rehacer' ? ' · hay fotos por repetir' : ''}</div>
+                <div className="pc-mini">{nombreDe(f)}{f.estado === 'borrador' ? ` · en curso (${f.fotos} de ${f.total} fotos)` : ''}{f.estado === 'rehacer' ? ' · hay fotos por repetir' : ''}</div>
+                {f.motivo && <div className="pc-mini" style={{ color: '#002E5D' }}>Motivo: {f.motivo}</div>}
               </div>
               <div className="au-der">
                 <Contador vence={f.vence_at} atrasada={f.atrasada} />
@@ -86,10 +97,10 @@ export default function Auditorias({ yo }) {
           ))}
           {hechas.length > 0 && <div className="au-titulo">Hechas en este periodo</div>}
           {hechas.map((f) => (
-            <div key={f.tipo + f.patente} className="au-fila">
+            <div key={claveDe(f)} className="au-fila">
               <div style={{ minWidth: 0 }}>
                 <div className="au-pat">{f.patente}</div>
-                <div className="pc-mini">{NOMBRE_TIPO[f.tipo]} · hecha por <b>{f.hecha_por_nombre || '—'}</b> el {fh(f.enviada_at)}{f.atrasada ? ' · fuera de plazo' : ''}</div>
+                <div className="pc-mini">{nombreDe(f)} · hecha por <b>{f.hecha_por_nombre || '—'}</b> el {fh(f.enviada_at)}{f.atrasada ? ' · fuera de plazo' : ''}</div>
               </div>
               <div className="au-der">
                 <span className={`au-chip ${f.estado === 'aprobada' ? 'verde' : f.estado === 'rechazada' ? 'rojo' : 'azul'}`}>
@@ -126,7 +137,9 @@ function HacerAuditoria({ a, yo, onSalir }) {
     ubic.current = await ubicacion()
     let aid = id
     if (!aid) {
-      const { data, error } = await supabaseCL.rpc('fn_portal_cl_auditoria_iniciar', { p_tipo: a.tipo, p_patente: a.patente })
+      const { data, error } = a.solicitud_id
+        ? await supabaseCL.rpc('fn_portal_cl_auditoria_iniciar_evento', { p_solicitud: a.solicitud_id })
+        : await supabaseCL.rpc('fn_portal_cl_auditoria_iniciar', { p_tipo: a.tipo, p_patente: a.patente })
       if (error) { setErr(error.message); return }
       aid = data; setId(aid)
     }
@@ -195,7 +208,7 @@ function HacerAuditoria({ a, yo, onSalir }) {
       <div className="pc-card" style={{ textAlign: 'center', padding: '28px 20px' }}>
         <div style={{ fontSize: 40 }}>✅</div>
         <div className="pc-h1" style={{ fontSize: 22, marginTop: 6 }}>Auditoría enviada</div>
-        <div className="pc-sub">{a.patente} · {NOMBRE_TIPO[a.tipo]}. Biggy revisa las fotos y te avisamos si hay que repetir alguna.</div>
+        <div className="pc-sub">{a.patente} · {nombreDe(a)}. Biggy revisa las fotos y te avisamos si hay que repetir alguna.</div>
         <button className="pc-btn" onClick={onSalir}>Volver a mis auditorías</button>
       </div>
     </div>
@@ -206,7 +219,7 @@ function HacerAuditoria({ a, yo, onSalir }) {
       <style>{CSS_AU}</style>
       <button className="au-volver" onClick={onSalir}>← Mis auditorías</button>
       <div className="au-cab">
-        <div><div className="au-pat">{a.patente}</div><div className="pc-mini">{NOMBRE_TIPO[a.tipo]}</div></div>
+        <div><div className="au-pat">{a.patente}</div><div className="pc-mini">{nombreDe(a)}</div>{a.motivo && <div className="pc-mini" style={{ color: '#002E5D' }}>Motivo: {a.motivo}</div>}</div>
         <Contador vence={a.vence_at} atrasada={a.atrasada} />
       </div>
       <div className="au-barra"><div style={{ width: `${Math.round(100 * Object.keys(fotos).filter((k) => items.some((i) => i.codigo === k)).length / total)}%` }} /></div>
