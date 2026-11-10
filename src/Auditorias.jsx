@@ -124,7 +124,7 @@ function HacerAuditoria({ a, yo, onSalir }) {
   const [fotos, setFotos] = useState({})          // item → { path, url, biggy_estado, biggy_nota }
   const [paso, setPaso] = useState(0)
   const [ejemplos, setEjemplos] = useState({})     // codigo → { si: [url], no: [url] }
-  const [grande, setGrande] = useState(null)       // url de la foto de ejemplo ampliada
+  const [grande, setGrande] = useState(null)       // { fotos: [url], i, tit } galería de ejemplos ampliada
   const [ayuda, setAyuda] = useState({})          // codigo → abierta / cerrada (si no se tocó: abierta cuando falta la foto)
   const [km, setKm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -261,17 +261,30 @@ function HacerAuditoria({ a, yo, onSalir }) {
                     {item.no_cumple_si && <div className="au-ayuda-mal"><b>❌ Hay que repetirla si:</b> {item.no_cumple_si}.</div>}
                     {ejemplos[item.codigo] && (
                       <div className="au-ej">
-                        {[['si', '✅ Así sí'], ['no', '❌ Así no']].map(([k, t]) => (ejemplos[item.codigo][k] || []).length > 0 && (
-                          <div key={k} className="au-ej-col">
-                            <div className={`au-ej-tit ${k}`}>{t}</div>
-                            <div className="au-ej-fotos">
-                              {ejemplos[item.codigo][k].slice(0, 3).map((u) => <img key={u} src={u} alt={t} loading="lazy" onClick={() => setGrande(u)} />)}
-                            </div>
-                          </div>
-                        ))}
+                        {[['si', '✅ Así sí'], ['no', '❌ Así no']].map(([k, t]) => {
+                          const fs = ejemplos[item.codigo][k] || []
+                          if (!fs.length) return null
+                          return (
+                            <button key={k} className={`au-ej-card ${k}`} onClick={() => setGrande({ fotos: fs, i: 0, tit: t })}>
+                              <span className="au-ej-tit">{t}</span>
+                              <img src={fs[0]} alt={t} loading="lazy" />
+                              <span className="au-ej-mas">{fs.length > 1 ? `Ver ${fs.length} ejemplos` : 'Ver en grande'}</span>
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
-                    {grande && <div className="au-ej-modal" onClick={() => setGrande(null)}><img src={grande} alt="Ejemplo" /><div>Toca para cerrar</div></div>}
+                    {grande && (
+                      <div className="au-ej-modal" onClick={() => setGrande(null)}>
+                        <div className="au-ej-modal-tit">{grande.tit} · {grande.i + 1} de {grande.fotos.length}</div>
+                        <img src={grande.fotos[grande.i]} alt="Ejemplo" />
+                        <div className="au-ej-modal-nav" onClick={(e) => e.stopPropagation()}>
+                          {grande.fotos.length > 1 && <button onClick={() => setGrande({ ...grande, i: (grande.i - 1 + grande.fotos.length) % grande.fotos.length })}>‹ Anterior</button>}
+                          <button onClick={() => setGrande(null)}>Cerrar</button>
+                          {grande.fotos.length > 1 && <button onClick={() => setGrande({ ...grande, i: (grande.i + 1) % grande.fotos.length })}>Siguiente ›</button>}
+                        </div>
+                      </div>
+                    )}
                     <div className="au-ayuda-tip">
                       {item.codigo === 'selfie'
                         ? 'Se abre la cámara de adelante. Mira al teléfono, con buena luz y sin lentes de sol.'
@@ -380,13 +393,17 @@ const CSS_AU = `
 .au-ayuda-btn { background:none; border:none; padding:4px 0; color:#002E5D; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
 .au-ayuda-caja { background:#F4F7FB; border:1px solid #DCE4EF; border-radius:10px; padding:10px 12px; font-size:13.5px; line-height:1.45; display:flex; flex-direction:column; gap:6px; }
 .au-ayuda-ok b { color:#1A7A3C; } .au-ayuda-mal b { color:#C43D2F; }
-.au-ej { display:flex; gap:12px; flex-wrap:wrap; }
-.au-ej-col { flex:1 1 150px; min-width:0; }
-.au-ej-tit { font-weight:700; font-size:12.5px; margin-bottom:4px; } .au-ej-tit.si { color:#1A7A3C; } .au-ej-tit.no { color:#C43D2F; }
-.au-ej-fotos { display:flex; gap:6px; overflow-x:auto; }
-.au-ej-fotos img { height:84px; max-width:140px; object-fit:cover; border-radius:8px; border:1px solid #DCE4EF; cursor:zoom-in; flex:0 0 auto; }
-.au-ej-modal { position:fixed; inset:0; background:rgba(0,20,40,.85); z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#fff; font-size:13px; padding:16px; }
-.au-ej-modal img { max-width:100%; max-height:85vh; border-radius:10px; }
+.au-ej { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.au-ej-card { display:flex; flex-direction:column; gap:4px; padding:6px; border-radius:10px; background:#fff; cursor:zoom-in; font-family:inherit; text-align:left; min-width:0; }
+.au-ej-card.si { border:2px solid #1A7A3C; } .au-ej-card.no { border:2px solid #C43D2F; }
+.au-ej-tit { font-weight:700; font-size:13px; } .au-ej-card.si .au-ej-tit { color:#1A7A3C; } .au-ej-card.no .au-ej-tit { color:#C43D2F; }
+.au-ej-card img { width:100%; aspect-ratio:4/3; object-fit:contain; background:#1d2733; border-radius:6px; }
+.au-ej-mas { font-size:12px; color:#002E5D; font-weight:600; }
+.au-ej-modal { position:fixed; inset:0; background:rgba(0,20,40,.92); z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#fff; font-size:14px; padding:16px; }
+.au-ej-modal img { max-width:100%; max-height:72vh; object-fit:contain; border-radius:10px; }
+.au-ej-modal-tit { font-weight:700; }
+.au-ej-modal-nav { display:flex; gap:8px; }
+.au-ej-modal-nav button { background:#fff; color:#002E5D; border:none; border-radius:999px; padding:10px 16px; font-weight:700; font-family:inherit; cursor:pointer; }
 .au-ayuda-tip { color:#545454; font-size:12.5px; }
 .au-rehacer { background:#FBE3E0; color:#C43D2F; border-radius:10px; padding:8px 12px; font-size:13px; margin-bottom:10px; }
 .au-foto { width:100%; max-height:52vh; object-fit:contain; border-radius:12px; background:#F4F3F3; display:block; }
