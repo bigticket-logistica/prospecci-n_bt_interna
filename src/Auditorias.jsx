@@ -4,6 +4,8 @@
 //  · Auditoría guiada: una foto a la vez, solo con la cámara, con la
 //    instrucción de cada vista. Cada foto se sube apenas se toma (si se corta
 //    la señal, al volver se retoma donde quedó) y guarda hora y ubicación.
+//  · Avisos de mantención por kilometraje (fn_portal_cl_mnt_avisos): arriba de la
+//    lista, con el taller; «Entendido» marca que el transportista lo vio.
 //  · Auditorías por evento (vehículo nuevo, traspaso, taller, no programada):
 //    las pide Bigticket y salen arriba en "Por hacer" con su motivo y plazo.
 //  · Los plazos salen de la configuración del Brain (fn_ca_plazos_cl).
@@ -56,8 +58,10 @@ export default function Auditorias({ yo }) {
   const [abierta, setAbierta] = useState(null)     // { tipo, patente, auditoria_id }
   const [err, setErr] = useState('')
   const [plazos, setPlazos] = useState({})
+  const [mnt, setMnt] = useState([])
   const cargar = async () => {
-    const [{ data, error }, pz] = await Promise.all([supabaseCL.rpc('fn_portal_cl_auditorias'), supabaseCL.rpc('fn_ca_plazos_cl')])
+    const [{ data, error }, pz, mv] = await Promise.all([supabaseCL.rpc('fn_portal_cl_auditorias'), supabaseCL.rpc('fn_ca_plazos_cl'), supabaseCL.rpc('fn_portal_cl_mnt_avisos')])
+    setMnt(mv.data || [])
     if (error) { setErr(error.message); setFilas([]) } else setFilas(data || [])
     setPlazos(Object.fromEntries((pz.data || []).map((x) => [x.tipo, x.vence])))
   }
@@ -76,6 +80,19 @@ export default function Auditorias({ yo }) {
         La de <b>vehículo</b> se hace a comienzo de cada mes{plazos.vehiculo ? <> (este mes, hasta el {fdia(plazos.vehiculo)})</> : ''} y la de <b>limpieza</b> cada semana{plazos.limpieza ? <> (esta semana, hasta el {fdia(plazos.limpieza)})</> : ''}. Bigticket también puede pedirte otras, por ejemplo en un traspaso o al ir al taller. Toma las fotos con la cámara del teléfono, junto al vehículo.
       </div>
       {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F' }}>{err}</div>}
+      {mnt.map((m) => (
+        <div key={m.id} className={`au-mnt${m.visto_tercero_at ? ' visto' : ''}`}>
+          <div className="au-mnt-tit">🔧 {m.patente} · Mantención de los {Number(m.pauta).toLocaleString('es-CL')} km</div>
+          <div className="au-mnt-txt">{m.mensaje}</div>
+          {m.taller_detalle && <div className="au-mnt-taller"><b>Taller autorizado:</b>{m.taller_detalle}</div>}
+          <div className="au-mnt-pie">
+            <span>Aviso del {new Date(m.creado_at).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })}</span>
+            {m.visto_tercero_at
+              ? <span>✓ Visto</span>
+              : <button onClick={async () => { await supabaseCL.rpc('fn_portal_cl_mnt_visto', { p_id: m.id }); cargar() }}>Entendido</button>}
+          </div>
+        </div>
+      ))}
       <div className="au-resumen">
         <div><b className="naranja">{n((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado) && !f.atrasada)}</b><span>Por hacer</span></div>
         <div><b className="rojo">{n((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado) && f.atrasada)}</b><span>Atrasadas</span></div>
@@ -405,6 +422,13 @@ const CSS_AU = `
 .au-ej-modal-nav { display:flex; gap:8px; }
 .au-ej-modal-nav button { background:#fff; color:#002E5D; border:none; border-radius:999px; padding:10px 16px; font-weight:700; font-family:inherit; cursor:pointer; }
 .au-ayuda-tip { color:#545454; font-size:12.5px; }
+.au-mnt { background:#FFF4E0; border:1px solid #F2C27A; border-left:5px solid #FF6600; border-radius:12px; padding:12px 14px; margin:10px 0; }
+.au-mnt.visto { background:#fff; border-color:#E4E3E3; border-left-color:#C9C9C9; }
+.au-mnt-tit { font-family:Poppins,sans-serif; font-weight:700; color:#002E5D; font-size:15px; }
+.au-mnt-txt { font-size:14px; margin-top:4px; color:#333; }
+.au-mnt-taller { font-size:13px; margin-top:6px; color:#545454; white-space:pre-line; }
+.au-mnt-pie { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:12px; color:#777; gap:8px; }
+.au-mnt-pie button { background:#002E5D; color:#fff; border:none; border-radius:999px; padding:8px 16px; font-weight:700; font-family:inherit; cursor:pointer; }
 .au-rehacer { background:#FBE3E0; color:#C43D2F; border-radius:10px; padding:8px 12px; font-size:13px; margin-bottom:10px; }
 .au-foto { width:100%; max-height:52vh; object-fit:contain; border-radius:12px; background:#F4F3F3; display:block; }
 .au-vacio { height:200px; border:2px dashed #E4E3E3; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:48px; color:#C9C9C9; }
