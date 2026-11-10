@@ -7,6 +7,8 @@
 //  · Auditorías por evento (vehículo nuevo, traspaso, taller, no programada):
 //    las pide Bigticket y salen arriba en "Por hacer" con su motivo y plazo.
 //  · Los plazos salen de la configuración del Brain (fn_ca_plazos_cl).
+//  · Cada foto tiene "¿Cómo tomarla?" con fotos de ejemplo de la guía de
+//    Adriana (así sí / así no, en ca_auditoria_ejemplos_cl, bucket ca-guia-cl).
 //  · Cada foto tiene "¿Cómo tomarla?": cuándo cumple y cuándo no (criterios de
 //    la guía de Bigticket, en ca_auditoria_items_cl). Se abre sola si la foto
 //    todavía no se toma o hay que repetirla.
@@ -121,6 +123,8 @@ function HacerAuditoria({ a, yo, onSalir }) {
   const [items, setItems] = useState(null)
   const [fotos, setFotos] = useState({})          // item → { path, url, biggy_estado, biggy_nota }
   const [paso, setPaso] = useState(0)
+  const [ejemplos, setEjemplos] = useState({})     // codigo → { si: [url], no: [url] }
+  const [grande, setGrande] = useState(null)       // url de la foto de ejemplo ampliada
   const [ayuda, setAyuda] = useState({})          // codigo → abierta / cerrada (si no se tocó: abierta cuando falta la foto)
   const [km, setKm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -152,6 +156,15 @@ function HacerAuditoria({ a, yo, onSalir }) {
     const it = { data: (it0.data || []).filter((x) => !x.solo_electrico || a.electrico) }
     const preg = ck.data || []
     setCheck(preg)
+    try {
+      const { data: ej } = await supabaseCL.from('ca_auditoria_ejemplos_cl').select('path,item,cumple,orden').eq('activo', true).order('orden')
+      const m = {}
+      for (const e of ej || []) {
+        const url = supabaseCL.storage.from('ca-guia-cl').getPublicUrl(e.path).data.publicUrl
+        m[e.item] = m[e.item] || { si: [], no: [] }; m[e.item][e.cumple ? 'si' : 'no'].push(url)
+      }
+      setEjemplos(m)
+    } catch { /* sin ejemplos */ }
     const rr = {}; for (const q of preg) if (q.cumple !== null && q.cumple !== undefined) rr[q.codigo] = q.cumple
     setResp(rr)
     if (preg[0]) { setAmerita(preg[0].amerita_reparacion ?? null); setObs(preg[0].reparacion_obs || '') }
@@ -246,6 +259,19 @@ function HacerAuditoria({ a, yo, onSalir }) {
                   <div className="au-ayuda-caja">
                     {item.cumple_si && <div className="au-ayuda-ok"><b>✅ Está bien si:</b> {item.cumple_si}.</div>}
                     {item.no_cumple_si && <div className="au-ayuda-mal"><b>❌ Hay que repetirla si:</b> {item.no_cumple_si}.</div>}
+                    {ejemplos[item.codigo] && (
+                      <div className="au-ej">
+                        {[['si', '✅ Así sí'], ['no', '❌ Así no']].map(([k, t]) => (ejemplos[item.codigo][k] || []).length > 0 && (
+                          <div key={k} className="au-ej-col">
+                            <div className={`au-ej-tit ${k}`}>{t}</div>
+                            <div className="au-ej-fotos">
+                              {ejemplos[item.codigo][k].slice(0, 3).map((u) => <img key={u} src={u} alt={t} loading="lazy" onClick={() => setGrande(u)} />)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {grande && <div className="au-ej-modal" onClick={() => setGrande(null)}><img src={grande} alt="Ejemplo" /><div>Toca para cerrar</div></div>}
                     <div className="au-ayuda-tip">
                       {item.codigo === 'selfie'
                         ? 'Se abre la cámara de adelante. Mira al teléfono, con buena luz y sin lentes de sol.'
@@ -354,6 +380,13 @@ const CSS_AU = `
 .au-ayuda-btn { background:none; border:none; padding:4px 0; color:#002E5D; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
 .au-ayuda-caja { background:#F4F7FB; border:1px solid #DCE4EF; border-radius:10px; padding:10px 12px; font-size:13.5px; line-height:1.45; display:flex; flex-direction:column; gap:6px; }
 .au-ayuda-ok b { color:#1A7A3C; } .au-ayuda-mal b { color:#C43D2F; }
+.au-ej { display:flex; gap:12px; flex-wrap:wrap; }
+.au-ej-col { flex:1 1 150px; min-width:0; }
+.au-ej-tit { font-weight:700; font-size:12.5px; margin-bottom:4px; } .au-ej-tit.si { color:#1A7A3C; } .au-ej-tit.no { color:#C43D2F; }
+.au-ej-fotos { display:flex; gap:6px; overflow-x:auto; }
+.au-ej-fotos img { height:84px; max-width:140px; object-fit:cover; border-radius:8px; border:1px solid #DCE4EF; cursor:zoom-in; flex:0 0 auto; }
+.au-ej-modal { position:fixed; inset:0; background:rgba(0,20,40,.85); z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#fff; font-size:13px; padding:16px; }
+.au-ej-modal img { max-width:100%; max-height:85vh; border-radius:10px; }
 .au-ayuda-tip { color:#545454; font-size:12.5px; }
 .au-rehacer { background:#FBE3E0; color:#C43D2F; border-radius:10px; padding:8px 12px; font-size:13px; margin-bottom:10px; }
 .au-foto { width:100%; max-height:52vh; object-fit:contain; border-radius:12px; background:#F4F3F3; display:block; }
