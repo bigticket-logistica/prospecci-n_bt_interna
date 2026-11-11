@@ -1,3 +1,6 @@
+import Desempeno from './Desempeno'
+import Documentos from './Documentos'
+import Perfil, { perfilCompletoMK } from './Perfil'
 import SolicitudBajaNueva from './SolicitudBaja'
 import FirmaContrato from './FirmaContrato'
 import Certificar, { useBorradores, ToastCertificar, ElegirCertificar } from './Certificar'
@@ -249,7 +252,7 @@ function AppMexico() {
   const revisarPerfil = async () => {
     if (!tercero?.tercero_id) return
     const { data } = await supabase.from('perfiles_empresa').select('*').eq('tercero_id', tercero.tercero_id).maybeSingle()
-    setPerfilOk(perfilCompleto(data))
+    setPerfilOk(perfilCompletoMK(data))   // maqueta 8.9.21: 18 campos + comprobante
   }
   useEffect(() => { if (tercero?.tercero_id) revisarPerfil() }, [tercero])
 
@@ -310,13 +313,13 @@ function AppMexico() {
       {view === 'certificar' && <Bloque nombre="Certificar"><ElegirCertificar tercero={tercero} onPick={setView} onBack={() => setView('home')} /></Bloque>}
       {view === 'postula' && <Postula tercero={tercero} onBack={() => setView('home')} />}
       {view === 'reclamos' && <Bloque nombre="Reclamos"><Reclamos tercero={tercero} onIr={setView} /></Bloque>}
-      {view === 'desempeno' && <EnConstruccion vista={view} onBack={() => setView('home')} />}
+      {view === 'desempeno' && <Bloque nombre="Desempeño"><Desempeno onBack={() => setView('home')} /></Bloque>}
       {view === 'mensajes' && <Bloque nombre="Mis mensajes">
         <Mensajes tercero={tercero} onIr={(v, ref) => { setFecha(ref); setView(v) }} /></Bloque>}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
-      {view === 'docs' && <DocumentosEmpresa tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'docs' && <Bloque nombre="Documentos"><Documentos tercero={tercero} onBack={() => setView('home')} /></Bloque>}
       {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
-      {view === 'perfil' && <PerfilEmpresa tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} />}
+      {view === 'perfil' && <Bloque nombre="Perfil y cuenta bancaria"><Perfil tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} /></Bloque>}
       {(view === 'conductor' || view === 'ayudante' || view === 'vehiculo') && <Bloque nombre="Certificar">
         <Certificar key={view} tipo={view} tercero={tercero} email={email} onBack={() => setView('home')}
           onEstado={() => setView('estado')} onCertificar={() => setView('certificar')} /></Bloque>}
