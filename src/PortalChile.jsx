@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 import { supabaseCL } from './supabaseChile'
 import Auditorias from './Auditorias'
+import Interrupciones from './Interrupciones'
 
 const LOGO = '/logo-bigticket-blanco.png'
 // El dueño (RUT de la empresa) ve todo; el delegado (RUT personal), solo
@@ -105,7 +106,7 @@ export default function PortalChile() {
           {vista === 'flota' && dueno && <MiFlota />}
           {vista === 'equipo' && dueno && <MiEquipo />}
           {vista === 'auditorias' && <Auditorias yo={yo} />}
-          {vista === 'interrupciones' && <Pronto titulo="Interrupciones de ruta" texto="Aquí vas a registrar cada pausa de la ruta (colación, baño, carga eléctrica) con su hora de inicio y de fin. Reemplaza las tarjetas de Pipefy." />}
+          {vista === 'interrupciones' && <Interrupciones />}
         </main>
       </div>
     </div>
