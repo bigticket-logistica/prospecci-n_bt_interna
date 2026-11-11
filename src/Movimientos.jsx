@@ -98,6 +98,21 @@ export const EST_DIF = {
   vencida:     { l: 'Vencida',     bg: '#f1f5f9',           fg: 'var(--muted)', ayuda: 'Se cerró por plazo.' },
 }
 
+// Todos los centros de servicio de México: para elegir un SC donde el transportista
+// no tiene otros movimientos esa semana (una ruta suelta en otro site).
+const SC_MX = ['AMX7','ECH4','ECH5','EGD0','EGD9','EHM4','EHM5','EHP5','EHP6','ELP2','ELP3','EPB3','EQR2','ERX6','ETA4','ETG4','ETL1','ETL2','EVM2','EVR3','EZL1','SAG1','SBJ1','SCC1','SCD1','SCG1','SCH1','SCJ1','SCM1','SCN1','SCP1','SCQ1','SCT1','SCU1','SCV1','SCX1','SCY1','SDC1','SDG1','SEN1','SGD1','SGD2','SGD3','SGD4','SHM1','SHP1','SHP2','SJA1','SJD1','SLE1','SLP1','SLV1','SLW1','SLZ1','SMA1','SMD1','SML1','SMO1','SMT1','SMT2','SMT3','SMX1','SMX10','SMX2','SMX20','SMX22','SMX3','SMX4','SMX5','SMX6','SMX7','SMX8','SMX9','SMXRV1','SMZ1','SNG1','SNL1','SOX1','SPB1','SPD1','SPV1','SPY1','SPY2','SPZ1','SQR1','SQR2','SRX1','SSL1','STA1','STG1','STJ1','STL1','STL2','STN1','STP1','STR1','STT1','STX1','SUR1','SVH1','SVH2','SVM1','SVR1','SXL1','SZC1','SZL1','SZM1']
+// Opciones del SC: primero los del transportista, después "Otros centros"
+function OpcionesSC({ actual, propios = [] }) {
+  const mios = [...new Set([actual, ...propios].filter(Boolean))]
+  const otros = SC_MX.filter((x) => !mios.includes(x))
+  return (
+    <>
+      {mios.map((x) => <option key={x} value={x}>{x}</option>)}
+      {otros.length > 0 && <optgroup label="Otros centros">{otros.map((x) => <option key={x} value={x}>{x}</option>)}</optgroup>}
+    </>
+  )
+}
+
 export default function Movimientos({ tercero, email, onBack, fecha }) {
   // Si se llega desde un mensaje de una jornada concreta, se abre esa semana.
   const [lunes, setLunes] = useState(() =>
@@ -289,9 +304,9 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
   // Los centros donde operó esta semana. Cada uno es una prefactura distinta,
   // así que quien trabaja en varios necesita poder mirarlos de a uno.
   const centros = useMemo(() => {
-    const cs = new Set([...filas.map(f => f.sc), ...extras.map(e => e.service_center)].filter(Boolean))
+    const cs = new Set([...filas.map(f => f.sc), ...extras.map(e => e.service_center), ...padron.scs].filter(Boolean))
     return [...cs].sort()
-  }, [filas, extras])
+  }, [filas, extras, padron])
 
   const extrasSC = useMemo(() =>
     scSel === 'todos' ? extras : extras.filter(e => e.service_center === scSel),
@@ -488,7 +503,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
       alert('En lo que falta, indica al menos la placa y qué ocurrió.'); return
     }
     // Si el transportista no tiene ningún SC conocido, no se bloquea: la base lo completa desde el maestro
-    if (scsPosibles.length > 0 && [...faltantes, ...conceptos].some(x => !x.sc)) {
+    if ([...faltantes, ...conceptos].some(x => !x.sc)) {
       alert('Elige el centro de servicio (SC) de cada ruta o concepto que falta.'); return
     }
     if (conceptos.some(c => !c.concepto || !(Number(c.monto) > 0) || !c.comentario.trim() || !c.fecha)) {
@@ -954,7 +969,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
               <select value={f.sc || ''} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, sc: e.target.value, scTocado: true } : x))}
                 className="bm-campo" style={{ ...inp, width: 130, borderColor: f.sc ? undefined : 'var(--orange)' }} aria-label="Centro de servicio">
                 <option value="">SC…</option>
-                {scsPosibles.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+                <OpcionesSC propios={scsPosibles} />
               </select>
 
               <input type="date" value={f.fecha} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, fecha: e.target.value } : x))}
@@ -983,7 +998,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
               <select value={c.sc || ''} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, sc: e.target.value, scTocado: true } : x))}
                 className="bm-campo" style={{ ...inp, width: 130, borderColor: c.sc ? undefined : 'var(--orange)' }} aria-label="Centro de servicio">
                 <option value="">SC…</option>
-                {scsPosibles.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+                <OpcionesSC propios={scsPosibles} />
               </select>
 
               <input value={c.comentario} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, comentario: e.target.value } : x))}
@@ -1798,7 +1813,8 @@ function Campos({ tipo, f, set, sites = [] }) {
       <div className="fields">
         <label className="field"><span>Site *</span>
           <select value={f.sc} onChange={e => set('sc', e.target.value)}>
-            {[...new Set([f.sc, ...sites].filter(Boolean))].map(x => <option key={x} value={x}>{x}</option>)}
+            {!f.sc && <option value="">Elige el site…</option>}
+            <OpcionesSC actual={f.sc} propios={sites} />
           </select>
         </label>
         <label className="field"><span>{rutaOpcional ? 'ID ruta (opcional)' : 'ID ruta *'}</span>
@@ -1837,7 +1853,8 @@ function CamposConcepto({ f, set, sites = [] }) {
           <input type="number" min="0" step="0.01" value={f.monto} onChange={e => set('monto', e.target.value)} placeholder="Ej: 350" /></label>
         <label className="field"><span>Site *</span>
           <select value={f.sc} onChange={e => set('sc', e.target.value)}>
-            {[...new Set([f.sc, ...sites].filter(Boolean))].map(x => <option key={x} value={x}>{x}</option>)}
+            {!f.sc && <option value="">Elige el site…</option>}
+            <OpcionesSC actual={f.sc} propios={sites} />
           </select>
         </label>
         <label className="field"><span>Fecha *</span><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></label>
