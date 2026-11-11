@@ -120,7 +120,27 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(null) // folio
   const [misDif, setMisDif] = useState([])     // reclamos del tercero, con sus líneas
+  // Centros de servicio del transportista y SC de cada placa (padrón): para que
+  // una ruta o un concepto que falta nunca se envíe sin SC.
+  const [padron, setPadron] = useState({ scs: [], porPlaca: {} })
   const [difAbierta, setDifAbierta] = useState(null)
+
+  useEffect(() => {
+    if (!tercero?.tercero_id) return
+    supabase.from('flota_personal_terceros').select('placa, service_center').eq('tercero_id', tercero.tercero_id).eq('estado', 'activo')
+      .then(({ data }) => {
+        const porPlaca = {}, scs = new Set()
+        for (const r of data || []) {
+          if (r.service_center) scs.add(r.service_center)
+          if (r.placa && r.service_center) porPlaca[String(r.placa).toUpperCase().replace(/[^A-Z0-9]/g, '')] = r.service_center
+        }
+        setPadron({ scs: [...scs].sort(), porPlaca })
+      })
+  }, [tercero?.tercero_id])
+  // SC posibles: los de su padrón y los que aparecen en sus movimientos
+  const scsPosibles = useMemo(() => [...new Set([...padron.scs, ...filas.map((f) => f.sc), ...extras.map((e) => e.service_center)].filter(Boolean))].sort(), [padron, filas, extras])
+  // Sugerencia: si opera en un solo SC, ese; si no, el de la placa
+  const scSugerido = (placa) => scsPosibles.length === 1 ? scsPosibles[0] : (padron.porPlaca[String(placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '')] || '')
 
   const domingo = useMemo(() => sumaDias(lunes, 6), [lunes])
   // En el teléfono la cartola no cabe como tabla: cinco columnas en 390px
@@ -467,6 +487,10 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
     if (faltantes.some(f => !f.placa.trim() || !f.comentario.trim())) {
       alert('En lo que falta, indica al menos la placa y qué ocurrió.'); return
     }
+    // Si el transportista no tiene ningún SC conocido, no se bloquea: la base lo completa desde el maestro
+    if (scsPosibles.length > 0 && [...faltantes, ...conceptos].some(x => !x.sc)) {
+      alert('Elige el centro de servicio (SC) de cada ruta o concepto que falta.'); return
+    }
     if (conceptos.some(c => !c.concepto || !(Number(c.monto) > 0) || !c.comentario.trim() || !c.fecha)) {
       alert('En cada concepto que falta, indica qué es, la fecha, el monto y explica qué pasó.'); return
     }
@@ -494,15 +518,16 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
       const lineasFalt = faltantes.map(f => ({
         tipo: 'faltante', fecha: f.fecha || null, id_ruta: f.id_ruta?.trim() || null,
         cobro_id: null, cobro_origen: null, concepto: null,
-        placa: f.placa.trim(), monto_ref: null, comentario: f.comentario.trim(),
+        placa: f.placa.trim(), monto_ref: null, comentario: f.comentario.trim(), sc: f.sc || null,
       }))
       const lineasConc = conceptos.map(c => ({
         tipo: 'concepto', fecha: c.fecha || null, id_ruta: null,
         cobro_id: null, cobro_origen: null, concepto: c.concepto,
-        placa: c.placa.trim() || null, monto_ref: Number(c.monto), comentario: c.comentario.trim(),
+        placa: c.placa.trim() || null, monto_ref: Number(c.monto), comentario: c.comentario.trim(), sc: c.sc || null,
       }))
       const lineas = [...lineasSel, ...lineasFalt, ...lineasConc]
-      const scs = [...new Set(Object.keys(sel).map(k => porClave[k]?.sc).filter(Boolean))]
+      // El SC sale de los movimientos marcados y, si no hay, de lo que falta (que ahora siempre lo trae)
+      const scs = [...new Set([...Object.keys(sel).map(k => porClave[k]?.sc), ...faltantes.map(f => f.sc), ...conceptos.map(c => c.sc)].filter(Boolean))]
 
       const { data: dif, error: eDif } = await supabase.from('diferencias').insert({
         tercero_id: tercero.tercero_id,
@@ -924,8 +949,14 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           </div>
           {faltantes.map((f, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-              <input value={f.placa} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value } : x))}
+              <input value={f.placa} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value, sc: x.scTocado ? x.sc : (scSugerido(e.target.value) || x.sc) } : x))}
                 placeholder="Placa" className="bm-campo" style={{ ...inp, width: 110 }} />
+              <select value={f.sc || ''} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, sc: e.target.value, scTocado: true } : x))}
+                className="bm-campo" style={{ ...inp, width: 130, borderColor: f.sc ? undefined : 'var(--orange)' }} aria-label="Centro de servicio">
+                <option value="">SC…</option>
+                {scsPosibles.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+              </select>
+
               <input type="date" value={f.fecha} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, fecha: e.target.value } : x))}
                 className="bm-campo" style={{ ...inp, width: 150 }} />
               <input value={f.id_ruta} onChange={e => setFaltantes(p => p.map((x, j) => j === i ? { ...x, id_ruta: e.target.value } : x))}
@@ -947,8 +978,14 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
                 className="bm-campo" style={{ ...inp, width: 150 }} />
               <input type="number" min="0" step="0.01" value={c.monto} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))}
                 placeholder="Monto $" className="bm-campo" style={{ ...inp, width: 110 }} />
-              <input value={c.placa} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value.toUpperCase() } : x))}
+              <input value={c.placa} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, placa: e.target.value.toUpperCase(), sc: x.scTocado ? x.sc : (scSugerido(e.target.value) || x.sc) } : x))}
                 placeholder="Placa (opcional)" className="bm-campo" style={{ ...inp, width: 140 }} />
+              <select value={c.sc || ''} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, sc: e.target.value, scTocado: true } : x))}
+                className="bm-campo" style={{ ...inp, width: 130, borderColor: c.sc ? undefined : 'var(--orange)' }} aria-label="Centro de servicio">
+                <option value="">SC…</option>
+                {scsPosibles.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+              </select>
+
               <input value={c.comentario} onChange={e => setConceptos(p => p.map((x, j) => j === i ? { ...x, comentario: e.target.value } : x))}
                 placeholder="Explica qué te falta" className="bm-campo" style={{ ...inp, flex: 2, minWidth: 200 }} />
               <button onClick={() => setConceptos(p => p.filter((_, j) => j !== i))}
@@ -956,11 +993,11 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
             </div>
           ))}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => setFaltantes(p => [...p, { placa: '', fecha: iso(lunes), id_ruta: '', comentario: '' }])}
+            <button onClick={() => setFaltantes(p => [...p, { placa: '', fecha: iso(lunes), id_ruta: '', comentario: '', sc: scSugerido('') }])}
               style={{ flex: 1, minWidth: 220, minHeight: 48, border: '2px solid var(--orange)', background: '#FFF7F1', color: 'var(--orange)', borderRadius: 12, padding: '10px 14px', fontSize: 14.5, fontWeight: 700 }}>
               + Agregar una ruta que falta
             </button>
-            <button onClick={() => setConceptos(p => [...p, { concepto: '', fecha: iso(lunes), monto: '', placa: '', comentario: '' }])}
+            <button onClick={() => setConceptos(p => [...p, { concepto: '', fecha: iso(lunes), monto: '', placa: '', comentario: '', sc: scSugerido('') }])}
               style={{ flex: 1, minWidth: 220, minHeight: 48, border: '2px solid var(--orange)', background: '#FFF7F1', color: 'var(--orange)', borderRadius: 12, padding: '10px 14px', fontSize: 14.5, fontWeight: 700 }}>
               + Agregar otro concepto que falta
             </button>
