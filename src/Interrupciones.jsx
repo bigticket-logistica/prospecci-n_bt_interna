@@ -10,7 +10,9 @@ const TIPOS = {
   colacion: { t: 'Colación', i: '🍽️', d: 'Hasta 45 min, después de 4 h de ruta o al terminar' },
   bano: { t: 'Baño', i: '🚻', d: 'Hasta 15 min cada vez' },
   carga: { t: 'Carga eléctrica', i: '🔌', d: 'Hasta 2 h, en una estación de carga' },
+  aviso: { t: 'Otra detención (avisar)', i: '📝', d: 'Cualquier otra parada fuera de ruta: elige el motivo y explica' },
 }
+const EST_AVISO = { pendiente: ['Por revisar del supervisor', '#C47A00'], aceptado: ['Aceptado', '#1A7A3C'], rechazado: ['Rechazado', '#B42318'] }
 const ubicacion = () => new Promise((ok) => {
   if (!navigator.geolocation) return ok(null)
   navigator.geolocation.getCurrentPosition((p) => ok({ lat: p.coords.latitude, lng: p.coords.longitude }), () => ok(null), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 })
@@ -25,6 +27,8 @@ export default function Interrupciones() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [, setTic] = useState(0)
+  const [justifs, setJustifs] = useState([])
+  const [aviso, setAviso] = useState(null)   // { justificacion, comentario } mientras se llena el formulario
   const cargar = async () => {
     const [p, l] = await Promise.all([supabaseCL.rpc('fn_portal_cl_interr_patentes'), supabaseCL.rpc('fn_portal_cl_interr_lista')])
     if (p.error || l.error) { setErr((p.error || l.error).message); return }
@@ -32,9 +36,24 @@ export default function Interrupciones() {
     setPatentes(ps); setLista(l.data || [])
     setPatente((x) => x || (ps.length === 1 ? ps[0] : ''))
   }
-  useEffect(() => { cargar(); const i = setInterval(() => setTic((t) => t + 1), 30000); return () => clearInterval(i) }, [])
+  useEffect(() => {
+    cargar()
+    supabaseCL.from('ca_justificaciones_cl').select('codigo,nombre').eq('activo', true).neq('codigo', 'SIN_RESPUESTA').order('orden').then(({ data }) => setJustifs(data || []))
+    const i = setInterval(() => setTic((t) => t + 1), 30000); return () => clearInterval(i)
+  }, [])
   const abierta = lista.find((x) => !x.fin && (!patente || x.patente === patente))
+  const avisar = async () => {
+    if (!patente) return setErr('Elige primero el vehículo.')
+    if (!aviso?.justificacion) return setErr('Elige el motivo.')
+    if (!aviso?.comentario?.trim()) return setErr('Escribe un comentario: qué pasó y dónde.')
+    setBusy(true); setErr('')
+    const u = await ubicacion()
+    const { error } = await supabaseCL.rpc('fn_portal_cl_interr_avisar', { p_patente: patente, p_justificacion: aviso.justificacion, p_comentario: aviso.comentario, p_lat: u?.lat ?? null, p_lng: u?.lng ?? null })
+    if (error) setErr(error.message); else { setAviso(null); await cargar() }
+    setBusy(false)
+  }
   const iniciar = async (tipo) => {
+    if (tipo === 'aviso') { setAviso({ justificacion: '', comentario: '' }); return }
     if (!patente) return setErr('Elige primero el vehículo.')
     setBusy(true); setErr('')
     const u = await ubicacion()
@@ -74,6 +93,21 @@ export default function Interrupciones() {
               <div style={{ fontSize: 13, color: '#545454' }}>Desde las {hora(abierta.inicio)}</div>
               <button className="in-fin" disabled={busy} onClick={() => terminar(abierta.id)}>{busy ? 'Guardando…' : 'Terminé'}</button>
             </div>
+          ) : aviso ? (
+            <div className="pc-card">
+              <div style={{ fontWeight: 700, color: '#002E5D', marginBottom: 8 }}>📝 Avisar otra detención</div>
+              <label style={{ fontSize: 13, color: '#545454' }}>Motivo
+                <select className="in-sel" value={aviso.justificacion} onChange={(e) => setAviso({ ...aviso, justificacion: e.target.value })}>
+                  <option value="">Elige el motivo…</option>{justifs.map((j) => <option key={j.codigo} value={j.codigo}>{j.nombre}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: 13, color: '#545454', display: 'block', marginTop: 8 }}>Comentario
+                <textarea className="in-sel" rows={3} value={aviso.comentario} onChange={(e) => setAviso({ ...aviso, comentario: e.target.value })} placeholder="Qué pasó y dónde" />
+              </label>
+              <div style={{ fontSize: 12, color: '#777', margin: '6px 0' }}>Se guarda la hora y la ubicación. Tu supervisor lo acepta o lo rechaza. Al volver a la ruta pulsa «Terminé».</div>
+              <button className="in-fin" disabled={busy} onClick={avisar}>{busy ? 'Enviando…' : 'Avisar y empezar'}</button>
+              <button className="in-fin" style={{ background: '#fff', color: '#002E5D', border: '1px solid #002E5D', marginLeft: 8 }} disabled={busy} onClick={() => setAviso(null)}>Cancelar</button>
+            </div>
           ) : (
             <div className="in-botones">
               {Object.entries(TIPOS).map(([k, v]) => (
@@ -87,7 +121,8 @@ export default function Interrupciones() {
           {lista.filter((x) => x.fin).length === 0 ? <div className="pc-card" style={{ color: '#777' }}>Todavía no hay pausas registradas hoy.</div> :
             lista.filter((x) => x.fin).map((x) => (
               <div key={x.id} className="in-fila">
-                <span>{TIPOS[x.tipo]?.i} <b>{TIPOS[x.tipo]?.t}</b> · {x.patente}</span>
+                <span>{TIPOS[x.tipo]?.i} <b>{TIPOS[x.tipo]?.t}</b> · {x.patente}
+                  {x.tipo === 'aviso' && <><br /><small style={{ color: (EST_AVISO[x.estado_sup] || [])[1] }}>{(EST_AVISO[x.estado_sup] || ['Por revisar'])[0]}{x.nota_sup ? ` · ${x.nota_sup}` : ''}</small></>}</span>
                 <span>{hora(x.inicio)} – {hora(x.fin)} · {minutos(x.inicio, x.fin)} min</span>
               </div>
             ))}
