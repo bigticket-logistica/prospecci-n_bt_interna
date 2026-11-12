@@ -307,7 +307,7 @@ function AppMexico() {
         <Movimientos key={fecha || 'hoy'} tercero={tercero} email={email} fecha={fecha}
           onBack={() => { setFecha(null); setView('home') }} /></Bloque>}
       {view === 'descuentos' && <Bloque nombre="Descuentos"><Descuentos tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
-      {view === 'diferencias' && <Bloque nombre="Mis diferencias"><MisDiferencias tercero={tercero} onBack={() => setView('home')} /></Bloque>}
+      {view === 'diferencias' && <Bloque nombre="Mis diferencias"><MisDiferencias tercero={tercero} onBack={() => setView('home')} onIr={setView} /></Bloque>}
       {(view === 'facturacion' || view === 'facturado' || view === 'pagado') &&
         <Bloque nombre="Facturación"><Facturacion key={view} vista={view} tercero={tercero} email={email} onBack={() => setView('home')} onIr={(v) => setView(v)} /></Bloque>}
       {view === 'certificar' && <Bloque nombre="Certificar"><ElegirCertificar tercero={tercero} onPick={setView} onBack={() => setView('home')} /></Bloque>}

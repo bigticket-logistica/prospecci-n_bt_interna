@@ -230,7 +230,7 @@ export default function Perfil({ tercero, email, onBack, onGuardado }) {
       </div>
 
       {modo === 'fichas' ? (
-        <div className="notice notice--ok"><IcoCheck />Perfil completo: tus datos de pago están listos.</div>
+        <div className="notice notice--ok"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m8 12 3 3 5-6" /></svg>Perfil completo: tus datos de pago están listos.</div>
       ) : borrador ? (
         <div className="notice" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}><IcoHist />
@@ -380,9 +380,10 @@ export default function Perfil({ tercero, email, onBack, onGuardado }) {
             <div className="sheet-row"><span className="k">Titular</span><span className="v">{v_(p.titular_cuenta)}</span></div>
             <div className="sheet-row"><span className="k">RFC del titular</span><span className="v">{v_(p.rfc_titular)}</span></div>
             <div className="sheet-row"><span className="k">Tipo de cuenta</span><span className="v">{v_(p.tipo_cuenta)}</span></div>
-            <div className="sheet-row"><span className="k">Comprobante bancario</span>
-              <span className="v" style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontWeight: 400, fontSize: 12.5 }}>Captura con banco y CLABE</span>
-                {p.evidencia_cuenta_path ? <button className="link-action" onClick={verComprobante}>Ver</button> : '—'}</span></div>
+            <div className="sheet-row">
+              <span><span className="k" style={{ display: 'block' }}>Comprobante bancario</span>
+                <span style={{ display: 'block', font: '400 12.5px "Open Sans", sans-serif', color: '#545454', marginTop: 2 }}>Captura con banco y CLABE</span></span>
+              <span className="v">{p.evidencia_cuenta_path ? <button className="link-action" onClick={verComprobante}>Ver</button> : '—'}</span></div>
           </div>
         </section>
       </>)}
