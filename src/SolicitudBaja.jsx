@@ -19,10 +19,11 @@ const MOTIVOS = {
 const estadoTxt = (e) => e === 'completada' ? 'Completada' : 'En revisión'
 const fDia = (x) => x ? new Date(x).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
 
+// Íconos de la maqueta 8.9.21 (línea naranja 0.83 sobre blanco)
 const ICONOS = {
-  vehiculo: <><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1" /><path d="M10 17h4" /><path d="M14 9h4l4 4v3a1 1 0 0 1-1 1h-1" /><circle cx="7" cy="17.5" r="2" /><circle cx="17" cy="17.5" r="2" /></>,
-  personal: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></>,
-  empresa: <><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /><path d="M9 10h.01M15 10h.01M9 13h.01M15 13h.01" /></>,
+  vehiculo: <><path d="M13 6v5a1 1 0 0 0 1 1h6.102a1 1 0 0 1 .712.298l.898.91a1 1 0 0 1 .288.702V17a1 1 0 0 1-1 1h-3" /><path d="M5 18H3a1 1 0 0 1-1-1V8a2 2 0 0 1 2-2h12c1.1 0 2.1.8 2.4 1.8l1.176 4.2" /><path d="M9 18h5" /><circle cx="16" cy="18" r="2" /><circle cx="7" cy="18" r="2" /></>,
+  personal: <><circle cx="12" cy="8" r="4.5" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+  empresa: <><rect x="5" y="2.5" width="14" height="19" rx="1.5" /><path d="M9 7h1.5M13.5 7H15M9 11h1.5M13.5 11H15M9 15h1.5M13.5 15H15" /><path d="M10 21.5v-3h4v3" /></>,
 }
 const TIPOS = [['vehiculo', 'Baja de vehículo'], ['personal', 'Baja de personal'], ['empresa', 'Baja de empresa']]
 const IcoCheck = ({ s = 12, c = '#fff', w = 3.2 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
@@ -135,8 +136,8 @@ export default function SolicitudBaja({ tercero, email, onBack }) {
           {TIPOS.map(([k, t]) => (
             <button key={k} type="button" className="sb-tipo" aria-pressed={tipo === k} onClick={() => elegirTipo(k)}>
               <span className="sb-ico">
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{ICONOS[k]}</svg>
-                <span className="sb-menos"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M6 12h12" /></svg></span>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FF6600" strokeWidth="0.83" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS[k]}</svg>
+                <span className="sb-menos" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" /><path d="M14 8l4 4-4 4" /><path d="M18 12H9" /></svg></span>
               </span>
               <span className="sb-tipo-t">{t}</span>
             </button>
@@ -262,8 +263,8 @@ const CSS_SB = `
 .sb-tipo { background:#fff; border:1px solid #E4E3E3; border-radius:14px; padding:22px 16px; display:flex; flex-direction:column; align-items:center; gap:12px; cursor:pointer; transition:box-shadow .2s, transform .2s, border-color .2s; }
 .sb-tipo:hover, .sb-tipo[aria-pressed="true"] { box-shadow:0 12px 28px rgba(0,46,93,.14); transform:translateY(-2px); }
 .sb-tipo[aria-pressed="true"] { border-color:#FFB98A; }
-.sb-ico { position:relative; width:48px; height:48px; border-radius:12px; border:1px solid #FFD3B3; background:#FFF6F0; display:flex; align-items:center; justify-content:center; color:#002E5D; transition:color .2s, transform .2s, box-shadow .2s; }
-.sb-tipo:hover .sb-ico, .sb-tipo[aria-pressed="true"] .sb-ico { color:#FF6600; transform:translateY(-2px); box-shadow:0 6px 14px rgba(255,102,0,.22); }
+.sb-ico { position:relative; width:48px; height:48px; border-radius:12px; box-sizing:border-box; background:#fff; border:1px solid #FFC7A3; box-shadow:0 2px 8px rgba(255,102,0,.16); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .18s ease-out, box-shadow .18s ease-out, transform .18s ease-out; }
+.sb-tipo:hover .sb-ico, .sb-tipo[aria-pressed="true"] .sb-ico { border-color:#FF6600; transform:translateY(-2px) scale(1.08); box-shadow:0 6px 14px rgba(255,102,0,.22); }
 .sb-menos { position:absolute; right:-7px; bottom:-7px; width:22px; height:22px; border-radius:50%; background:#FF6600; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
 .sb-tipo-t { font:700 15px Poppins,sans-serif; color:#002E5D; }
 .sb-lista { display:flex; flex-direction:column; gap:10px; }
