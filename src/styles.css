@@ -2387,3 +2387,14 @@ tr:last-child td { border-bottom: none; }
 .mw .add-big b { display: block; font: 700 14.5px var(--font-display); color: #002E5D; }
 .mw .add-big small { display: block; font: 400 12.5px 'Open Sans', sans-serif; color: #545454; margin-top: 2px; }
 @media (max-width: 760px) { .mw .add-big-wrap { padding-left: 22px; } }
+
+/* ── Inicio · recuadros "fantasma" de notificaciones (maqueta 8.9.23) ── */
+.nt-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); }
+.nt-card--ghost { background:#FAFAFB !important; border:1px dashed #D9DDE2 !important; border-radius:16px; padding:16px 18px 18px; display:flex; flex-direction:column; gap:14px; cursor:default; box-shadow:0 1px 3px rgba(0,46,93,.05); transition:box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+.nt-card--ghost:hover { box-shadow:0 12px 28px rgba(0,46,93,.14); transform:translateY(-2px); border-color:#B8C4D3 !important; }
+.nt-chip--ghost { display:inline-flex; align-items:center; justify-content:center; gap:10px; height:56px; min-width:108px; padding:0 18px; box-sizing:border-box; border-radius:12px; background:#fff; border:1px solid #D9DDE2; color:#6B737D; font:800 15px Poppins, sans-serif; letter-spacing:.06em; }
+.nt-dot--ghost { width:9px; height:9px; border-radius:50%; background:#B4BBC4; animation:none; }
+.nt-empty { display:flex; align-items:center; gap:14px; min-height:56px; padding:0 18px; box-sizing:border-box; background:#fff; border:1px dashed #E4E3E3; border-radius:12px; }
+.nt-empty-txt { display:flex; flex-direction:column; gap:2px; padding:10px 0; }
+.nt-empty-txt .t { font:700 15px Poppins, sans-serif; color:#545454; }
+.nt-empty-txt .d { font:400 13px "Open Sans", sans-serif; color:#545454; }

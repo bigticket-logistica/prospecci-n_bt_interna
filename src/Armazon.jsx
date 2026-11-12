@@ -379,6 +379,24 @@ const rutasDe = (r) => r?.rutas ?? r?.jornadas ?? null
 const devolucionesDe = (r) => r?.devoluciones ?? null
 const nsDomicilioDe = (r) => r?.ns_domicilio ?? null
 
+// Recuadro "fantasma" (maqueta 8.9.23): sin pendientes, sin acción ni enlace.
+function TarjetaFantasma({ etiqueta, texto }) {
+  return (
+    <div className="nt-card nt-card--ghost" aria-label={`${etiqueta}: sin pendientes`}>
+      <div className="nt-head">
+        <span className="nt-chip--ghost"><span className="nt-dot--ghost" aria-hidden="true" />{etiqueta}</span>
+      </div>
+      <div className="nt-empty">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="1.8"
+          strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.45, flex: 'none' }} aria-hidden="true">
+          <circle cx="12" cy="12" r="10" /><path d="m8 12 3 3 5-6" />
+        </svg>
+        <span className="nt-empty-txt"><span className="t">Todo al día</span><span className="d">{texto}</span></span>
+      </div>
+    </div>
+  )
+}
+
 export function Inicio({ tercero, perfilOk, onPick }) {
   const [dia, setDia] = useState(null)
   const [periodos, setPeriodos] = useState([])
@@ -556,36 +574,33 @@ export function Inicio({ tercero, perfilOk, onPick }) {
           hayAnterior={hayAnterior} haySiguiente={haySiguiente} setIdx={setIdx} />
       )}
 
-      {listo && !movil && (urgente || importante) && (
+      {/* Maqueta 8.9.23: URGENTE y ATENCIÓN se muestran siempre. Sin pendientes,
+          cada recuadro pasa por separado a modo "fantasma" (no desaparece), para
+          que la página no quede corta. */}
+      {listo && !movil && (
         <>
           <span className="bt-eyebrow">Notificaciones</span>
           <div className="nt-grid">
-            <article className={`nt-card${urgente ? '' : ' vacia'}`}>
-              <header className="nt-head">
-                <span className="tag tag--urgent"><span className="tag__dot" aria-hidden="true" />URGENTE</span>
-                <span className="nt-resumen">
-                  {urgente ? urgente.resumen : 'Sin plata en riesgo'}
-                </span>
-              </header>
-              {urgente ? (
+            {urgente ? (
+              <article className="nt-card">
+                <header className="nt-head">
+                  <span className="tag tag--urgent"><span className="tag__dot" aria-hidden="true" />URGENTE</span>
+                  <span className="nt-resumen">{urgente.resumen}</span>
+                </header>
                 <button className="nt-kpi" onClick={() => onPick('reclamos')}>
                   <span className="nt-num">{urgente.n}</span>
                   <span className="nt-label">{urgente.label}</span>
                   <span className="nt-cta">Revisar <Chev /></span>
                 </button>
-              ) : (
-                <div className="nt-kpi sin-nada">No tienes reclamos esperando tu respuesta</div>
-              )}
-            </article>
+              </article>
+            ) : <TarjetaFantasma etiqueta="URGENTE" texto="No tienes nada urgente por resolver" />}
 
-            <article className={`nt-card${importante ? '' : ' vacia'}`}>
-              <header className="nt-head">
-                <span className="tag tag--attention"><span className="tag__dot" aria-hidden="true" />ATENCIÓN</span>
-                <span className="nt-resumen">
-                  {importante ? 'Riesgo de bloqueo y pago' : 'Sin pendientes'}
-                </span>
-              </header>
-              {importante ? (
+            {importante ? (
+              <article className="nt-card">
+                <header className="nt-head">
+                  <span className="tag tag--attention"><span className="tag__dot" aria-hidden="true" />ATENCIÓN</span>
+                  <span className="nt-resumen">Riesgo de bloqueo y pago</span>
+                </header>
                 <div className="nt-kpi-row">
                   {importante.map(k => (
                     <button key={k.v} className="nt-kpi" onClick={() => onPick(k.v)}>
@@ -595,10 +610,8 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                     </button>
                   ))}
                 </div>
-              ) : (
-                <div className="nt-kpi sin-nada">Tu certificación y tus facturas están al día</div>
-              )}
-            </article>
+              </article>
+            ) : <TarjetaFantasma etiqueta="ATENCIÓN" texto="No tienes nada pendiente por revisar" />}
           </div>
         </>
       )}
@@ -684,7 +697,7 @@ function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual
 
   return (
     <>
-      {(urgente || importante) && (
+      {(
         <>
           <span className="bt-eyebrow">Notificaciones</span>
           <div className="im-notis">
