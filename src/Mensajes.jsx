@@ -114,6 +114,15 @@ export default function Mensajes({ tercero, onIr }) {
   }, [tercero])
 
   useEffect(() => { cargar() }, [cargar])
+  // Lo leído se guarda por empresa: si otra persona de la empresa lee un
+  // mensaje, aquí se refleja al volver a la pestaña o en el siguiente minuto.
+  useEffect(() => {
+    const alVolver = () => { if (!document.hidden) cargar() }
+    const t = setInterval(alVolver, 60000)
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('focus', alVolver)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); window.removeEventListener('focus', alVolver) }
+  }, [cargar])
 
   const categorias = useMemo(() => {
     const c = new Set((filas || []).map(f => f.categoria).filter(Boolean))
@@ -158,6 +167,7 @@ export default function Mensajes({ tercero, onIr }) {
     // puede marcar como leído lo que no es suyo.
     await Promise.all(pendientes.map(n => supabase.rpc('fn_portal_marcar_leida', { p_id: n.id })))
     setFilas(p => (p || []).map(x => x.leida_at ? x : { ...x, leida_at: ahora }))
+    window.dispatchEvent(new Event('bt:leido'))
     setTrabajando(false)
   }
 
@@ -201,8 +211,11 @@ export default function Mensajes({ tercero, onIr }) {
           )}
         </span>
 
-        {movil && sinLeer > 0 && (
-          <button className="ms-todo" onClick={marcarTodo} disabled={trabajando}>
+        {sinLeer > 0 && (
+          <button className="ms-todo" onClick={marcarTodo} disabled={trabajando}
+            style={movil ? undefined : { display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            {!movil && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>}
             {trabajando ? 'Marcando…' : 'Marcar todo como leído'}
           </button>
         )}
