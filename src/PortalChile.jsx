@@ -11,8 +11,8 @@ import { supabaseCL } from './supabaseChile'
 import Auditorias from './Auditorias'
 import Interrupciones from './Interrupciones'
 import Devoluciones from './Devoluciones'
-import Desempeno from './Desempeno'
-import Cobros from './Cobros'
+import DesempenoCL from './DesempenoCL'
+import CobrosCL from './CobrosCL'
 
 const LOGO = '/logo-bigticket-blanco.png'
 // El dueño (RUT de la empresa) ve todo; el delegado (RUT personal), solo
@@ -114,8 +114,8 @@ export default function PortalChile() {
           {vista === 'auditorias' && <Auditorias yo={yo} />}
           {vista === 'interrupciones' && <Interrupciones />}
           {vista === 'devolver' && dueno && <Devoluciones />}
-          {vista === 'desempeno' && dueno && <Desempeno />}
-          {vista === 'cobros' && dueno && <Cobros />}
+          {vista === 'desempeno' && dueno && <DesempenoCL />}
+          {vista === 'cobros' && dueno && <CobrosCL />}
         </main>
       </div>
     </div>
