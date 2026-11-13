@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react'
 import { supabaseCL } from './supabaseChile'
 import Auditorias from './Auditorias'
 import Interrupciones from './Interrupciones'
+import Devoluciones from './Devoluciones'
+import Desempeno from './Desempeno'
 
 const LOGO = '/logo-bigticket-blanco.png'
 // El dueño (RUT de la empresa) ve todo; el delegado (RUT personal), solo
@@ -19,6 +21,8 @@ const MENU = [
   { k: 'flota', t: 'Mi flota', d: 'Tus vehículos certificados', solo: 'dueno' },
   { k: 'auditorias', t: 'Auditorías', d: 'Vehículo (días 1 a 5) y limpieza (lunes)', grupo: 'Cuidado de Activo' },
   { k: 'interrupciones', t: 'Interrupciones de ruta', d: 'Colación, baño, carga eléctrica', grupo: 'Cuidado de Activo' },
+  { k: 'devolver', t: 'Devolver vehículo', d: 'Avisa que dejas una camioneta', grupo: 'Cuidado de Activo', solo: 'dueno' },
+  { k: 'desempeno', t: 'Mi desempeño', d: 'Nota Geotab e incumplimientos del mes', grupo: 'Cuidado de Activo', solo: 'dueno' },
   { k: 'equipo', t: 'Mi equipo', d: 'Personas que pueden usar el portal', grupo: 'Administración', solo: 'dueno' },
 ]
 
@@ -107,6 +111,8 @@ export default function PortalChile() {
           {vista === 'equipo' && dueno && <MiEquipo />}
           {vista === 'auditorias' && <Auditorias yo={yo} />}
           {vista === 'interrupciones' && <Interrupciones />}
+          {vista === 'devolver' && dueno && <Devoluciones />}
+          {vista === 'desempeno' && dueno && <Desempeno />}
         </main>
       </div>
     </div>

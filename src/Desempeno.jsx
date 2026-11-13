@@ -1,71 +1,88 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// Desempeno.jsx — Mi operación › Desempeño (maqueta 8.9.21)
-// Estado temporal: mientras el reporte no esté listo, solo la ilustración y el
-// mensaje. No consulta datos, no tiene acciones ni globo.
-// ═══════════════════════════════════════════════════════════════════════════
-export default function Desempeno({ onBack }) {
+// Desempeno.jsx — Portal del transportista (Chile) · Cuidado de Activo → Mi desempeño (pedido I-20).
+// Cada tercero ve su nota Geotab diaria y del mes, y sus incumplimientos del mes con fecha. Solo sus patentes
+// (la base filtra por la empresa que entró: fn_portal_cl_desempeno). Solo lectura.
+import { useEffect, useState } from 'react'
+import { supabaseCL } from './supabaseChile'
+
+const FALTAS = { 1: 'No presentación del vehículo', 10: 'Visitas < 90 % de los domicilios', 12: 'Nota Geotab del mes < 90', 13: 'Auditoría no realizada', 14: 'Uso no autorizado del vehículo' }
+const RIESGO = { 'Básico': '#1A7A3C', 'Leve': '#002E5D', 'Medio': '#C47A00', 'Alto': '#B42318' }
+const pesos = (v) => `$${Math.round(Number(v || 0)).toLocaleString('es-CL')}`
+const fecha = (v) => { const d = String(v || '').slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}-${d[1]}` : '' }
+
+export default function Desempeno() {
+  const [mes, setMes] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }).slice(0, 7))
+  const [d, setD] = useState(null)
+  const [err, setErr] = useState('')
+  const [abierta, setAbierta] = useState(null)
+  useEffect(() => {
+    setD(null); setErr('')
+    supabaseCL.rpc('fn_portal_cl_desempeno', { p_mes: `${mes}-01` }).then(({ data, error }) => {
+      if (error) { setErr('No se pudo cargar tu desempeño. Intenta de nuevo en un momento.'); setD({ mes: [], diario: [], faltas: [] }); return }
+      setD(data || { mes: [], diario: [], faltas: [] })
+    })
+  }, [mes])
+  const filas = d?.mes || []
+  const uf = filas.reduce((t, x) => t + Number(x.uf_total || 0), 0)
+  const pv = filas.reduce((t, x) => t + Number(x.pesos_visitas || 0), 0)
   return (
-    <div className="dsm">
-      <style>{CSS_DSM}</style>
-      <nav className="mk-ruta" aria-label="Ruta">
-        <button onClick={onBack}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>Volver</button>
-        <span className="sep" />
-        <button onClick={onBack}>Inicio</button><span className="gt">›</span>
-        <span>Mi operación</span><span className="gt">›</span>
-        <span aria-current="page">Desempeño</span>
-      </nav>
-      <h1 className="mk-titulo">Desempeño</h1>
-      <section className="empty-state">
-        <svg className="empty-illus" role="img" aria-label="Indicadores en ajuste" width="260" height="166" viewBox="0 0 220 140" fill="none">
-          <ellipse cx="110" cy="130" rx="100" ry="7" fill="#EEF1F5" />
-          <path d="M42.4 85.9A70 70 0 0 1 80.4 40.6" stroke="#C5D6EA" strokeWidth="16" strokeLinecap="round" />
-          <path d="M139.6 40.6A70 70 0 0 1 179.7 110.1" stroke="#002E5D" strokeWidth="16" strokeLinecap="round" />
-          <path d="M80.4 40.6A70 70 0 0 1 139.6 40.6" stroke="#7397C2" strokeWidth="16" />
-          <path d="M64.9 87.6A48 48 0 0 1 155.1 87.6" stroke="#D3DAE3" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="0.5 7" />
-          <path d="M110 104 105 60" stroke="#002E5D" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="110" cy="104" r="7" fill="#002E5D" />
-          <circle cx="110" cy="104" r="2.6" fill="#fff" />
-          <rect x="86" y="118" width="48" height="6" rx="2" fill="#002E5D" />
-          <g transform="translate(8 90)" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 29 25 13" stroke="#002E5D" strokeWidth="7.5" />
-            <path d="M9 29 25 13" stroke="#7397C2" strokeWidth="3.8" />
-            <circle cx="27.5" cy="10.5" r="6.2" fill="#7397C2" stroke="#002E5D" strokeWidth="2" />
-            <path d="M27.5 10.5 32.5 5.5" stroke="#fff" strokeWidth="5" />
-            <path d="M25.6 8.6 29.6 4.6M29.4 12.4 33.4 8.4" stroke="#002E5D" strokeWidth="2" />
-            <circle cx="8" cy="30" r="4.6" fill="#7397C2" stroke="#002E5D" strokeWidth="2" />
-            <circle cx="8" cy="30" r="1.5" fill="#fff" />
-            <path d="M6.5 6.5 19.5 19.5" stroke="#002E5D" strokeWidth="2.8" />
-            <path d="M4.5 4.5 7 7" stroke="#002E5D" strokeWidth="4" />
-            <path d="M17 22 22 17" stroke="#002E5D" strokeWidth="3" />
-            <path d="M21.5 21.5 30 30" stroke="#002E5D" strokeWidth="8.5" />
-            <path d="M21.5 21.5 30 30" stroke="#FF6600" strokeWidth="4.6" />
-          </g>
-          <path d="M190 96h6l9 32h-24z" fill="#FF6600" />
-          <path d="M186.5 110h13M184.5 118h17.5" stroke="#fff" strokeWidth="4" />
-          <rect x="178" y="127" width="30" height="4.5" rx="1.5" fill="#002E5D" />
-        </svg>
-        <h2>Estamos ajustando tus indicadores</h2>
-        <p>Muy pronto verás aquí el detalle de tu nivel de servicio.</p>
-      </section>
+    <div>
+      <h1 className="pc-h1">Mi desempeño</h1>
+      <div className="pc-sub">Tu nota de conducción de Geotab (la del mes es el promedio de los días con actividad; bajo 90 corre multa) y los incumplimientos del mes según el Anexo III. Revísalo seguido para corregir a tiempo.</div>
+      <div className="pc-card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 13, color: '#545454' }}>Mes <input type="month" value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} /></label>
+        {d && <span style={{ fontSize: 13 }}><b>{filas.length}</b> vehículos · multas del mes <b style={{ color: uf || pv ? '#B42318' : '#1A7A3C' }}>{uf} UF{pv ? ` + ${pesos(pv)}` : ''}</b></span>}
+      </div>
+      {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F' }}>{err}</div>}
+      {d === null ? <div className="pc-card">Cargando…</div> : filas.length === 0 ? <div className="pc-card">Sin datos de este mes para tus vehículos.</div> : filas.map((x) => {
+        const dias = (d.diario || []).filter((r) => r.patente === x.patente)
+        const faltas = (d.faltas || []).filter((f) => f.patente === x.patente)
+        return (
+          <div key={x.patente} className="pc-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }} onClick={() => setAbierta(abierta === x.patente ? null : x.patente)}>
+              <b style={{ color: '#002E5D' }}>{x.patente}</b>
+              <span style={{ fontWeight: 800, color: x.nota_geotab !== null && Number(x.nota_geotab) < 90 ? '#B42318' : '#1A7A3C' }}>
+                {x.nota_geotab !== null ? `Nota ${x.nota_geotab}` : 'Sin nota'}{x.riesgo && <span style={{ color: RIESGO[x.riesgo], marginLeft: 6 }}>· Riesgo {x.riesgo.toLowerCase()}</span>}
+                <span style={{ color: '#888', fontWeight: 400, marginLeft: 8 }}>{abierta === x.patente ? '▲' : '▼'}</span>
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: '#545454', marginTop: 4 }}>
+              {faltas.length ? `${faltas.length} incumplimiento(s) este mes` : 'Sin incumplimientos este mes.'}
+              {Number(x.uf_total) > 0 && <span style={{ color: '#B42318' }}> · {x.uf_total} UF</span>}
+              {Number(x.pesos_visitas) > 0 && <span style={{ color: '#B42318' }}> · {pesos(x.pesos_visitas)}</span>}
+            </div>
+            {abierta === x.patente && (
+              <div style={{ marginTop: 10 }}>
+                {faltas.length > 0 && <>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Incumplimientos</div>
+                  {faltas.map((f, i) => (
+                    <div key={i} style={{ fontSize: 13, padding: '4px 0', borderTop: '1px solid #eee' }}>
+                      <b>{fecha(f.fecha)}</b> · {FALTAS[f.falta] || `Falta ${f.falta}`} · {f.detalle}
+                      <span style={{ color: '#B42318', marginLeft: 6 }}>{f.uf !== null ? `${f.uf} UF` : f.monto !== null ? pesos(f.monto) : ''}</span>
+                    </div>
+                  ))}
+                </>}
+                <div style={{ fontWeight: 700, fontSize: 13, margin: '10px 0 4px' }}>Nota Geotab por día</div>
+                {dias.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Sin días con actividad.</div> : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ borderCollapse: 'collapse', fontSize: 12.5, minWidth: 460 }}>
+                      <thead><tr style={{ color: '#545454', textAlign: 'left' }}>{['Día', 'Nota', 'Km', 'Aceleración', 'Frenado', 'Giro', 'Exceso > 8 %', 'Sin cinturón'].map((h) => <th key={h} style={{ padding: '3px 8px' }}>{h}</th>)}</tr></thead>
+                      <tbody>{dias.map((r) => (
+                        <tr key={r.fecha} style={{ borderTop: '1px solid #eee' }}>
+                          <td style={{ padding: '3px 8px' }}>{fecha(r.fecha)}</td>
+                          <td style={{ padding: '3px 8px', fontWeight: 700, color: Number(r.puntaje) < 90 ? '#B42318' : '#1A7A3C' }}>{r.puntaje}</td>
+                          <td style={{ padding: '3px 8px' }}>{Math.round(Number(r.km || 0))}</td>
+                          <td style={{ padding: '3px 8px' }}>{r.aceleracion}</td><td style={{ padding: '3px 8px' }}>{r.frenado}</td><td style={{ padding: '3px 8px' }}>{r.giro}</td>
+                          <td style={{ padding: '3px 8px' }}>{r.exceso}</td><td style={{ padding: '3px 8px' }}>{r.cinturon}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
-
-// Ruta y título comunes de las vistas 8.9.21 (los usan también Descuentos, Documentos y Perfil)
-export const CSS_MK = `
-.mk-ruta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font:400 13px "Open Sans",sans-serif; color:#545454; }
-.mk-ruta button { background:none; border:none; padding:0; font:inherit; color:#545454; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-.mk-ruta button:hover { color:#002E5D; text-decoration:underline; }
-.mk-ruta .sep { width:1px; height:14px; background:#D9D9D9; }
-.mk-ruta .gt { color:#9AA3AE; }
-.mk-ruta [aria-current] { color:#002E5D; font-weight:600; }
-.mk-titulo { font:700 28px Poppins,sans-serif; color:#002E5D; margin:0; }
-.mk-desc { font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; margin:6px 0 0; }
-`
-const CSS_DSM = CSS_MK + `
-.dsm { display:flex; flex-direction:column; gap:20px; }
-.empty-state { background:#fff; border:1px solid #E4E3E3; border-radius:18px; padding:48px 28px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; }
-.empty-illus { display:block; width:260px; height:166px; margin-bottom:14px; }
-.empty-state h2 { font:700 17px Poppins,sans-serif; color:#002E5D; margin:0; }
-.empty-state p { font:400 14px/1.5 "Open Sans",sans-serif; color:#545454; max-width:460px; margin:0; text-wrap:pretty; }
-`
