@@ -9,8 +9,9 @@ import { supabaseCL } from './supabaseChile'
 const TIPOS = {
   colacion: { t: 'Colación', i: '🍽️', d: 'Hasta 45 min, después de 4 h de ruta o al terminar' },
   bano: { t: 'Baño', i: '🚻', d: 'Hasta 15 min cada vez' },
-  carga: { t: 'Carga eléctrica', i: '🔌', d: 'Hasta 2 h, en una estación de carga' },
+  carga: { t: 'Carga eléctrica', i: '🔌', d: 'Hasta 45 min, en una estación de carga' },
   aviso: { t: 'Otra detención (avisar)', i: '📝', d: 'Cualquier otra parada fuera de ruta: elige el motivo y explica' },
+  desvio: { t: 'Desvío de ruta autorizado', i: '↪️', d: 'Con la captura del WhatsApp donde tu supervisor lo autoriza' },
 }
 const EST_AVISO = { pendiente: ['Por revisar del supervisor', '#C47A00'], aceptado: ['Aceptado', '#1A7A3C'], rechazado: ['Rechazado', '#B42318'] }
 const ubicacion = () => new Promise((ok) => {
@@ -29,6 +30,7 @@ export default function Interrupciones() {
   const [, setTic] = useState(0)
   const [justifs, setJustifs] = useState([])
   const [aviso, setAviso] = useState(null)   // { justificacion, comentario } mientras se llena el formulario
+  const [desvio, setDesvio] = useState(null) // { comentario, archivo } mientras se llena el desvío
   const cargar = async () => {
     const [p, l] = await Promise.all([supabaseCL.rpc('fn_portal_cl_interr_patentes'), supabaseCL.rpc('fn_portal_cl_interr_lista')])
     if (p.error || l.error) { setErr((p.error || l.error).message); return }
@@ -52,8 +54,25 @@ export default function Interrupciones() {
     if (error) setErr(error.message); else { setAviso(null); await cargar() }
     setBusy(false)
   }
+  const avisarDesvio = async () => {
+    if (!patente) return setErr('Elige primero el vehículo.')
+    if (!desvio?.archivo) return setErr('Adjunta la captura del WhatsApp donde el supervisor autoriza el desvío.')
+    setBusy(true); setErr('')
+    try {
+      const ext = (desvio.archivo.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      const path = `desvios/${patente}/${Date.now()}.${ext}`
+      const { error: eUp } = await supabaseCL.storage.from('ca-auditorias-cl').upload(path, desvio.archivo, { contentType: desvio.archivo.type || 'image/jpeg', upsert: false })
+      if (eUp) throw new Error('No se pudo subir la captura: ' + eUp.message)
+      const u = await ubicacion()
+      const { error } = await supabaseCL.rpc('fn_portal_cl_interr_desvio', { p_patente: patente, p_comentario: desvio.comentario || null, p_path: path, p_lat: u?.lat ?? null, p_lng: u?.lng ?? null })
+      if (error) throw new Error(error.message)
+      setDesvio(null); await cargar()
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
   const iniciar = async (tipo) => {
     if (tipo === 'aviso') { setAviso({ justificacion: '', comentario: '' }); return }
+    if (tipo === 'desvio') { setDesvio({ comentario: '', archivo: null }); return }
     if (!patente) return setErr('Elige primero el vehículo.')
     setBusy(true); setErr('')
     const u = await ubicacion()
@@ -93,6 +112,19 @@ export default function Interrupciones() {
               <div style={{ fontSize: 13, color: '#545454' }}>Desde las {hora(abierta.inicio)}</div>
               <button className="in-fin" disabled={busy} onClick={() => terminar(abierta.id)}>{busy ? 'Guardando…' : 'Terminé'}</button>
             </div>
+          ) : desvio ? (
+            <div className="pc-card">
+              <div style={{ fontWeight: 700, color: '#002E5D', marginBottom: 8 }}>↪️ Desvío de ruta autorizado</div>
+              <label style={{ fontSize: 13, color: '#545454', display: 'block' }}>Captura del WhatsApp del supervisor (obligatoria)
+                <input type="file" accept="image/*" style={{ display: 'block', marginTop: 6 }} onChange={(e) => setDesvio({ ...desvio, archivo: e.target.files?.[0] || null })} />
+              </label>
+              <label style={{ fontSize: 13, color: '#545454', display: 'block', marginTop: 8 }}>Comentario (opcional)
+                <textarea className="in-sel" rows={2} value={desvio.comentario} onChange={(e) => setDesvio({ ...desvio, comentario: e.target.value })} placeholder="Adónde vas y por qué" />
+              </label>
+              <div style={{ fontSize: 12, color: '#777', margin: '6px 0' }}>Se guarda la hora y la ubicación. Tu supervisor lo confirma. Al volver a la ruta pulsa «Terminé».</div>
+              <button className="in-fin" disabled={busy || !desvio.archivo} onClick={avisarDesvio}>{busy ? 'Enviando…' : 'Registrar desvío'}</button>
+              <button className="in-fin" style={{ background: '#fff', color: '#002E5D', border: '1px solid #002E5D', marginLeft: 8 }} disabled={busy} onClick={() => setDesvio(null)}>Cancelar</button>
+            </div>
           ) : aviso ? (
             <div className="pc-card">
               <div style={{ fontWeight: 700, color: '#002E5D', marginBottom: 8 }}>📝 Avisar otra detención</div>
@@ -122,7 +154,7 @@ export default function Interrupciones() {
             lista.filter((x) => x.fin).map((x) => (
               <div key={x.id} className="in-fila">
                 <span>{TIPOS[x.tipo]?.i} <b>{TIPOS[x.tipo]?.t}</b> · {x.patente}
-                  {x.tipo === 'aviso' && <><br /><small style={{ color: (EST_AVISO[x.estado_sup] || [])[1] }}>{(EST_AVISO[x.estado_sup] || ['Por revisar'])[0]}{x.nota_sup ? ` · ${x.nota_sup}` : ''}</small></>}</span>
+                  {(x.tipo === 'aviso' || x.tipo === 'desvio') && <><br /><small style={{ color: (EST_AVISO[x.estado_sup] || [])[1] }}>{(EST_AVISO[x.estado_sup] || ['Por revisar'])[0]}{x.nota_sup ? ` · ${x.nota_sup}` : ''}</small></>}</span>
                 <span>{hora(x.inicio)} – {hora(x.fin)} · {minutos(x.inicio, x.fin)} min</span>
               </div>
             ))}

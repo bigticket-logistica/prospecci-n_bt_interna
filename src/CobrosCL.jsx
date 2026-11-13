@@ -19,6 +19,9 @@ export default function CobrosCL() {
   const [abierta, setAbierta] = useState(null)
   const [motivo, setMotivo] = useState('')
   const [busy, setBusy] = useState(false)
+  const [avisos, setAvisos] = useState([])
+  useEffect(() => { supabaseCL.rpc('fn_portal_cl_avisos').then(({ data }) => setAvisos(data || [])) }, [])
+  const leido = async (id) => { await supabaseCL.rpc('fn_portal_cl_aviso_leido', { p_id: id }); setAvisos(avisos.map((a) => a.id === id ? { ...a, leido: true } : a)) }
   const cargar = async () => {
     const { data, error } = await supabaseCL.rpc('fn_portal_cl_cobros')
     if (error) { setErr('No se pudieron cargar tus cobros. Intenta de nuevo en un momento.'); setFilas([]); return }
@@ -37,6 +40,13 @@ export default function CobrosCL() {
     <div>
       <h1 className="pc-h1">Mis cobros</h1>
       <div className="pc-sub">Cobros que Bigticket te notificó por incumplimientos y cargos de Cuidado de Activo. Puedes <b>apelar cada uno hasta 15 días</b> después de la notificación, explicando el motivo. Las multas se expresan en UF: se facturan al valor de la UF del día de facturación y se descuentan en tu prefactura.</div>
+      {avisos.filter((a) => !a.leido).map((a) => (
+        <div key={a.id} className="pc-card" style={{ background: '#FFF4E0', color: '#7a4a00' }}>
+          <b>{a.titulo}</b>
+          <div style={{ fontSize: 13, marginTop: 4 }}>{a.detalle}</div>
+          <button className="in-fin" style={{ marginTop: 8 }} onClick={() => leido(a.id)}>Entendido</button>
+        </div>
+      ))}
       {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F' }}>{err}</div>}
       {filas === null ? <div className="pc-card">Cargando…</div> : filas.length === 0 ? <div className="pc-card">No tienes cobros notificados.</div> : (
         <>
