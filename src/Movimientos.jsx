@@ -1318,6 +1318,7 @@ function MovimientosWeb({
   const [nuevas, setNuevas] = useState({})        // fecha -> [formulario de ruta que no aparece]
   const [enviando, setEnviando] = useState(null)
   const [recibida, setRecibida] = useState(null)  // datos del modal de confirmación
+  const [intento, setIntento] = useState(false)   // se intentó enviar: lo que falta se marca en rojo
   const ir = (v) => window.dispatchEvent(new CustomEvent('bt:ir', { detail: v }))
 
   // ── Las líneas de cada día, con el saldo corrido ─────────────────────────
@@ -1404,7 +1405,7 @@ function MovimientosWeb({
     return n
   })
   const setCampo = (k, campo, v) => setForms(p => ({ ...p, [k]: { ...p[k], [campo]: v } }))
-  const salir = () => { setModo(false); setForms({}); setNuevas({}) }
+  const salir = () => { setModo(false); setForms({}); setNuevas({}); setIntento(false) }
   const nMarcadas = Object.keys(forms).length
 
   // clase 'ruta' = ruta que no aparece · 'concepto' = otro concepto que falta (ayudante, tarifa, bono…)
@@ -1431,36 +1432,54 @@ function MovimientosWeb({
     return req.filter(c => (c === 'archivos' ? !f.archivos?.length : !String(f[c] || '').trim()))
   }
 
-  const enviar = async (clave, tipo, f, it) => {
-    if (faltan(tipo, f).length) { alert('Completa los campos marcados con *.'); return }
-    setEnviando(clave)
+  // Las líneas visibles por clave, para armar el envío
+  const porClave = useMemo(() => {
+    const m = {}
+    for (const g of grupos) for (const it of g.lineas) m[it.key] = it
+    return m
+  }, [grupos])
+
+  // Envío (maqueta 8.9.25): UNA diferencia con todas las líneas marcadas y las
+  // rutas agregadas. Si falta algún campo con *, se marca en rojo y no se envía.
+  const enviarTodo = async () => {
+    const items = [
+      ...Object.entries(forms).map(([k, f]) => { const it = porClave[k]; return { tipo: it ? tipoForm(it) : 'sin_desc', f, it } }),
+      ...Object.entries(nuevas).flatMap(([, ls]) => ls.map(f => ({ tipo: f.clase === 'concepto' ? 'concepto' : 'nueva', f, it: null }))),
+    ]
+    if (!items.length) return
+    if (items.some(x => faltan(x.tipo, x.f).length)) { setIntento(true); return }
+    setEnviando('todo')
     try {
-      const m = it?.m
-      const linea = {
-        tipo: tipo === 'concepto' ? 'concepto' : tipo === 'nueva' ? 'faltante' : (it.clase === 'cobro' ? 'cobro' : 'ruta'),
-        fecha: f.fecha || it?.fecha || null,
-        id_ruta: f.idRuta.trim() || null,
-        cobro_id: it?.clase === 'cobro' ? m.cobro_id : null,
-        cobro_origen: it?.clase === 'cobro' ? (m.tipo_cobro || null) : null,
-        concepto: tipo === 'concepto' ? f.motivo : it ? [it.titulo, f.idGuia ? `guía ${f.idGuia}` : null].filter(Boolean).join(' · ') : null,
-        placa: f.placa.trim() || null, monto_ref: tipo === 'concepto' ? Number(f.monto) : it ? Math.abs(it.monto) : null,
-        comentario: f.comentario.trim(), motivo: f.motivo || null, sc: f.sc.trim() || null, id_guia: f.idGuia.trim() || null,
-      }
+      const lineas = items.map(({ tipo, f, it }) => {
+        const m = it?.m
+        return {
+          tipo: tipo === 'concepto' ? 'concepto' : tipo === 'nueva' ? 'faltante' : (it.clase === 'cobro' ? 'cobro' : 'ruta'),
+          fecha: f.fecha || it?.fecha || null,
+          id_ruta: f.idRuta.trim() || null,
+          cobro_id: it?.clase === 'cobro' ? m.cobro_id : null,
+          cobro_origen: it?.clase === 'cobro' ? (m.tipo_cobro || null) : null,
+          concepto: tipo === 'concepto' ? f.motivo : it ? [it.titulo, f.idGuia ? `guía ${f.idGuia}` : null].filter(Boolean).join(' · ') : null,
+          placa: f.placa.trim() || null, monto_ref: tipo === 'concepto' ? Number(f.monto) : it ? Math.abs(it.monto) : null,
+          comentario: f.comentario.trim(), motivo: f.motivo || null, sc: f.sc.trim() || null, id_guia: f.idGuia.trim() || null,
+        }
+      })
+      const scs = [...new Set(lineas.map(l => l.sc).filter(Boolean))]
       const { data: dif, error: eDif } = await supabase.from('diferencias').insert({
-        tercero_id: tercero.tercero_id, service_center: linea.sc,
-        monto_reclamado: Number(linea.monto_ref || 0), creada_por: email || tercero.nombre,
+        tercero_id: tercero.tercero_id, service_center: scs[0] || null,
+        monto_reclamado: lineas.reduce((t, l) => t + Number(l.monto_ref || 0), 0), creada_por: email || tercero.nombre,
       }).select('id, folio').single()
       if (eDif) throw eDif
-      const { error: eLin } = await supabase.from('diferencias_lineas').insert({ ...linea, diferencia_id: dif.id })
+      const { error: eLin } = await supabase.from('diferencias_lineas').insert(lineas.map(l => ({ ...l, diferencia_id: dif.id })))
       if (eLin) throw eLin
-      for (const file of f.archivos || []) {
+      let nArch = 0
+      for (const { f } of items) for (const file of f.archivos || []) {
         const path = `diferencias/${dif.id}/${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`
         const { error: eUp } = await supabase.storage.from(BUCKET).upload(path, file)
-        if (!eUp) await supabase.from('diferencias_adjuntos').insert({ diferencia_id: dif.id, storage_path: path, nombre: file.name, subido_por: email || tercero.nombre })
+        if (!eUp) { nArch++; await supabase.from('diferencias_adjuntos').insert({ diferencia_id: dif.id, storage_path: path, nombre: file.name, subido_por: email || tercero.nombre }) }
       }
       await supabase.from('diferencias_eventos').insert({
         diferencia_id: dif.id, tipo: 'creada', actor: email || tercero.nombre,
-        detalle: `${linea.motivo || 'Diferencia'}${f.archivos?.length ? ` · ${f.archivos.length} adjunto(s)` : ''}`,
+        detalle: `${plural(lineas.length, 'línea reclamada', 'líneas reclamadas')}${nArch ? ` · ${nArch} adjunto(s)` : ''}`,
       })
       const { error: eAbrir } = await supabase.rpc('fn_abrir_diferencia', { p_dif: dif.id })
       if (eAbrir) alert(`Tu diferencia #${dif.folio} quedó registrada, pero no se pudo avisar al supervisor.\n\nAvísanos por el chat de consultas citando ese número.`)
@@ -1470,7 +1489,11 @@ function MovimientosWeb({
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         })
       } catch (e) { console.error('No se pudo enviar el aviso por correo:', e) }
-      setRecibida({ linea: tipo === 'concepto' ? `Falta: ${f.motivo}` : it ? it.titulo : 'Ruta que no aparece', site: linea.sc || '—', folio: dif.folio, monto: tipo === 'concepto' ? Number(f.monto) : it ? it.monto : null })
+      // Resumen del modal: "PNR · SCY1" (una línea) o "3 líneas · SCY1, SQR1"
+      const uno = items.length === 1 ? items[0] : null
+      const titulo = uno ? (uno.tipo === 'concepto' ? `Falta: ${uno.f.motivo}` : uno.it ? uno.it.titulo : 'Ruta que no aparece') : plural(items.length, 'línea', 'líneas')
+      const monto = items.reduce((t, x) => t + (x.it ? x.it.monto : x.tipo === 'concepto' ? Number(x.f.monto || 0) : 0), 0)
+      setRecibida({ titulo: `${titulo} · ${scs.join(', ') || '—'}`, folio: `D-${String(dif.folio).padStart(4, '0')}`, monto: items.some(x => x.it || x.tipo === 'concepto') ? monto : null })
       if (alEnviar) alEnviar()
     } catch (e) {
       alert('No se pudo enviar la diferencia:\n\n' + (e.message || e))
@@ -1608,7 +1631,7 @@ function MovimientosWeb({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002E5D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
             <div>
             <div className="diff-banner__count">{nMarcadas === 0 ? 'Marca las líneas que no cuadran' : `Marcaste ${plural(nMarcadas, 'línea', 'líneas')}`}</div>
-            <div className="diff-banner__sub">Abrimos todos los días para que puedas revisar cada línea. ¿Te falta una ruta o un pago? Usa los botones naranjos al final de cada día.</div>
+            <div className="diff-banner__sub">Abrimos todos los días para que puedas revisar cada línea.</div>
             </div>
           </div>
           <button className="diff-banner__cancel" onClick={salir}>Cancelar</button>
@@ -1684,7 +1707,8 @@ function MovimientosWeb({
                       {marcada && (
                         <FormDiferencia tipo={tipoForm(it)} f={f} fecha={it.fecha}
                           set={(c, v) => setCampo(it.key, c, v)} onCerrar={() => marcar(it)}
-                          onEnviar={() => enviar(it.key, tipoForm(it), f, it)} enviando={enviando === it.key} sites={centros} />
+                          onEnviar={enviarTodo} enviando={enviando === 'todo'} sites={centros}
+                          faltan={intento ? faltan(tipoForm(it), f) : []} />
                       )}
                     </div>
                   )
@@ -1693,34 +1717,24 @@ function MovimientosWeb({
                 {/* 10 · Agregar ruta que no aparece (solo en modo diferencia) */}
                 {modo && g.fecha && (
                   <>
-                    {(nuevas[g.fecha] || []).map((nf, i) => {
-                      const tipoN = nf.clase === 'concepto' ? 'concepto' : 'nueva'
-                      return (
-                        <div key={i} className="new-route">
-                          <div className="new-route__cab">
-                            <span className="new-route__title">{tipoN === 'concepto' ? 'Otro concepto que falta' : 'Ruta que no aparece'}</span>
-                            <button className="form-close" aria-label="Quitar" onClick={() => quitarNueva(g.fecha, i)}><Equis /></button>
-                          </div>
-                          <Campos tipo={tipoN} f={nf} set={(c, v) => setNueva(g.fecha, i, c, v)} sites={centros} />
-                          <div className="form-acciones">
-                            <button className="btn-cancel" onClick={() => quitarNueva(g.fecha, i)}>Cancelar</button>
-                            <button className="btn-send" disabled={enviando === `n|${g.fecha}|${i}`}
-                              onClick={() => enviar(`n|${g.fecha}|${i}`, tipoN, nf, null).then(() => {})}>
-                              {enviando === `n|${g.fecha}|${i}` ? 'Enviando…' : 'Enviar diferencia'}
-                            </button>
-                          </div>
+                    {(nuevas[g.fecha] || []).map((nf, i) => (
+                      <div key={i} className="new-route">
+                        <div className="new-route__cab">
+                          <span className="new-route__title">Ruta que no aparece</span>
+                          <button className="form-close" aria-label="Quitar" onClick={() => quitarNueva(g.fecha, i)}><Equis /></button>
                         </div>
-                      )
-                    })}
-                    <div className="add-route-wrap add-big-wrap">
-                      <button className="add-big" onClick={() => agregarNueva(g, 'ruta')}>
-                        <span className="add-big__mas">+</span>
-                        <span><b>Agregar ruta que no aparece</b><small>Hiciste una ruta este día y no está en la lista</small></span>
-                      </button>
-                      <button className="add-big" onClick={() => agregarNueva(g, 'concepto')}>
-                        <span className="add-big__mas">+</span>
-                        <span><b>Agregar otro concepto que falta</b><small>Ayudante, diferencia de tarifa, km extra, bono u otro</small></span>
-                      </button>
+                        <Campos tipo="nueva" f={nf} set={(c, v) => setNueva(g.fecha, i, c, v)} sites={centros}
+                          faltan={intento ? faltan('nueva', nf) : []} />
+                        <div className="form-acciones">
+                          <button className="btn-cancel" onClick={() => quitarNueva(g.fecha, i)}>Cancelar</button>
+                          <button className="btn-send" disabled={enviando === 'todo'} onClick={enviarTodo}>
+                            {enviando === 'todo' ? 'Enviando…' : 'Enviar diferencia'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="add-route-wrap">
+                      <button className="link-add" onClick={() => agregarNueva(g, 'ruta')}>+ Agregar ruta que no aparece</button>
                     </div>
                   </>
                 )}
@@ -1746,12 +1760,10 @@ function MovimientosWeb({
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg>
             </span>
             <h3 className="modal__title" id="mw-modal-t">Recibimos tu diferencia</h3>
-            <p className="modal__txt">Te respondemos en 48 horas en Mis mensajes. Mientras tanto, la línea queda marcada como En revisión.</p>
-            <div className="modal__summary">
-              <div><span>Línea</span><b>{recibida.linea}</b></div>
-              <div><span>Site</span><b>{recibida.site}</b></div>
-              <div><span>Folio</span><b>#{recibida.folio}</b></div>
-              <div><span>Monto</span><b>{recibida.monto != null ? pesosT(recibida.monto) : '—'}</b></div>
+            <p className="modal__txt">Te respondemos en <b>48 horas</b> en Mis mensajes. Mientras tanto, la línea queda marcada como <b>En revisión.</b></p>
+            <div className="modal__resume">
+              <div><b>{recibida.titulo}</b><small>Folio de seguimiento: {recibida.folio}</small></div>
+              <span>{recibida.monto != null ? pesosT(recibida.monto) : ''}</span>
             </div>
             <div className="modal__actions">
               <button className="btn-outline" onClick={() => { setRecibida(null); salir(); ir('mensajes') }}>Ir a Mis mensajes</button>
@@ -1765,13 +1777,13 @@ function MovimientosWeb({
 }
 
 // 8 y 9 · Formulario de una línea marcada.
-function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites }) {
+function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites, faltan = [] }) {
   const sinMotivo = tipo === 'sin_desc' && !f.motivo
   return (
     <div className="diff-form">
       {tipo === 'sin_desc' && (
         <div className="reason-cab">
-          <label className="reason-select-caja">
+          <label className={`reason-select-caja${faltan.includes('motivo') ? ' is-error' : ''}`}>
             <span className="reason-select-label">Motivo de la diferencia *</span>
             <select className="reason-select" value={f.motivo} onChange={e => set('motivo', e.target.value)}>
               <option value="" disabled>Selecciona un motivo</option>
@@ -1782,15 +1794,18 @@ function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites }) {
         </div>
       )}
       {tipo === 'desc_otro' && (
-        <div className="reasons" role="group" aria-label="Motivo">
-          {MOTIVOS_DESC.map(m => (
-            <button key={m} className="reason" aria-pressed={f.motivo === m} onClick={() => set('motivo', m)}>{m}</button>
-          ))}
+        <div className={faltan.includes('motivo') ? 'is-error' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 12 }}>
+          <span className="reason-select-label">Seleccione motivo de la diferencia</span>
+          <div className="reasons" role="radiogroup" aria-label="Motivo">
+            {MOTIVOS_DESC.map(m => (
+              <button key={m} className="reason" role="radio" aria-checked={f.motivo === m} aria-pressed={f.motivo === m} onClick={() => set('motivo', m)}>{m}</button>
+            ))}
+          </div>
         </div>
       )}
       {!sinMotivo && (
         <>
-          <Campos tipo={tipo} f={f} set={set} sites={sites} />
+          <Campos tipo={tipo} f={f} set={set} sites={sites} faltan={faltan} />
           <div className="form-acciones">
             <button className="btn-cancel" onClick={onCerrar}>Cancelar</button>
             <button className="btn-send" disabled={enviando} onClick={onEnviar}>{enviando ? 'Enviando…' : 'Enviar diferencia'}</button>
@@ -1802,7 +1817,8 @@ function FormDiferencia({ tipo, f, set, onCerrar, onEnviar, enviando, sites }) {
 }
 
 // Los campos de cada formulario, en el orden de la maqueta.
-function Campos({ tipo, f, set, sites = [] }) {
+function Campos({ tipo, f, set, sites = [], faltan = [] }) {
+  const err = (c) => (faltan.includes(c) ? ' is-error' : '')
   if (tipo === 'concepto') return <CamposConcepto f={f} set={set} sites={sites} />
   const conGuia = tipo === 'desc_fijo' || tipo === 'desc_otro'
   const conFecha = tipo !== 'desc_fijo'
@@ -1811,21 +1827,21 @@ function Campos({ tipo, f, set, sites = [] }) {
   return (
     <>
       <div className="fields">
-        <label className="field"><span>Site *</span>
+        <label className={`field${err('sc')}`}><span>Site *</span>
           <select value={f.sc} onChange={e => set('sc', e.target.value)}>
             {!f.sc && <option value="">Elige el site…</option>}
             <OpcionesSC actual={f.sc} propios={sites} />
           </select>
         </label>
-        <label className="field"><span>{rutaOpcional ? 'ID ruta (opcional)' : 'ID ruta *'}</span>
+        <label className={`field${err('idRuta')}`}><span>{rutaOpcional ? 'ID ruta (opcional)' : 'ID ruta *'}</span>
           <input value={f.idRuta} onChange={e => set('idRuta', e.target.value)} placeholder={rutaOpcional ? 'Ej: 156342888' : ''} /></label>
-        <label className="field"><span>Placa *</span><input value={f.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></label>
-        {conGuia && <label className="field"><span>ID Guía *</span><input value={f.idGuia} onChange={e => set('idGuia', e.target.value)} /></label>}
-        {conFecha && <label className="field"><span>Fecha de ruta *</span><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></label>}
+        <label className={`field${err('placa')}`}><span>Placa *</span><input value={f.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></label>
+        {conGuia && <label className={`field${err('idGuia')}`}><span>ID Guía *</span><input value={f.idGuia} onChange={e => set('idGuia', e.target.value)} /></label>}
+        {conFecha && <label className={`field${err('fecha')}`}><span>Fecha de ruta *</span><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></label>}
       </div>
-      <label className="field"><span>Comentarios *</span><textarea value={f.comentario} onChange={e => set('comentario', e.target.value)}
+      <label className={`field${err('comentario')}`}><span>Comentarios *</span><textarea value={f.comentario} onChange={e => set('comentario', e.target.value)}
         placeholder="Ej: el paquete se entregó al cliente, adjunto la foto de entrega" /></label>
-      <div className="field">
+      <div className={`field${err('archivos')}`}>
         <span>{evidenciaObligatoria ? 'Evidencia *' : 'Evidencia (opcional)'}</span>
         <label className="evidence">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>

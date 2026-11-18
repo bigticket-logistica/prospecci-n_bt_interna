@@ -2398,3 +2398,19 @@ tr:last-child td { border-bottom: none; }
 .nt-empty-txt { display:flex; flex-direction:column; gap:2px; padding:10px 0; }
 .nt-empty-txt .t { font:700 15px Poppins, sans-serif; color:#545454; }
 .nt-empty-txt .d { font:400 13px "Open Sans", sans-serif; color:#545454; }
+
+/* ── Movimientos 8.9.25 · ajustes de la maqueta ── */
+.mw .add-route-wrap { padding: 8px 22px 12px; }
+.mw .link-add { height: 36px; padding: 0 10px; border: none; background: transparent; border-radius: 8px;
+  color: #545454; font: 700 12px var(--font-display); cursor: pointer; }
+.mw .link-add:hover { background: #E9E8E8; }
+.mw .modal__resume { width: 100%; box-sizing: border-box; background: #F4F6F9; border-radius: 10px; padding: 12px 14px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; }
+.mw .modal__resume b { display: block; font: 700 14px var(--font-display); color: #002E5D; }
+.mw .modal__resume small { display: block; font-size: 12px; color: #545454; margin-top: 2px; }
+.mw .modal__resume > span { font: 700 15px var(--font-display); color: #002E5D; white-space: nowrap; }
+.mw .field.is-error input, .mw .field.is-error select, .mw .field.is-error textarea,
+.mw .reason-select-caja.is-error .reason-select { border-color: #C43D2F; background: #FDF1F0; }
+.mw .field.is-error > span, .mw .is-error > .reason-select-label, .mw .reason-select-caja.is-error .reason-select-label { color: #C43D2F; }
+.mw .field.is-error .evidence { border-color: #C43D2F; color: #C43D2F; }
+.mw .is-error > .reasons .reason { border-color: #C43D2F; }
