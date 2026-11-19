@@ -44,6 +44,8 @@ function Contador({ vence, atrasada }) {
 
 const EST = { pendiente: ['Solicitada', 'azul'], devuelta: ['Devuelta · rehacer', 'rojo'], realizada: ['Realizada · en revisión', 'naranja'], aprobada: ['Aprobada', 'verde'], incumplida: ['Incumplida', 'rojo'], justificada: ['Justificada', 'azul'] }
 const OPCIONES = { si_no: ['Sí', 'No'], si_no_na: ['Sí', 'No', 'No aplica'], si_no_notiene: ['Sí', 'No', 'No tiene'], optimo_deficiente: ['Óptimo', 'Deficiente'] }
+const LEE = ['doc_permiso', 'doc_soap', 'doc_revision', 'fecha_extintor', 'odometro']
+const fdc = (v) => v ? v.slice(8, 10) + '-' + v.slice(5, 7) + '-' + v.slice(0, 4) : ''
 const guia = (path) => supabaseCL.storage.from('ca-guia-cl').getPublicUrl(path).data.publicUrl
 const visible = (p, r) => !p.depende_de || (r[p.depende_de] || '') === (p.depende_valor || '')
 const pideFoto = (p, r) => p.foto === 'siempre' || (p.foto === 'si_negativo' && ['No', 'Deficiente'].includes(r[p.codigo]))
@@ -184,6 +186,13 @@ function HacerAuditoria({ s, yo, onSalir }) {
       const { error } = await supabaseCL.rpc('fn_portal_cl_auditoria_foto', { p_id: id, p_item: codigo, p_path: path, p_lat: ubic.current?.lat ?? null, p_lng: ubic.current?.lng ?? null })
       if (error) throw new Error(error.message)
       setFotos((f) => ({ ...f, [codigo]: { path, url: URL.createObjectURL(blob) } }))
+      const preg = d.preguntas.find((q) => q.codigo === codigo)
+      if (preg && LEE.includes(preg.biggy)) {
+        setFotos((f) => ({ ...f, [codigo]: { ...f[codigo], leyendo: true } }))
+        const { data: lec } = await supabaseCL.functions.invoke('aud-lectura-cl', { body: { auditoria_id: id, item: codigo } })
+        setFotos((f) => ({ ...f, [codigo]: { ...f[codigo], leyendo: false, lectura: lec || { legible: false } } }))
+        if (preg.biggy === 'odometro' && lec?.km && !resp.kilometraje) responder('kilometraje', String(lec.km))
+      }
     } catch (x) { setErr(x.message || 'No se pudo guardar la foto. Revisa tu señal e inténtalo de nuevo.') }
     finally { setSubiendo('') }
   }
@@ -200,6 +209,7 @@ function HacerAuditoria({ s, yo, onSalir }) {
   for (const p of vis) {
     if (p.obligatoria && !['auto', 'foto'].includes(p.tipo) && !String(resp[p.codigo] ?? '').trim()) faltan.push({ p, que: 'respuesta' })
     if (pideFoto(p, resp) && !fotos[p.codigo]) faltan.push({ p, que: 'foto' })
+    if (['doc_permiso', 'doc_soap', 'doc_revision', 'fecha_extintor'].includes(p.biggy) && fotos[p.codigo]?.lectura && !fotos[p.codigo].lectura.vence && !resp[p.codigo + '_vence']) faltan.push({ p, que: 'respuesta' })
   }
   const nFotos = faltan.filter((x) => x.que === 'foto').length, nResp = faltan.filter((x) => x.que === 'respuesta').length
   const enviar = async () => {
@@ -232,6 +242,14 @@ function HacerAuditoria({ s, yo, onSalir }) {
         <div className="au-fcampo-tit">{etiqueta}{pideFoto(p, resp) && !f && <span className="rojo"> — obligatoria</span>}</div>
         {f?.url ? <img className="au-fmini" src={f.url} alt={p.texto} /> : null}
         {f?.biggy_estado === 'rehacer' && <div className="au-rehacer">Hay que repetir esta foto{f.biggy_nota ? `: ${f.biggy_nota}` : ''}</div>}
+        {f?.leyendo && <div className="au-ayuda-tip">Biggy está leyendo la foto…</div>}
+        {f?.lectura && LEE.includes(p.biggy) && p.biggy !== 'odometro' && (
+          f.lectura.vence
+            ? <div className={f.lectura.vencido ? 'au-rehacer' : 'au-ok'}>{f.lectura.vencido ? `VENCIDO el ${fdc(f.lectura.vence)}. Se avisó al supervisor; debe renovarse.` : `Biggy leyó: válido hasta ${fdc(f.lectura.vence)} ✓`}</div>
+            : <label className="au-km">Biggy no pudo leer la fecha de vencimiento: ingrésala
+                <input type="date" value={resp[p.codigo + '_vence'] || ''} onChange={(e) => responder(p.codigo + '_vence', e.target.value)} /></label>
+        )}
+        {f?.lectura && p.biggy === 'odometro' && <div className={f.lectura.km ? 'au-ok' : 'au-ayuda-tip'}>{f.lectura.km ? `Biggy leyó: ${Number(f.lectura.km).toLocaleString('es-CL')} km` : 'Biggy no pudo leer el odómetro: escribe el kilometraje.'}</div>}
         {(p.guia_si || p.guia_no) && (
           <div className="au-ej">
             {p.guia_si && <div className="au-ej-card si"><span className="au-ej-tit">Así sí</span><img src={guia(p.guia_si)} alt="Así sí" /></div>}
@@ -298,6 +316,7 @@ function HacerAuditoria({ s, yo, onSalir }) {
 }
 
 const CSS_AU = `
+.au-ok { background:#E8F4EC; color:#1A7A3C; border-radius:10px; padding:8px 10px; font-size:13px; font-weight:600; }
 .au-preg2 { border-bottom:1px solid #F1F1F1; padding:4px 0; } .au-preg2:last-child { border-bottom:none; }
 .au-fcampo { display:flex; flex-direction:column; gap:6px; padding:8px 0; }
 .au-fcampo-tit { font-size:13.5px; color:#333; font-weight:600; }
