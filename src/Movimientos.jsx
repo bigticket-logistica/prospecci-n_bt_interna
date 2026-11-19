@@ -113,6 +113,25 @@ function OpcionesSC({ actual, propios = [] }) {
   )
 }
 
+// Leyenda fija del portal (decisión 19-nov-2026): los montos del día se
+// publican solos y el analista puede ajustarlos después (aprobar ayudantes,
+// recalcular), así que el tercero debe saber que pueden cambiar.
+function AvisoValoresVariables() {
+  return (
+    <div role="note" style={{
+      display: 'flex', alignItems: 'flex-start', gap: 8, margin: '8px 0 14px',
+      padding: '9px 12px', borderRadius: 8, background: '#eff6ff',
+      border: '1px solid #bfdbfe', color: '#1e3a8a', fontSize: 13, lineHeight: 1.4,
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }}>
+        <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+      </svg>
+      <span>Los valores de tus tarifas pueden variar en el día.</span>
+    </div>
+  )
+}
+
 export default function Movimientos({ tercero, email, onBack, fecha }) {
   // Si se llega desde un mensaje de una jornada concreta, se abre esa semana.
   const [lunes, setLunes] = useState(() =>
@@ -632,6 +651,7 @@ export default function Movimientos({ tercero, email, onBack, fecha }) {
           {armandoPdf ? 'Generando PDF…' : 'Descargar movimientos'}
         </button>
       </div>
+      <AvisoValoresVariables />
 
       <div className="mv-barra">
         <div className="mv-semana">
@@ -1520,6 +1540,7 @@ function MovimientosWeb({
         <Chev12 /><span aria-current="page">Movimientos</span>
       </nav>
       <h1 className="mw-titulo">Movimientos</h1>
+      <AvisoValoresVariables />
 
       {/* 2 · Semana y descarga */}
       <div className="week-bar">
