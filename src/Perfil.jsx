@@ -2,8 +2,11 @@
 // Perfil.jsx — Mi empresa › Perfil y cuenta bancaria (maqueta 8.9.22)
 // 8.9.22: aviso de borrador y rojo solo tras "Guardar y continuar después";
 // sin autocompletado; con el perfil completo se muestran 3 fichas de solo
-// lectura (Editar contacto: correo y teléfono; la cuenta bancaria se cambia
-// solo con "Solicitar cambio", que revisa administración).
+// lectura (Editar: representante legal —nombre, RFC y CURP— y contacto —correo
+// y teléfono—; la cuenta bancaria se cambia solo con "Solicitar cambio", que
+// revisa administración).
+// 19-nov-2026: el representante legal también se puede corregir desde la ficha
+// (antes solo correo y teléfono); cada cambio queda en perfiles_empresa_cambios.
 // Formulario en blanco la primera vez; 18 campos obligatorios + comprobante
 // bancario ("Nombre del banco" solo si Banco = Otros). Guardado automático
 // como borrador (con fecha) en este dispositivo; "Guardar y continuar después"
@@ -19,6 +22,10 @@ const fechaLarga = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).s
 const fmtClabe = (c) => { const x = String(c || '').replace(/\D/g, ''); return [x.slice(0, 3), x.slice(3, 6), x.slice(6, 10), x.slice(10, 14), x.slice(14)].join(' ').trim() }
 const okCorreo = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim())
 const okTel = (v) => String(v || '').replace(/\D/g, '').length === 10
+const limpio = (v) => String(v || '').trim().toUpperCase().replace(/[\s-]/g, '')
+const okNombre = (v) => String(v || '').trim().length >= 3
+const okRfcPersona = (v) => /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(limpio(v))      // 12 (moral) o 13 (física) caracteres
+const okCurp = (v) => /^[A-Z]{4}\d{6}[A-Z]{6}[A-Z0-9]{2}$/.test(limpio(v))         // 18 caracteres
 const v_ = (x) => (String(x || '').trim() ? x : '—')
 const IcoLapiz = () => <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
 const IcoReloj = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6600" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
@@ -169,13 +176,21 @@ export default function Perfil({ tercero, email, onBack, onGuardado }) {
 
   // ── Fichas: editar contacto, copiar CLABE y solicitar cambio de cuenta
   const guardarContacto = async () => {
-    if (!okCorreo(ec.correo) || !okTel(ec.tel)) { setEc({ ...ec, marcar: true }); return }
+    if (!okNombre(ec.nombre) || !okRfcPersona(ec.rfc) || !okCurp(ec.curp) || !okCorreo(ec.correo) || !okTel(ec.tel)) { setEc({ ...ec, marcar: true }); return }
+    const nuevos = {
+      representante_legal: ec.nombre.trim().replace(/\s+/g, ' '), rfc_representante: limpio(ec.rfc), curp_representante: limpio(ec.curp),
+      correo_contacto: ec.correo.trim(), fono_contacto: ec.tel.trim(),
+    }
     setBusy(true)
-    const { error } = await supabase.from('perfiles_empresa').update({ correo_contacto: ec.correo.trim(), fono_contacto: ec.tel.trim(), actualizado_por: email || '', updated_at: new Date().toISOString() }).eq('tercero_id', tid)
+    // .select() devuelve la fila guardada: si la base no actualizó nada (permisos), se avisa en vez de aparentar que guardó
+    const { data, error } = await supabase.from('perfiles_empresa')
+      .update({ ...nuevos, actualizado_por: email || '', updated_at: new Date().toISOString() }).eq('tercero_id', tid)
+      .select('representante_legal, rfc_representante, curp_representante, correo_contacto, fono_contacto')
     setBusy(false)
     if (error) { alert('No se pudo guardar: ' + error.message); return }
-    setP((prev) => ({ ...prev, correo_contacto: ec.correo.trim(), fono_contacto: ec.tel.trim() })); setEc(null)
-    aviso('Datos de contacto actualizados.')
+    if (!data || !data.length) { alert('No se pudo guardar el cambio. Intenta de nuevo o escribe a soporte.'); return }
+    setP((prev) => ({ ...prev, ...nuevos })); setEc(null)
+    aviso('Datos actualizados.')
   }
   const copiarClabe = async () => {
     try { await navigator.clipboard.writeText(String(p.cuenta_clabe || '').replace(/\D/g, '')); aviso('CLABE copiada.') } catch { /* sin portapapeles */ }
@@ -333,18 +348,26 @@ export default function Perfil({ tercero, email, onBack, onGuardado }) {
         <section className="pf-card">
           <div className="pf-card-head">
             <h2>Representante legal y contacto</h2>
-            {!ec && <button className="link-edit" onClick={() => setEc({ correo: p.correo_contacto || '', tel: p.fono_contacto || '', marcar: false })}><IcoLapiz />Editar contacto</button>}
+            {!ec && <button className="link-edit" onClick={() => setEc({ nombre: p.representante_legal || '', rfc: p.rfc_representante || '', curp: p.curp_representante || '', correo: p.correo_contacto || '', tel: p.fono_contacto || '', marcar: false })}><IcoLapiz />Editar</button>}
           </div>
           <dl className="pf-dl">
-            <div className="full"><dt>Nombre</dt><dd>{v_(p.representante_legal)}</dd></div>
-            <div><dt>RFC</dt><dd>{v_(p.rfc_representante)}</dd></div>
-            <div><dt>CURP</dt><dd>{v_(p.curp_representante)}</dd></div>
             {ec ? (<>
+              <div className={`field full${ec.marcar && !okNombre(ec.nombre) ? ' is-missing' : ''}`}><label htmlFor="ec-nombre">Nombre<span className="req"> *</span></label>
+                <input id="ec-nombre" autoComplete="off" placeholder="Nombre y apellidos" value={ec.nombre} onChange={(e) => setEc({ ...ec, nombre: e.target.value })} /></div>
+              <div className={`field${ec.marcar && !okRfcPersona(ec.rfc) ? ' is-missing' : ''}`}><label htmlFor="ec-rfc">RFC<span className="req"> *</span></label>
+                <input id="ec-rfc" autoComplete="off" maxLength={13} value={ec.rfc} onChange={(e) => setEc({ ...ec, rfc: e.target.value.toUpperCase() })} />
+                {ec.marcar && !okRfcPersona(ec.rfc) && <span className="hint">Revisa el RFC: 12 o 13 caracteres, sin espacios ni guiones.</span>}</div>
+              <div className={`field${ec.marcar && !okCurp(ec.curp) ? ' is-missing' : ''}`}><label htmlFor="ec-curp">CURP<span className="req"> *</span></label>
+                <input id="ec-curp" autoComplete="off" maxLength={18} value={ec.curp} onChange={(e) => setEc({ ...ec, curp: e.target.value.toUpperCase() })} />
+                {ec.marcar && !okCurp(ec.curp) && <span className="hint">Revisa la CURP: 18 caracteres.</span>}</div>
               <div className={`field${ec.marcar && !okCorreo(ec.correo) ? ' is-missing' : ''}`}><label htmlFor="ec-correo">Correo<span className="req"> *</span></label>
                 <input id="ec-correo" type="email" autoComplete="off" value={ec.correo} onChange={(e) => setEc({ ...ec, correo: e.target.value })} /></div>
               <div className={`field${ec.marcar && !okTel(ec.tel) ? ' is-missing' : ''}`}><label htmlFor="ec-tel">Teléfono<span className="req"> *</span></label>
                 <input id="ec-tel" type="tel" inputMode="tel" autoComplete="off" value={ec.tel} onChange={(e) => setEc({ ...ec, tel: e.target.value })} /></div>
             </>) : (<>
+              <div className="full"><dt>Nombre</dt><dd>{v_(p.representante_legal)}</dd></div>
+              <div><dt>RFC</dt><dd>{v_(p.rfc_representante)}</dd></div>
+              <div><dt>CURP</dt><dd>{v_(p.curp_representante)}</dd></div>
               <div><dt>Correo</dt><dd>{v_(p.correo_contacto)}</dd></div>
               <div><dt>Teléfono</dt><dd>{v_(p.fono_contacto)}</dd></div>
             </>)}
