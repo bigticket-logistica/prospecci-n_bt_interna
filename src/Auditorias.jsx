@@ -1,32 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Auditorias.jsx — Auditorías de vehículo y limpieza (Portal Chile).
-//  · Lista del periodo: pendientes con contador, hechas con quién y cuándo.
-//  · Auditoría guiada: una foto a la vez, solo con la cámara, con la
-//    instrucción de cada vista. Cada foto se sube apenas se toma (si se corta
-//    la señal, al volver se retoma donde quedó) y guarda hora y ubicación.
-//  · Avisos de mantención por kilometraje (fn_portal_cl_mnt_avisos): arriba de la
-//    lista, con el taller; «Entendido» marca que el transportista lo vio.
-//  · Auditorías por evento (vehículo nuevo, traspaso, taller, no programada):
-//    las pide Bigticket y salen arriba en "Por hacer" con su motivo y plazo.
-//  · Los plazos salen de la configuración del Brain (fn_ca_plazos_cl).
-//  · Cada foto tiene "¿Cómo tomarla?" con fotos de ejemplo de la guía de
-//    Adriana (así sí / así no, en ca_auditoria_ejemplos_cl, bucket ca-guia-cl).
-//  · Cada foto tiene "¿Cómo tomarla?": cuándo cumple y cuándo no (criterios de
-//    la guía de Bigticket, en ca_auditoria_items_cl). Se abre sola si la foto
-//    todavía no se toma o hay que repetirla.
-//  · La foto de % de batería se pide solo en vehículos eléctricos y la selfie
-//    abre la cámara frontal.
-//  · Vehículo: al final, checklist sí/no (cada "No" es hallazgo) y
-//    "¿Amerita reparación?" con observación.
-// Vehículo: del día 1 al 5 de cada mes. Limpieza: cada lunes.
+// Auditorias.jsx — Auditorías del portal Chile (pedido 19-11-2026, Paso 1).
+//  · Bandeja: lo que la empresa tiene que hacer (fn_portal_cl_aud_bandeja). El chofer
+//    delegado ve solo las auditorías de sus camionetas; el dueño ve todas.
+//  · Limpieza cada lunes (el mismo día), programada del 1 al 5, y las de evento
+//    (vehículo nuevo, inicial chofer, entrada y salida de taller) con su motivo y plazo.
+//  · El formulario se dibuja con el mantenedor del Brain (ca_aud_preguntas_cl):
+//    bloques, preguntas, obligatorias, dependencias y cuándo se exige foto.
+//    Cada «No» o «Deficiente» de estado pide la foto del ítem; los «¿Posee…?» no.
+//  · Cada foto se sube apenas se toma (con hora y ubicación); las respuestas se
+//    guardan solas. Si se corta la señal, al volver se retoma donde quedó.
+//  · «Enviar auditoría» dice qué falta; el envío se valida de nuevo en la base.
+//  · Avisos de mantención por kilometraje arriba de la lista («Entendido»).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from 'react'
 import { supabaseCL } from './supabaseChile'
 
 const BUCKET = 'ca-auditorias-cl'
-const NOMBRE_TIPO = { vehiculo: 'Auditoría de vehículo', limpieza: 'Auditoría de limpieza' }
-const nombreDe = (f) => f.subtipo_nombre ? `Auditoría · ${f.subtipo_nombre}` : NOMBRE_TIPO[f.tipo]
-const claveDe = (f) => f.solicitud_id || f.tipo + f.patente
 const fdia = (s) => s ? new Date(s).toLocaleString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 const fh = (s) => s ? new Date(s).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
 
@@ -53,31 +42,36 @@ function Contador({ vence, atrasada }) {
   return <span className={`au-chip ${h < 12 ? 'naranja' : 'azul'}`}>{txt}</span>
 }
 
+const EST = { pendiente: ['Solicitada', 'azul'], devuelta: ['Devuelta · rehacer', 'rojo'], realizada: ['Realizada · en revisión', 'naranja'], aprobada: ['Aprobada', 'verde'], incumplida: ['Incumplida', 'rojo'], justificada: ['Justificada', 'azul'] }
+const OPCIONES = { si_no: ['Sí', 'No'], si_no_na: ['Sí', 'No', 'No aplica'], si_no_notiene: ['Sí', 'No', 'No tiene'], optimo_deficiente: ['Óptimo', 'Deficiente'] }
+const guia = (path) => supabaseCL.storage.from('ca-guia-cl').getPublicUrl(path).data.publicUrl
+const visible = (p, r) => !p.depende_de || (r[p.depende_de] || '') === (p.depende_valor || '')
+const pideFoto = (p, r) => p.foto === 'siempre' || (p.foto === 'si_negativo' && ['No', 'Deficiente'].includes(r[p.codigo]))
+
 export default function Auditorias({ yo }) {
   const [filas, setFilas] = useState(null)
-  const [abierta, setAbierta] = useState(null)     // { tipo, patente, auditoria_id }
+  const [abierta, setAbierta] = useState(null)     // fila de la bandeja (solicitud)
   const [err, setErr] = useState('')
-  const [plazos, setPlazos] = useState({})
   const [mnt, setMnt] = useState([])
   const cargar = async () => {
-    const [{ data, error }, pz, mv] = await Promise.all([supabaseCL.rpc('fn_portal_cl_auditorias'), supabaseCL.rpc('fn_ca_plazos_cl'), supabaseCL.rpc('fn_portal_cl_mnt_avisos')])
+    const [{ data, error }, mv] = await Promise.all([supabaseCL.rpc('fn_portal_cl_aud_bandeja'), supabaseCL.rpc('fn_portal_cl_mnt_avisos')])
     setMnt(mv.data || [])
     if (error) { setErr(error.message); setFilas([]) } else setFilas(data || [])
-    setPlazos(Object.fromEntries((pz.data || []).map((x) => [x.tipo, x.vence])))
   }
   useEffect(() => { cargar() }, [])
 
-  if (abierta) return <HacerAuditoria a={abierta} yo={yo} onSalir={() => { setAbierta(null); cargar() }} />
-  const pend = (filas || []).filter((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado))
-  const hechas = (filas || []).filter((f) => !['pendiente', 'borrador', 'rehacer'].includes(f.estado))
-  const n = (fn) => (filas || []).filter(fn).length
+  if (abierta) return <HacerAuditoria s={abierta} yo={yo} onSalir={() => { setAbierta(null); cargar() }} />
+  const porHacer = (filas || []).filter((f) => ['pendiente', 'devuelta'].includes(f.estado))
+  const incumplidas = (filas || []).filter((f) => f.estado === 'incumplida')
+  const hechas = (filas || []).filter((f) => ['realizada', 'aprobada', 'justificada'].includes(f.estado))
+  const atrasada = (f) => f.vence_at && new Date(f.vence_at).getTime() < Date.now()
 
   return (
     <div>
       <style>{CSS_AU}</style>
       <h1 className="pc-h1">Auditorías</h1>
       <div className="pc-sub">
-        La de <b>vehículo</b> se hace a comienzo de cada mes{plazos.vehiculo ? <> (este mes, hasta el {fdia(plazos.vehiculo)})</> : ''} y la de <b>limpieza</b> cada semana{plazos.limpieza ? <> (esta semana, hasta el {fdia(plazos.limpieza)})</> : ''}. Bigticket también puede pedirte otras, por ejemplo en un traspaso o al ir al taller. Toma las fotos con la cámara del teléfono, junto al vehículo.
+        La <b>limpieza</b> se hace cada lunes (el mismo día) y la <b>programada</b> del 1 al 5 de cada mes. Bigticket también te pide otras: al recibir un vehículo, al dejarlo en el taller o al retirarlo. Toma las fotos con la cámara del teléfono, junto al vehículo.
       </div>
       {err && <div className="pc-card" style={{ background: '#FBE3E0', color: '#C43D2F' }}>{err}</div>}
       {mnt.map((m) => (
@@ -94,286 +88,221 @@ export default function Auditorias({ yo }) {
         </div>
       ))}
       <div className="au-resumen">
-        <div><b className="naranja">{n((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado) && !f.atrasada)}</b><span>Por hacer</span></div>
-        <div><b className="rojo">{n((f) => ['pendiente', 'borrador', 'rehacer'].includes(f.estado) && f.atrasada)}</b><span>Atrasadas</span></div>
-        <div><b className="verde">{n((f) => !['pendiente', 'borrador', 'rehacer'].includes(f.estado))}</b><span>Hechas</span></div>
+        <div><b className="naranja">{porHacer.length}</b><span>Por hacer</span></div>
+        <div><b className="rojo">{incumplidas.length}</b><span>Incumplidas</span></div>
+        <div><b className="verde">{hechas.length}</b><span>Hechas</span></div>
       </div>
       {filas === null ? <div className="pc-card">Cargando…</div> : (
         <>
-          {pend.length > 0 && <div className="au-titulo">Por hacer</div>}
-          {pend.map((f) => (
-            <div key={claveDe(f)} className={`au-fila${f.atrasada ? ' atrasada' : ''}`}>
+          {porHacer.length > 0 && <div className="au-titulo">Por hacer</div>}
+          {porHacer.map((f) => (
+            <div key={f.id} className={`au-fila${atrasada(f) ? ' atrasada' : ''}`}>
               <div style={{ minWidth: 0 }}>
                 <div className="au-pat">{f.patente}</div>
-                <div className="pc-mini">{nombreDe(f)}{f.estado === 'borrador' ? ` · en curso (${f.fotos} de ${f.total} fotos)` : ''}{f.estado === 'rehacer' ? ' · hay fotos por repetir' : ''}</div>
+                <div className="pc-mini">Auditoría · {f.tipo_nombre}{f.aud_estado === 'borrador' ? ' · en curso' : ''}{f.estado === 'devuelta' ? ' · hay que rehacer' : ''}</div>
                 {f.motivo && <div className="pc-mini" style={{ color: '#002E5D' }}>Motivo: {f.motivo}</div>}
               </div>
               <div className="au-der">
-                <Contador vence={f.vence_at} atrasada={f.atrasada} />
-                <button className="pc-btn" onClick={() => setAbierta(f)}>{f.estado === 'borrador' || f.estado === 'rehacer' ? 'Continuar' : 'Hacer auditoría'}</button>
+                <Contador vence={f.vence_at} atrasada={atrasada(f)} />
+                <button className="pc-btn" onClick={() => setAbierta(f)}>{f.aud_estado === 'borrador' || f.estado === 'devuelta' ? 'Continuar' : 'Hacer auditoría'}</button>
               </div>
             </div>
           ))}
-          {hechas.length > 0 && <div className="au-titulo">Hechas en este periodo</div>}
-          {hechas.map((f) => (
-            <div key={claveDe(f)} className="au-fila">
+          {incumplidas.length > 0 && <div className="au-titulo">Incumplidas</div>}
+          {incumplidas.map((f) => (
+            <div key={f.id} className="au-fila atrasada">
               <div style={{ minWidth: 0 }}>
                 <div className="au-pat">{f.patente}</div>
-                <div className="pc-mini">{nombreDe(f)} · hecha por <b>{f.hecha_por_nombre || '—'}</b> el {fh(f.enviada_at)}{f.atrasada ? ' · fuera de plazo' : ''}</div>
+                <div className="pc-mini">Auditoría · {f.tipo_nombre} · venció el {fh(f.vence_at)}</div>
               </div>
-              <div className="au-der">
-                <span className={`au-chip ${f.estado === 'aprobada' ? 'verde' : f.estado === 'rechazada' ? 'rojo' : 'azul'}`}>
-                  {{ enviada: 'Enviada · en revisión', aprobada: 'Aprobada', revisar: 'En revisión de Bigticket', rechazada: 'Rechazada' }[f.estado] || f.estado}
-                </span>
-              </div>
+              <div className="au-der"><span className="au-chip rojo">Incumplida</span></div>
             </div>
           ))}
-          {filas.length === 0 && <div className="pc-card">No tienes vehículos activos para auditar.</div>}
+          {hechas.length > 0 && <div className="au-titulo">Hechas</div>}
+          {hechas.map((f) => (
+            <div key={f.id} className="au-fila">
+              <div style={{ minWidth: 0 }}>
+                <div className="au-pat">{f.patente}</div>
+                <div className="pc-mini">Auditoría · {f.tipo_nombre}{f.hecha_por_nombre ? <> · hecha por <b>{f.hecha_por_nombre}</b></> : ''}{f.enviada_at ? ` el ${fh(f.enviada_at)}` : ''}</div>
+              </div>
+              <div className="au-der"><span className={`au-chip ${(EST[f.estado] || ['', 'azul'])[1]}`}>{(EST[f.estado] || [f.estado])[0]}</span></div>
+            </div>
+          ))}
+          {filas.length === 0 && <div className="pc-card">No tienes auditorías pendientes.</div>}
         </>
       )}
     </div>
   )
 }
 
-function HacerAuditoria({ a, yo, onSalir }) {
-  const [id, setId] = useState(a.auditoria_id || null)
-  const [items, setItems] = useState(null)
-  const [fotos, setFotos] = useState({})          // item → { path, url, biggy_estado, biggy_nota }
-  const [paso, setPaso] = useState(0)
-  const [ejemplos, setEjemplos] = useState({})     // codigo → { si: [url], no: [url] }
-  const [grande, setGrande] = useState(null)       // { fotos: [url], i, tit } galería de ejemplos ampliada
-  const [ayuda, setAyuda] = useState({})          // codigo → abierta / cerrada (si no se tocó: abierta cuando falta la foto)
-  const [km, setKm] = useState('')
+function HacerAuditoria({ s, yo, onSalir }) {
+  const [id, setId] = useState(null)
+  const [d, setD] = useState(null)              // { auditoria, solicitud, preguntas, fotos, vehiculo, activo }
+  const [resp, setResp] = useState({})
+  const [fotos, setFotos] = useState({})        // codigo → { path, url, biggy_estado, biggy_nota }
   const [busy, setBusy] = useState(false)
+  const [subiendo, setSubiendo] = useState('')
   const [err, setErr] = useState('')
   const [listo, setListo] = useState(false)
-  const [check, setCheck] = useState([])          // preguntas del checklist
-  const [resp, setResp] = useState({})            // codigo → true / false
-  const [amerita, setAmerita] = useState(null)    // true / false / null
-  const [obs, setObs] = useState('')
   const ubic = useRef(null)
-  const input = useRef(null)
+  const guardarT = useRef(null)
 
   useEffect(() => { (async () => {
-    ubic.current = await ubicacion()
-    let aid = id
-    if (!aid) {
-      const { data, error } = a.solicitud_id
-        ? await supabaseCL.rpc('fn_portal_cl_auditoria_iniciar_evento', { p_solicitud: a.solicitud_id })
-        : await supabaseCL.rpc('fn_portal_cl_auditoria_iniciar', { p_tipo: a.tipo, p_patente: a.patente })
-      if (error) { setErr(error.message); return }
-      aid = data; setId(aid)
-    }
-    const [it0, ft, ck] = await Promise.all([
-      supabaseCL.from('ca_auditoria_items_cl').select('*').eq('tipo', a.tipo).eq('activo', true).order('orden'),
-      supabaseCL.rpc('fn_portal_cl_auditoria_fotos', { p_id: aid }),
-      supabaseCL.rpc('fn_portal_cl_auditoria_checklist', { p_id: aid }),
-    ])
-    // La foto de batería va solo en eléctricos
-    const it = { data: (it0.data || []).filter((x) => !x.solo_electrico || a.electrico) }
-    const preg = ck.data || []
-    setCheck(preg)
-    try {
-      const { data: ej } = await supabaseCL.from('ca_auditoria_ejemplos_cl').select('path,item,cumple,orden').eq('activo', true).order('orden')
-      const m = {}
-      for (const e of ej || []) {
-        const url = supabaseCL.storage.from('ca-guia-cl').getPublicUrl(e.path).data.publicUrl
-        m[e.item] = m[e.item] || { si: [], no: [] }; m[e.item][e.cumple ? 'si' : 'no'].push(url)
-      }
-      setEjemplos(m)
-    } catch { /* sin ejemplos */ }
-    const rr = {}; for (const q of preg) if (q.cumple !== null && q.cumple !== undefined) rr[q.codigo] = q.cumple
-    setResp(rr)
-    if (preg[0]) { setAmerita(preg[0].amerita_reparacion ?? null); setObs(preg[0].reparacion_obs || '') }
-    const m = {}
-    for (const f of ft.data || []) {
+    const ini = await supabaseCL.rpc('fn_portal_cl_aud_iniciar', { p_solicitud: s.id })
+    if (ini.error) { setErr(ini.error.message); return }
+    const aid = ini.data; setId(aid)
+    const { data, error } = await supabaseCL.rpc('fn_portal_cl_aud_form', { p_id: aid })
+    if (error) { setErr(error.message); return }
+    setD(data); setResp(data.auditoria?.respuestas || {})
+    const fs = {}
+    for (const f of data.fotos || []) {
       const { data: u } = await supabaseCL.storage.from(BUCKET).createSignedUrl(f.path, 3600)
-      m[f.item] = { ...f, url: u?.signedUrl }
+      fs[f.item] = { ...f, url: u?.signedUrl }
     }
-    setItems(it.data || []); setFotos(m)
-    const primero = (it.data || []).findIndex((x) => !m[x.codigo] || m[x.codigo].biggy_estado === 'rehacer')
-    setPaso(primero < 0 ? (it.data || []).length : primero)
+    setFotos(fs)
+    ubicacion().then((u) => { ubic.current = u })
   })() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (err && !items) return <div><style>{CSS_AU}</style><div className="pc-card" style={{ color: '#C43D2F' }}>{err}</div><button className="pc-btn" onClick={onSalir}>Volver</button></div>
-  if (!items) return <div className="pc-card">Preparando la auditoría…</div>
-  const total = items.length
-  const item = items[paso]
+  if (err && !d) return <div><style>{CSS_AU}</style><div className="pc-card" style={{ color: '#C43D2F' }}>{err}</div><button className="pc-btn" onClick={onSalir}>Volver</button></div>
+  if (!d) return <div className="pc-card">Preparando la auditoría…</div>
 
-  const tomar = async (e) => {
-    const file = e.target.files?.[0]; e.target.value = ''
+  const responder = (codigo, valor) => {
+    const nuevo = { ...resp, [codigo]: valor }
+    setResp(nuevo)
+    clearTimeout(guardarT.current)
+    guardarT.current = setTimeout(() => { supabaseCL.rpc('fn_portal_cl_aud_guardar', { p_id: id, p_respuestas: nuevo }).then(({ error }) => error && setErr(error.message)) }, 600)
+  }
+  const tomar = async (codigo, file) => {
     if (!file) return
-    setBusy(true); setErr('')
+    setSubiendo(codigo); setErr('')
     try {
       const blob = await comprimir(file)
-      const path = `${yo.rut}/${id}/${item.codigo}_${Date.now()}.jpg`
+      const path = `${yo.rut}/${id}/${codigo}_${Date.now()}.jpg`
       const up = await supabaseCL.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false })
       if (up.error) throw new Error('No se pudo subir la foto: ' + up.error.message)
       if (!ubic.current) ubic.current = await ubicacion()
-      const { error } = await supabaseCL.rpc('fn_portal_cl_auditoria_foto', { p_id: id, p_item: item.codigo, p_path: path, p_lat: ubic.current?.lat ?? null, p_lng: ubic.current?.lng ?? null })
+      const { error } = await supabaseCL.rpc('fn_portal_cl_auditoria_foto', { p_id: id, p_item: codigo, p_path: path, p_lat: ubic.current?.lat ?? null, p_lng: ubic.current?.lng ?? null })
       if (error) throw new Error(error.message)
-      setFotos((f) => ({ ...f, [item.codigo]: { path, url: URL.createObjectURL(blob) } }))
+      setFotos((f) => ({ ...f, [codigo]: { path, url: URL.createObjectURL(blob) } }))
     } catch (x) { setErr(x.message || 'No se pudo guardar la foto. Revisa tu señal e inténtalo de nuevo.') }
-    finally { setBusy(false) }
+    finally { setSubiendo('') }
   }
+
+  const veh = d.vehiculo || {}, act = d.activo || {}
+  const auto = (codigo) => ({
+    tipo_auditoria: d.solicitud?.tipo_nombre || s.tipo_nombre,
+    patente: d.auditoria.patente,
+    tipo_vehiculo: [veh.tipo_vehiculo || veh.tipo || act.tipo, veh.marca || act.marca, veh.modelo || act.modelo].filter(Boolean).join(' · ') || '—',
+    supervisor: act.supervisor || veh.supervisor || '—',
+  }[codigo] ?? '—')
+  const vis = d.preguntas.filter((p) => visible(p, resp))
+  const faltan = []
+  for (const p of vis) {
+    if (p.obligatoria && !['auto', 'foto'].includes(p.tipo) && !String(resp[p.codigo] ?? '').trim()) faltan.push({ p, que: 'respuesta' })
+    if (pideFoto(p, resp) && !fotos[p.codigo]) faltan.push({ p, que: 'foto' })
+  }
+  const nFotos = faltan.filter((x) => x.que === 'foto').length, nResp = faltan.filter((x) => x.que === 'respuesta').length
   const enviar = async () => {
-    setErr('')
-    if (a.tipo === 'vehiculo') {
-      if (check.some((q) => resp[q.codigo] === undefined)) return setErr('Responde todas las preguntas del checklist.')
-      if (amerita === null) return setErr('Responde si el vehículo amerita reparación.')
-      if (amerita && !obs.trim()) return setErr('Escribe qué hay que reparar.')
-    }
-    setBusy(true)
-    if (a.tipo === 'vehiculo') {
-      const g = await supabaseCL.rpc('fn_portal_cl_auditoria_checklist_guardar', { p_id: id, p_respuestas: resp, p_amerita: amerita, p_obs: obs })
-      if (g.error) { setBusy(false); return setErr(g.error.message) }
-    }
-    const { error } = await supabaseCL.rpc('fn_portal_cl_auditoria_enviar', { p_id: id, p_km: a.tipo === 'vehiculo' ? Number(String(km).replace(/\D/g, '')) || 0 : null })
+    setErr(''); setBusy(true)
+    clearTimeout(guardarT.current)
+    const g = await supabaseCL.rpc('fn_portal_cl_aud_guardar', { p_id: id, p_respuestas: resp })
+    if (g.error) { setBusy(false); return setErr(g.error.message) }
+    const { error } = await supabaseCL.rpc('fn_portal_cl_aud_enviar', { p_id: id })
     setBusy(false)
     if (error) setErr(error.message); else setListo(true)
   }
 
   if (listo) return (
-    <div><style>{CSS_AU}</style>
-      <div className="pc-card" style={{ textAlign: 'center', padding: '28px 20px' }}>
+    <div>
+      <style>{CSS_AU}</style>
+      <div className="pc-card" style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 40 }}>✅</div>
-        <div className="pc-h1" style={{ fontSize: 22, marginTop: 6 }}>Auditoría enviada</div>
-        <div className="pc-sub">{a.patente} · {nombreDe(a)}. Biggy revisa las fotos y te avisamos si hay que repetir alguna.</div>
+        <div className="au-item">Auditoría enviada</div>
+        <div className="au-inst">Biggy la revisa y te avisaremos si hay que rehacer alguna foto.</div>
         <button className="pc-btn" onClick={onSalir}>Volver a mis auditorías</button>
       </div>
     </div>
   )
 
+  const bloques = [...new Set(vis.map((p) => p.bloque))]
+  const FotoCampo = ({ p, etiqueta }) => {
+    const f = fotos[p.codigo]
+    return (
+      <div className="au-fcampo">
+        <div className="au-fcampo-tit">{etiqueta}{pideFoto(p, resp) && !f && <span className="rojo"> — obligatoria</span>}</div>
+        {f?.url ? <img className="au-fmini" src={f.url} alt={p.texto} /> : null}
+        {f?.biggy_estado === 'rehacer' && <div className="au-rehacer">Hay que repetir esta foto{f.biggy_nota ? `: ${f.biggy_nota}` : ''}</div>}
+        {(p.guia_si || p.guia_no) && (
+          <div className="au-ej">
+            {p.guia_si && <div className="au-ej-card si"><span className="au-ej-tit">Así sí</span><img src={guia(p.guia_si)} alt="Así sí" /></div>}
+            {p.guia_no && <div className="au-ej-card no"><span className="au-ej-tit">Así no</span><img src={guia(p.guia_no)} alt="Así no" /></div>}
+          </div>
+        )}
+        <label className={`pc-btn au-fbtn${subiendo === p.codigo ? ' off' : ''}`}>
+          {subiendo === p.codigo ? 'Subiendo…' : f ? 'Repetir foto' : '📷 Tomar foto'}
+          <input type="file" accept="image/*" capture={/selfie|responsable/.test(p.codigo) ? 'user' : 'environment'} style={{ display: 'none' }} disabled={!!subiendo} onChange={(e) => { const x = e.target.files?.[0]; e.target.value = ''; tomar(p.codigo, x) }} />
+        </label>
+      </div>
+    )
+  }
   return (
     <div>
       <style>{CSS_AU}</style>
       <button className="au-volver" onClick={onSalir}>← Mis auditorías</button>
       <div className="au-cab">
-        <div><div className="au-pat">{a.patente}</div><div className="pc-mini">{nombreDe(a)}</div>{a.motivo && <div className="pc-mini" style={{ color: '#002E5D' }}>Motivo: {a.motivo}</div>}</div>
-        <Contador vence={a.vence_at} atrasada={a.atrasada} />
+        <div><div className="au-pat">{d.auditoria.patente}</div><div className="pc-mini">Auditoría · {d.solicitud?.tipo_nombre || s.tipo_nombre}</div></div>
+        {d.solicitud?.vence_at && <Contador vence={d.solicitud.vence_at} atrasada={new Date(d.solicitud.vence_at).getTime() < Date.now()} />}
       </div>
-      <div className="au-barra"><div style={{ width: `${Math.round(100 * Object.keys(fotos).filter((k) => items.some((i) => i.codigo === k)).length / total)}%` }} /></div>
-      <div className="au-pasos">
-        {items.map((it, i) => (
-          <button key={it.codigo} className={`au-punto${i === paso ? ' on' : ''}${fotos[it.codigo] ? (fotos[it.codigo].biggy_estado === 'rehacer' ? ' rehacer' : ' ok') : ''}`} onClick={() => setPaso(i)} title={it.nombre}>{i + 1}</button>
-        ))}
-        <button className={`au-punto${paso === total ? ' on' : ''}`} onClick={() => setPaso(total)} title="Enviar">✓</button>
+      {d.auditoria.estado === 'rehacer' && <div className="au-rehacer">Bigticket devolvió esta auditoría{d.auditoria.revision_nota ? `: ${d.auditoria.revision_nota}` : '.'} Corrige lo indicado y vuelve a enviarla.</div>}
+      {d.solicitud?.motivo && <div className="pc-mini" style={{ color: '#002E5D', marginBottom: 10 }}>Motivo: {d.solicitud.motivo}</div>}
+      {bloques.map((b) => (
+        <div key={b} className="au-check">
+          <div className="au-check-tit">{b}</div>
+          {vis.filter((p) => p.bloque === b).map((p) => (
+            <div key={p.codigo} className="au-preg2">
+              {p.tipo === 'auto' ? (
+                <div className="au-preg"><span>{p.texto}</span><b>{auto(p.codigo)}</b></div>
+              ) : p.tipo === 'foto' ? (
+                <FotoCampo p={p} etiqueta={p.texto} />
+              ) : (
+                <>
+                  <div className="au-preg">
+                    <span>{p.texto}{p.obligatoria && <span className="rojo"> *</span>}</span>
+                    {OPCIONES[p.tipo] || p.tipo === 'opcion' ? (
+                      <div className="au-sino">
+                        {(OPCIONES[p.tipo] || p.opciones || []).map((o) => (
+                          <button key={o} className={resp[p.codigo] === o ? (['No', 'Deficiente'].includes(o) ? 'no' : 'si') : ''} onClick={() => responder(p.codigo, o)}>{o}</button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  {p.tipo === 'km' && <label className="au-km">Kilometraje del tablero<input inputMode="numeric" value={resp[p.codigo] || ''} onChange={(e) => responder(p.codigo, e.target.value.replace(/\D/g, ''))} placeholder="Ej: 88450" /></label>}
+                  {p.tipo === 'texto' && <textarea className="au-obs" rows={3} value={resp[p.codigo] || ''} onChange={(e) => responder(p.codigo, e.target.value)} placeholder={p.ayuda || 'Escribe aquí'} />}
+                  {p.tipo === 'fecha' && <input type="date" className="au-obs" value={resp[p.codigo] || ''} onChange={(e) => responder(p.codigo, e.target.value)} />}
+                  {pideFoto(p, resp) && <FotoCampo p={p} etiqueta={p.tipo === 'km' ? 'Foto del odómetro' : `Fotografía de «${p.texto.replace(/[¿?]/g, '')}»`} />}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+      {err && <div className="au-error">{err}</div>}
+      <div className="au-botones">
+        <button className="pc-btn au-grande" disabled={busy || faltan.length > 0} onClick={enviar}>
+          {busy ? 'Enviando…' : faltan.length === 0 ? 'Enviar auditoría' : `Enviar auditoría — falta${faltan.length > 1 ? 'n' : ''} ${[nFotos ? `${nFotos} fotografía${nFotos > 1 ? 's' : ''}` : '', nResp ? `${nResp} respuesta${nResp > 1 ? 's' : ''}` : ''].filter(Boolean).join(' y ')}`}
+        </button>
       </div>
-
-      {item ? (
-        <div className="pc-card">
-          <div className="pc-mini">Foto {paso + 1} de {total}</div>
-          <div className="au-item">{item.nombre}</div>
-          <div className="au-inst">{item.instruccion}</div>
-          {(() => {
-            const abierta = ayuda[item.codigo] ?? (!fotos[item.codigo] || fotos[item.codigo].biggy_estado === 'rehacer')
-            return (
-              <div className="au-ayuda">
-                <button className="au-ayuda-btn" onClick={() => setAyuda((x) => ({ ...x, [item.codigo]: !abierta }))}>
-                  {abierta ? '▾' : '▸'} ¿Cómo tomarla?
-                </button>
-                {abierta && (
-                  <div className="au-ayuda-caja">
-                    {item.cumple_si && <div className="au-ayuda-ok"><b>✅ Está bien si:</b> {item.cumple_si}.</div>}
-                    {item.no_cumple_si && <div className="au-ayuda-mal"><b>❌ Hay que repetirla si:</b> {item.no_cumple_si}.</div>}
-                    {ejemplos[item.codigo] && (
-                      <div className="au-ej">
-                        {[['si', '✅ Así sí'], ['no', '❌ Así no']].map(([k, t]) => {
-                          const fs = ejemplos[item.codigo][k] || []
-                          if (!fs.length) return null
-                          return (
-                            <button key={k} className={`au-ej-card ${k}`} onClick={() => setGrande({ fotos: fs, i: 0, tit: t })}>
-                              <span className="au-ej-tit">{t}</span>
-                              <img src={fs[0]} alt={t} loading="lazy" />
-                              <span className="au-ej-mas">{fs.length > 1 ? `Ver ${fs.length} ejemplos` : 'Ver en grande'}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {grande && (
-                      <div className="au-ej-modal" onClick={() => setGrande(null)}>
-                        <div className="au-ej-modal-tit">{grande.tit} · {grande.i + 1} de {grande.fotos.length}</div>
-                        <img src={grande.fotos[grande.i]} alt="Ejemplo" />
-                        <div className="au-ej-modal-nav" onClick={(e) => e.stopPropagation()}>
-                          {grande.fotos.length > 1 && <button onClick={() => setGrande({ ...grande, i: (grande.i - 1 + grande.fotos.length) % grande.fotos.length })}>‹ Anterior</button>}
-                          <button onClick={() => setGrande(null)}>Cerrar</button>
-                          {grande.fotos.length > 1 && <button onClick={() => setGrande({ ...grande, i: (grande.i + 1) % grande.fotos.length })}>Siguiente ›</button>}
-                        </div>
-                      </div>
-                    )}
-                    <div className="au-ayuda-tip">
-                      {item.codigo === 'selfie'
-                        ? 'Se abre la cámara de adelante. Mira al teléfono, con buena luz y sin lentes de sol.'
-                        : 'Toma la foto junto al vehículo, con buena luz, sin el dedo en el lente y sin moverte. No sirven capturas de pantalla ni fotos de otra foto.'}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-          {fotos[item.codigo]?.biggy_estado === 'rehacer' && <div className="au-rehacer"><b>Hay que repetirla:</b> {fotos[item.codigo].biggy_nota}</div>}
-          {fotos[item.codigo]?.url ? <img src={fotos[item.codigo].url} alt={item.nombre} className="au-foto" /> : <div className="au-vacio">📷</div>}
-          {err && <div className="au-error">{err}</div>}
-          <input ref={input} type="file" accept="image/*" capture={item.codigo === 'selfie' ? 'user' : 'environment'} hidden onChange={tomar} />
-          <div className="au-botones">
-            <button className="pc-btn au-grande" disabled={busy} onClick={() => input.current?.click()}>
-              {busy ? 'Guardando foto…' : fotos[item.codigo] ? '📷 Repetir foto' : '📷 Tomar foto'}
-            </button>
-            {fotos[item.codigo] && !busy && <button className="pc-btn au-sig" onClick={() => setPaso(paso + 1)}>Siguiente →</button>}
-          </div>
-        </div>
-      ) : (
-        <div className="pc-card">
-          <div className="au-item">Revisa y envía</div>
-          {a.tipo === 'vehiculo' && (
-            <label className="au-km">Kilometraje del tablero
-              <input inputMode="numeric" value={km} onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 45230" />
-            </label>
-          )}
-          {a.tipo === 'vehiculo' && check.length > 0 && (
-            <div className="au-check">
-              <div className="au-check-tit">Checklist</div>
-              {check.map((q) => (
-                <div key={q.codigo} className="au-preg">
-                  <span>{q.pregunta}</span>
-                  <div className="au-sino">
-                    <button className={resp[q.codigo] === true ? 'si' : ''} onClick={() => setResp((r) => ({ ...r, [q.codigo]: true }))}>Sí</button>
-                    <button className={resp[q.codigo] === false ? 'no' : ''} onClick={() => setResp((r) => ({ ...r, [q.codigo]: false }))}>No</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {a.tipo === 'vehiculo' && (
-            <div className="au-check">
-              <div className="au-preg">
-                <span><b>¿Amerita reparación?</b></span>
-                <div className="au-sino">
-                  <button className={amerita === true ? 'no' : ''} onClick={() => setAmerita(true)}>Sí</button>
-                  <button className={amerita === false ? 'si' : ''} onClick={() => setAmerita(false)}>No</button>
-                </div>
-              </div>
-              {amerita && <textarea className="au-obs" rows={3} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Describe qué hay que reparar" />}
-            </div>
-          )}
-          <div className="au-galeria">
-            {items.map((it, i) => (
-              <button key={it.codigo} className="au-mini" onClick={() => setPaso(i)}>
-                {fotos[it.codigo]?.url ? <img src={fotos[it.codigo].url} alt="" /> : <span>Falta</span>}
-                <small>{it.nombre}</small>
-              </button>
-            ))}
-          </div>
-          {err && <div className="au-error">{err}</div>}
-          <button className="pc-btn au-grande" disabled={busy} onClick={enviar}>{busy ? 'Enviando…' : 'Enviar auditoría'}</button>
-        </div>
-      )}
+      {faltan.length > 0 && <div className="au-ayuda-tip" style={{ marginTop: 6 }}>Falta: {faltan.slice(0, 6).map((x) => (x.que === 'foto' ? 'foto de ' : '') + '«' + x.p.texto.replace(/[¿?]/g, '') + '»').join(', ')}{faltan.length > 6 ? '…' : ''}</div>}
     </div>
   )
 }
 
 const CSS_AU = `
+.au-preg2 { border-bottom:1px solid #F1F1F1; padding:4px 0; } .au-preg2:last-child { border-bottom:none; }
+.au-fcampo { display:flex; flex-direction:column; gap:6px; padding:8px 0; }
+.au-fcampo-tit { font-size:13.5px; color:#333; font-weight:600; }
+.au-fmini { width:100%; max-width:320px; max-height:220px; object-fit:contain; border-radius:10px; background:#F4F3F3; }
+.au-fbtn { align-self:flex-start; cursor:pointer; } .au-fbtn.off { opacity:.6; pointer-events:none; }
 .au-resumen { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
 .au-resumen div { background:#fff; border:1px solid #E4E3E3; border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; }
 .au-resumen b { font-family:Poppins,sans-serif; font-size:24px; }
