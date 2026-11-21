@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react'
 const OPC = [['conductor', 'Conductores'], ['ayudante', 'Ayudantes'], ['vehiculo', 'Vehículos']]
 const SIN_SITE = '__sin__'
 
-export default function MiFlota({ rows, err, onBack }) {
+export default function MiFlota({ rows, err, onBack, aviso }) {
   const [tipo, setTipo] = useState('conductor')
   const [q, setQ] = useState('')
   const [site, setSite] = useState('')
@@ -48,6 +48,7 @@ export default function MiFlota({ rows, err, onBack }) {
       <h1 className="p8-titulo">Mi flota</h1>
       <p className="p8-desc">Cada certificación realizada correctamente se incorpora automáticamente aquí, con el detalle de tu personal y flota.</p>
       {err && <div className="form-error" style={{ margin: '12px 0' }}>{err}</div>}
+      {aviso}
 
       <section className="fleet-box">
         <div className="fleet-top">

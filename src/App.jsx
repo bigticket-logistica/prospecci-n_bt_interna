@@ -21,6 +21,7 @@ import Descuentos from './Descuentos'
 import MisDiferencias from './MisDiferencias'
 import Reclamos from './Reclamos'
 import MiFlota from './MiFlota'
+import AvisoCertificacion from './AvisoCertificacion'
 import Mensajes from './Mensajes'
 import { Red, Bloque } from './Red'
 import { ShellMovil, esMovil } from './ArmazonMovil'
@@ -318,7 +319,7 @@ function AppMexico() {
         <Mensajes tercero={tercero} onIr={(v, ref) => { setFecha(ref); setView(v) }} /></Bloque>}
       {view === 'consultas' && <Consultas tercero={tercero} onBack={() => setView('home')} />}
       {view === 'docs' && <Bloque nombre="Documentos"><Documentos tercero={tercero} onBack={() => setView('home')} /></Bloque>}
-      {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} />}
+      {view === 'flota' && <FlotaPersonal tercero={tercero} onBack={() => setView('home')} onCertificar={() => setView('certificar')} />}
       {view === 'perfil' && <Bloque nombre="Perfil y cuenta bancaria"><Perfil tercero={tercero} email={email} onBack={() => setView('home')} onGuardado={() => revisarPerfil()} /></Bloque>}
       {(view === 'conductor' || view === 'ayudante' || view === 'vehiculo') && <Bloque nombre="Certificar">
         <Certificar key={view} tipo={view} tercero={tercero} email={email} onBack={() => setView('home')}
@@ -650,7 +651,7 @@ function FirmaWidget({ widgetId, onSuccess }) {
 // ─── 🚛 Vehículos y Personal (padrón vigente de la empresa) ──────────
 // Muestra flota_personal_terceros: lo que ya opera. Se alimenta por altas del
 // analista en el Brain y por certificaciones que quedan Aceptadas.
-function FlotaPersonal({ tercero, onBack }) {
+function FlotaPersonal({ tercero, onBack, onCertificar }) {
   const [rows, setRows] = useState(null)
   const [err, setErr] = useState('')
   useEffect(() => { (async () => {
@@ -668,7 +669,9 @@ function FlotaPersonal({ tercero, onBack }) {
   }
 
   // Computador: maqueta 8.9.18 (tabla con selector y filtros). Teléfono: la vista de siempre.
-  if (!esMovil()) return <MiFlota rows={rows} err={err} onBack={onBack} />
+  // Aviso de Certificación (lo publica el equipo de Certificaciones de BigTicket).
+  const aviso = <AvisoCertificacion tercero={tercero} onCertificar={onCertificar} />
+  if (!esMovil()) return <MiFlota rows={rows} err={err} onBack={onBack} aviso={aviso} />
 
   const personas = (rows || []).filter(r => r.tipo !== 'vehiculo')
   const vehiculos = (rows || []).filter(r => r.tipo === 'vehiculo')
@@ -713,6 +716,7 @@ function FlotaPersonal({ tercero, onBack }) {
       <div className="page-head"><div><h2>Vehículos y Personal</h2>
         <div className="lede">Tu operación vigente con BigTicket: las unidades y personas activas de tu empresa. Cada certificación nueva que quede aceptada se agrega aquí automáticamente.</div></div></div>
       {err && <div className="form-error" style={{ marginBottom: 12 }}>{err}</div>}
+      {aviso}
       {rows === null ? <div className="loading">Cargando…</div>
       : rows.length === 0 ? (
         <div className="empty"><h3>Sin registros</h3><p>Aún no hay vehículos ni personal registrados para tu empresa. Cuando BigTicket cargue tu operación vigente, o cuando una certificación quede aceptada, aparecerán aquí.</p></div>
