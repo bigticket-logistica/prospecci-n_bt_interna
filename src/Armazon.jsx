@@ -397,8 +397,32 @@ function TarjetaFantasma({ etiqueta, texto }) {
   )
 }
 
+// Fecha de hoy en hora de México (AAAA-MM-DD) y aritmética de días.
+const hoyMx = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date())
+const menosDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10) }
+const DIAS_ATRAS = 60
+
+// Leyenda fija: los montos del día se publican solos y pueden ajustarse después.
+function LeyendaValores() {
+  return (
+    <div role="note" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '4px 0 16px', padding: '9px 12px',
+      borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', fontSize: 13, lineHeight: 1.4 }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }}>
+        <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+      </svg>
+      <span>Los valores de tus tarifas pueden variar en el día.</span>
+    </div>
+  )
+}
+
 export function Inicio({ tercero, perfilOk, onPick }) {
-  const [dia, setDia] = useState(null)
+  // Diario: siempre parte en AYER (el día se publica a la mañana siguiente) y
+  // permite ir hacia atrás día por día. diaOff = 0 es ayer.
+  const [dias, setDias] = useState([])
+  const [diaOff, setDiaOff] = useState(0)
+  const fechaSel = menosDias(hoyMx(), 1 + diaOff)
+  const dia = dias.find(x => String(x.fecha).slice(0, 10) === fechaSel) || { fecha: fechaSel, _vacio: true }
   const [periodos, setPeriodos] = useState([])
   const [vista, setVista] = useState('semana')
   const [idx, setIdx] = useState(0)          // 0 = el período más reciente
@@ -427,7 +451,8 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     }
     const [d, p, lista, c, pnr, otros] = await Promise.all([
       ok('resumen del día', () => supabase.from('vw_portal_resumen_dia').select('*').eq('tercero_id', id)
-        .order('fecha', { ascending: false }).limit(1), { data: [] }),
+        .lte('fecha', menosDias(hoyMx(), 1)).gte('fecha', menosDias(hoyMx(), DIAS_ATRAS + 1))
+        .order('fecha', { ascending: false }), { data: [] }),
       ok('resumen por período', () => supabase.from('vw_portal_resumen_periodo').select('*').eq('tercero_id', id), { data: [] }),
       ok('notificaciones', () => cargarNotificaciones(id), []),
       ok('mensajes', () => supabase.from('vw_campana_tercero').select('mensajes_sin_leer').eq('tercero_id', id).maybeSingle(), { data: null }),
@@ -437,7 +462,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
     ])
     setFallas(fallas)
     if (fallas.length) console.error('[portal] inicio:', fallas)
-    setDia(((d && d.data) || [])[0] || null)
+    setDias((d && d.data) || [])
     setPeriodos((p && p.data) || [])
     // En el Inicio van las pendientes y las novedades que todavía no abre.
     // Las jornadas publicadas quedan solo en Mis mensajes: el inicio ya muestra
@@ -571,7 +596,8 @@ export function Inicio({ tercero, perfilOk, onPick }) {
       {listo && movil && (
         <InicioMovil urgente={urgente} importante={importante} onPick={onPick}
           pagos={tercero.pagosHabilitados} dia={dia} setVista={setVista} actual={actual}
-          hayAnterior={hayAnterior} haySiguiente={haySiguiente} setIdx={setIdx} />
+          hayAnterior={hayAnterior} haySiguiente={haySiguiente} setIdx={setIdx}
+          diaOff={diaOff} setDiaOff={setDiaOff} />
       )}
 
       {/* Maqueta 8.9.23: URGENTE y ATENCIÓN se muestran siempre. Sin pendientes,
@@ -630,12 +656,20 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                     <span className="bt-info-tip">Información actualizada al cierre del día anterior</span>
                   </span>
                 </div>
-                <p className="bt-card-f">{dia ? fechaDia(dia.fecha) : 'Aún no hay jornadas publicadas'}</p>
+                <p className="bt-card-f">{fechaDia(dia.fecha)}{diaOff === 0 ? ' · ayer' : ''}{dia._vacio ? ' · sin movimientos' : ''}</p>
               </div>
-              {/* Maqueta 8.9.6: selector "Hoy". La tarjeta siempre muestra el último
-                  día publicado, que es el que queda marcado. */}
-              <div className="bt-toggle" onClick={e => e.stopPropagation()}>
-                <button className="bt-per on" aria-pressed="true">Hoy</button>
+              {/* Parte en ayer (el día se publica a la mañana siguiente); las flechas
+                  recorren los días anteriores. */}
+              <div className="bt-toggle" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button className="bt-flecha" aria-label="Día anterior" disabled={diaOff >= DIAS_ATRAS} onClick={() => setDiaOff(o => o + 1)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                    strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+                <button className={`bt-per${diaOff === 0 ? ' on' : ''}`} onClick={() => setDiaOff(0)}>Ayer</button>
+                <button className="bt-flecha" aria-label="Día siguiente" disabled={diaOff === 0} onClick={() => setDiaOff(o => Math.max(0, o - 1))}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                    strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
               </div>
             </div>
             <Cifras monto={dia?.ganancia} rutas={rutasDe(dia)} datos={[
@@ -671,6 +705,8 @@ export function Inicio({ tercero, perfilOk, onPick }) {
         </>
       )}
 
+      {listo && tercero.pagosHabilitados && <LeyendaValores />}
+
       <div className="bt-cta">
         <div style={{ maxWidth: 520 }}>
           <h3>¿Tienes unidad disponible? Súmate al peak</h3>
@@ -687,7 +723,7 @@ export function Inicio({ tercero, perfilOk, onPick }) {
 // abren al tocarlas, y los movimientos en una sola tarjeta con Día, Semana y
 // Mes. Antes eran cuatro tarjetas una debajo de otra y los movimientos
 // quedaban fuera de la vista.
-function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual, hayAnterior, haySiguiente, setIdx }) {
+function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual, hayAnterior, haySiguiente, setIdx, diaOff = 0, setDiaOff = () => {} }) {
   const [abierta, setAbierta] = useState(null)       // 'urgente' | 'importante'
   const [per, setPer] = useState('dia')
   const elegir = (k) => { setPer(k); if (k !== 'dia') setVista(k) }
@@ -736,9 +772,19 @@ function InicioMovil({ urgente, importante, onPick, pagos, dia, setVista, actual
 
             <div className="im-per">
               {per === 'dia' ? (
-                <span className="im-per-t">
-                  {dia ? <><b>{fechaDia(dia.fecha)}</b> · al cierre del día</> : 'Aún no hay jornadas publicadas'}
-                </span>
+                <>
+                  <button className="bt-flecha" aria-label="Día anterior" disabled={diaOff >= DIAS_ATRAS} onClick={() => setDiaOff(o => o + 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                  </button>
+                  <span className="im-per-t">
+                    <b>{fechaDia(dia.fecha)}</b>{diaOff === 0 ? ' · ayer' : ''}{dia._vacio ? ' · sin movimientos' : ' · al cierre del día'}
+                  </span>
+                  <button className="bt-flecha" aria-label="Día siguiente" disabled={diaOff === 0} onClick={() => setDiaOff(o => Math.max(0, o - 1))}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
+                      strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                  </button>
+                </>
               ) : (
                 <>
                   <button className="bt-flecha" aria-label="Anterior" disabled={!hayAnterior} onClick={() => setIdx(i => i + 1)}>
