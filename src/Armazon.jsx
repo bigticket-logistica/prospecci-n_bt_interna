@@ -401,6 +401,16 @@ function TarjetaFantasma({ etiqueta, texto }) {
 const hoyMx = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date())
 const menosDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10) }
 const DIAS_ATRAS = 60
+// Botón de flecha del Diario: redondo, con borde, siempre visible.
+const flechaDia = (deshabilitado) => ({
+  width: 32, height: 32, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff',
+  color: '#002E5D', fontSize: 18, fontWeight: 700, lineHeight: '28px', textAlign: 'center', padding: 0,
+  cursor: deshabilitado ? 'default' : 'pointer', opacity: deshabilitado ? 0.35 : 1,
+})
+const fechaCortaDia = (iso) => {
+  try { return new Date(String(iso).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) }
+  catch { return String(iso).slice(0, 10) }
+}
 
 // Leyenda fija: los montos del día se publican solos y pueden ajustarse después.
 function LeyendaValores() {
@@ -656,20 +666,20 @@ export function Inicio({ tercero, perfilOk, onPick }) {
                     <span className="bt-info-tip">Información actualizada al cierre del día anterior</span>
                   </span>
                 </div>
-                <p className="bt-card-f">{fechaDia(dia.fecha)}{diaOff === 0 ? ' · ayer' : ''}{dia._vacio ? ' · sin movimientos' : ''}</p>
+                <p className="bt-card-f">{fechaDia(dia.fecha)}{dia._vacio ? ' · sin movimientos' : ''}</p>
               </div>
-              {/* Parte en ayer (el día se publica a la mañana siguiente); las flechas
-                  recorren los días anteriores. */}
-              <div className="bt-toggle" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button className="bt-flecha" aria-label="Día anterior" disabled={diaOff >= DIAS_ATRAS} onClick={() => setDiaOff(o => o + 1)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
-                    strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                </button>
-                <button className={`bt-per${diaOff === 0 ? ' on' : ''}`} onClick={() => setDiaOff(0)}>Ayer</button>
-                <button className="bt-flecha" aria-label="Día siguiente" disabled={diaOff === 0} onClick={() => setDiaOff(o => Math.max(0, o - 1))}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"
-                    strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                </button>
+              {/* Flechas visibles a los lados y "Hoy" al medio. "Hoy" vuelve al último
+                  día publicado (ayer: el día se publica a la mañana siguiente); la
+                  fecha exacta va bajo el título. */}
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button aria-label="Día anterior" title="Ver el día anterior" disabled={diaOff >= DIAS_ATRAS}
+                  onClick={() => setDiaOff(o => o + 1)} style={flechaDia(diaOff >= DIAS_ATRAS)}>‹</button>
+                <div className="bt-toggle">
+                  <button className={`bt-per${diaOff === 0 ? ' on' : ''}`} aria-pressed={diaOff === 0}
+                    title="Volver al último día publicado" onClick={() => setDiaOff(0)}>Hoy</button>
+                </div>
+                <button aria-label="Día siguiente" title={diaOff === 0 ? 'Es el último día publicado' : 'Ver el día siguiente'} disabled={diaOff === 0}
+                  onClick={() => setDiaOff(o => Math.max(0, o - 1))} style={flechaDia(diaOff === 0)}>›</button>
               </div>
             </div>
             <Cifras monto={dia?.ganancia} rutas={rutasDe(dia)} datos={[
